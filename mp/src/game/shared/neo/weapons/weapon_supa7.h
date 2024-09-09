@@ -20,6 +20,8 @@
 #define CWeaponSupa7 C_WeaponSupa7
 #endif
 
+#define SUPA7_TUBE_SIZE 6
+
 class CWeaponSupa7 : public CNEOBaseCombatWeapon
 {
 	DECLARE_CLASS(CWeaponSupa7, CNEOBaseCombatWeapon);
@@ -48,8 +50,6 @@ public:
 	bool ReloadSlug(void);
 	bool SlugLoaded(void) const;
 
-	void FillClip(void);
-	void FillClipSlug(void);
 	void FinishReload(void);
 	void AddViewKick(void);
 	void ItemPostFrame(void);
@@ -57,8 +57,6 @@ public:
 	void SecondaryAttack(void);
 
 	void Drop(const Vector& vecVelocity) OVERRIDE;
-
-	void ClearDelayedInputs(void);
 
 protected:
 	virtual float GetFastestDryRefireTime() const OVERRIDE { return 0.2f; }
@@ -81,11 +79,13 @@ private:
 	}
 
 private:
-	CNetworkVar(bool, m_bDelayedFire1); // Fire primary when finished reloading
-	CNetworkVar(bool, m_bDelayedFire2); // Fire secondary when finished reloading
-	CNetworkVar(bool, m_bDelayedReload); // Reload when finished pump;
-	CNetworkVar(bool, m_bSlugDelayed); // Load slug into tube next
-	CNetworkVar(bool, m_bSlugLoaded); // Slug currently loaded in chamber
+	CNetworkArray(int, m_iTubeArray, SUPA7_TUBE_SIZE); // The supa7 has a tube size of 6 plus one in the chamber
+	CNetworkVar(int, m_iTubeArrayTop); // Index of the first round to be loaded from the tube
+	CNetworkVar(int, m_iChamber); // The shot/ or lack thereof, currently in the chamber 
+	CNetworkVar(int, m_iShellToLoad); // Whether we are reloading Slug or Shot
+	CNetworkVar(bool, m_bStartedReloadingShot);
+	CNetworkVar(bool, m_bStartedReloadingSlug);
+	CNetworkVar(bool, m_bJustShot);
 
 private:
 	CWeaponSupa7(const CWeaponSupa7 &other);

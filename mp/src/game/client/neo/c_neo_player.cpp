@@ -1303,11 +1303,6 @@ void C_NEO_Player::Weapon_Drop(C_NEOBaseCombatWeapon *pWeapon)
 		Assert(dynamic_cast<C_WeaponGhost*>(pWeapon));
 		static_cast<C_WeaponGhost*>(pWeapon)->HandleGhostUnequip();
 	}
-	else if (pWeapon->GetNeoWepBits() & NEO_WEP_SUPA7)
-	{
-		Assert(dynamic_cast<C_WeaponSupa7*>(pWeapon));
-		static_cast<C_WeaponSupa7*>(pWeapon)->ClearDelayedInputs();
-	}
 }
 
 void C_NEO_Player::StartSprinting(void)
