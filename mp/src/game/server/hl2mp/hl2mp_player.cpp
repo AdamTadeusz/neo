@@ -608,6 +608,10 @@ void CHL2MP_Player::FireBullets ( const FireBulletsInfo_t &info )
 	if ( pWeapon )
 	{
 		modinfo.m_iPlayerDamage = modinfo.m_flDamage = pWeapon->GetHL2MPWpnData().m_iPlayerDamage;
+#ifdef NEO
+		if (modinfo.m_iAmmoType == 13)
+			modinfo.m_iPlayerDamage *= 4;
+#endif
 	}
 
 	NoteWeaponFired();

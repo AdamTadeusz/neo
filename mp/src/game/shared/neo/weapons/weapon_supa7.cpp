@@ -377,7 +377,10 @@ void CWeaponSupa7::ItemPostFrame(void)
 		m_iClip1--;
 		WeaponSound(SPECIAL2);
 		SendWeaponAnim(ACT_SHOTGUN_PUMP);
-		m_flNextPrimaryAttack = (gpGlobals->curtime + SequenceDuration());
+		engine->Con_NPrintf(0, "Sequence Duration: %f", SequenceDuration());
+		const float nextPrimaryAttackDiff = clamp(gpGlobals->curtime - m_flNextPrimaryAttack, 0.f, 0.4f);
+		// Shotgun pump animation takes longer when the gun is idle vs already in the air due to shells being loaded. This adjusts time till next attack so shotgun is pumped fully regardless of when attack is initiated
+		m_flNextPrimaryAttack = (gpGlobals->curtime + SequenceDuration() - 0.6f + nextPrimaryAttackDiff);
 		return;
 	}
 	else if (pOwner->m_nButtons & IN_ATTACK && m_flNextPrimaryAttack <= gpGlobals->curtime)
@@ -397,13 +400,8 @@ void CWeaponSupa7::ItemPostFrame(void)
 		// Fire underwater?
 		else
 		{
-			// If the firing button was just pressed, reset the firing time
-			CBasePlayer* pPlayer = ToBasePlayer(GetOwner());
-			if (pPlayer && pPlayer->m_afButtonPressed & IN_ATTACK)
-			{
-				ProposeNextAttack(gpGlobals->curtime);
-			}
-			PrimaryAttack();
+			if (m_iChamber)
+				PrimaryAttack();
 		}
 	}
 

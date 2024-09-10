@@ -223,7 +223,7 @@ void CNEOHud_Ammo::DrawAmmo() const
 		return;
 
 	const int maxSpaceAvailableForBullets = digit_max_width;
-	const int bulletWidth = surface()->GetCharacterWidth(m_hBulletFont, *ammoChar);
+	int bulletWidth = surface()->GetCharacterWidth(m_hBulletFont, *ammoChar);
 	const int plusWidth = surface()->GetCharacterWidth(m_hBulletFont, '+');
 	const int maxBulletsWeCanDisplay = bulletWidth == 0 ? 0 : (maxSpaceAvailableForBullets / bulletWidth);
 
@@ -245,16 +245,27 @@ void CNEOHud_Ammo::DrawAmmo() const
 	int i = 0;
 	if (isSupa)
 	{
+		const int shotWidth = surface()->GetCharacterWidth(m_hBulletFont, 'c');
+		const int slugWidth = surface()->GetCharacterWidth(m_hBulletFont, 'd');
+		bulletWidth = 0;
 		auto supa7 = dynamic_cast<CWeaponSupa7*>(activeWep);
 		int tubeArrayTop = supa7->m_iTubeArrayTop;
 		for (i; i <= supa7->m_iTubeArrayTop; i++)
 		{
 			if (supa7->m_iTubeArray[tubeArrayTop] == 2)
+			{
 				bullets[i] = 'c';
+				bulletWidth += shotWidth;
+			}
 			else
+			{
 				bullets[i] = 'd';
+				bulletWidth += slugWidth;
+			}
 			tubeArrayTop--;
 		}
+		if (supa7->m_iTubeArrayTop > 0)
+			bulletWidth /= supa7->m_iTubeArrayTop+1;
 	}
 	for(i; i < magSizeMax; i++)
 	{
