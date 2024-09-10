@@ -166,27 +166,32 @@ void CNEOHud_Ammo::DrawAmmo() const
 
 		ammoChar = activeWep->GetWpnData().szBulletCharacter;
 		magSizeMax = activeWep->GetMaxClip1();
+		if (isSupa)
+			magSizeMax--;
 		magSizeCurrent = activeWep->Clip1();
 			
 		if(activeWep)
-		{			
-			if(activeWep->IsAutomatic())
+		{
+			bool printFireModeText = true;
+			if (activeWep->IsAutomatic())
 				fireModeText[0] = 'j';
-			else if(isSupa)
-				if(dynamic_cast<CWeaponSupa7*>(activeWep)->SlugLoaded())
+			else if (isSupa)
+				if (dynamic_cast<CWeaponSupa7*>(activeWep)->SlugLoaded())
 					fireModeText[0] = 'h';
-				else
+				else if (dynamic_cast<CWeaponSupa7*>(activeWep)->ShotLoaded())
 					fireModeText[0] = 'l';
+				else
+					printFireModeText = false;
 			else
 				fireModeText[0] = 'h';
 				
- 
 			wchar_t unicodeFireModeText[2]{ L'\0' };
 			g_pVGuiLocalize->ConvertANSIToUnicode(fireModeText, unicodeFireModeText, sizeof(unicodeFireModeText));
 
 			surface()->DrawSetTextFont(m_hBulletFont);
 			surface()->DrawSetTextPos(icon_xpos + xpos, icon_ypos + ypos);
-			surface()->DrawPrintText(unicodeFireModeText, V_strlen(fireModeText));
+			if (printFireModeText)
+				surface()->DrawPrintText(unicodeFireModeText, V_strlen(fireModeText));
 
 			surface()->GetTextSize(m_hBulletFont, unicodeFireModeText, fireModeWidth, fireModeHeight);
 		}
@@ -237,8 +242,21 @@ void CNEOHud_Ammo::DrawAmmo() const
 
 	char bullets[maxBullets + 1];
 	magSizeMax = min(magSizeMax, sizeof(bullets));
-	int i;
-	for(i = 0; i < magSizeMax; i++)
+	int i = 0;
+	if (isSupa)
+	{
+		auto supa7 = dynamic_cast<CWeaponSupa7*>(activeWep);
+		int tubeArrayTop = supa7->m_iTubeArrayTop;
+		for (i; i <= supa7->m_iTubeArrayTop; i++)
+		{
+			if (supa7->m_iTubeArray[tubeArrayTop] == 2)
+				bullets[i] = 'c';
+			else
+				bullets[i] = 'd';
+			tubeArrayTop--;
+		}
+	}
+	for(i; i < magSizeMax; i++)
 	{
 		bullets[i] = *ammoChar;
 	}

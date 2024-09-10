@@ -83,6 +83,7 @@ WeaponData
 		"single_shot_npc"	"weapon_murata.npc_single"
 		"special1"			"weapon_murata.load"
 		"special2"			"weapon_murata.pump"
+		"special3"			"weapon_murata.loadSlug"
 		"double_shot"       "weapon_m41.single"
 	}
 

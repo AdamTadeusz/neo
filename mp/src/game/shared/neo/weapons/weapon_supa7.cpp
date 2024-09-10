@@ -73,8 +73,7 @@ CWeaponSupa7::CWeaponSupa7(void)
 	{
 		m_iTubeArray.Set(i, 0);
 	}
-	m_iTubeArrayTop = 0;
-	m_iClip1 = 0;
+	m_iTubeArrayTop = -1;
 	m_iChamber = 0;
 
 	m_bStartedReloadingShot = false;
@@ -87,6 +86,12 @@ CWeaponSupa7::CWeaponSupa7(void)
 	m_fMaxRange2 = 200;
 }
 
+void CWeaponSupa7::Spawn(void)
+{
+	BaseClass::Spawn();
+	m_iClip1 = 0;
+}
+
 // Purpose: Override so only reload one shell at a time
 bool CWeaponSupa7::StartReload(void)
 {
@@ -95,7 +100,7 @@ bool CWeaponSupa7::StartReload(void)
 	if (pOwner == NULL)
 		return false;
 
-	if (m_iTubeArrayTop >= SUPA7_TUBE_SIZE - 2)
+	if (m_iTubeArrayTop >= SUPA7_TUBE_SIZE - 1)
 		return false;
 
 	if (m_iPrimaryAmmoCount <= 0)
@@ -125,7 +130,7 @@ bool CWeaponSupa7::StartReloadSlug(void)
 	if (pOwner == NULL)
 		return false;
 
-	if (m_iTubeArrayTop >= SUPA7_TUBE_SIZE - 2)
+	if (m_iTubeArrayTop >= SUPA7_TUBE_SIZE - 1)
 		return false;
 
 	if (m_iSecondaryAmmoCount <= 0)
@@ -167,6 +172,8 @@ bool CWeaponSupa7::Reload(void)
 
 	m_iTubeArrayTop++;
 	m_iTubeArray.Set(m_iTubeArrayTop, 1);
+	m_iClip1++;
+	m_iPrimaryAmmoCount--;
 
 	// Play reload on different channel as otherwise steals channel away from fire sound
 	WeaponSound(SPECIAL1);
@@ -198,9 +205,11 @@ bool CWeaponSupa7::ReloadSlug(void)
 
 	m_iTubeArrayTop++;
 	m_iTubeArray.Set(m_iTubeArrayTop, 2);
+	m_iClip1++;
+	m_iSecondaryAmmoCount--;
 
 	// Play reload on different channel as otherwise steals channel away from fire sound
-	WeaponSound(SPECIAL1);
+	WeaponSound(SPECIAL3);
 	SendWeaponAnim(ACT_VM_RELOAD);
 
 	pOwner->m_flNextAttack = gpGlobals->curtime;
@@ -235,7 +244,6 @@ void CWeaponSupa7::PrimaryAttack(void)
 		return;
 
 	if (m_iChamber == 0)
-
 		return;
 
 	pPlayer->ViewPunchReset();
@@ -252,13 +260,8 @@ void CWeaponSupa7::PrimaryAttack(void)
 		numBullets = 1;
 		bulletSpread *= 0.5;
 		ammoType = m_iSecondaryAmmoType;
-		WeaponSound(WPN_DOUBLE);
 	}
-	else
-	{
-		// MUST call sound before removing a round from the clip of a CMachineGun
-		WeaponSound(SINGLE);
-	}
+	WeaponSound(SINGLE);
 
 	FireBulletsInfo_t info(numBullets, vecSrc, vecAiming, bulletSpread, MAX_TRACE_LENGTH, ammoType);
 	info.m_pAttacker = pPlayer;
@@ -321,12 +324,12 @@ void CWeaponSupa7::ItemPostFrame(void)
 				return;
 			}
 
-			if (pOwner->m_nButtons & IN_RELOAD && m_iTubeArrayTop <= SUPA7_TUBE_SIZE - 2 && m_iPrimaryAmmoCount > 0)
+			if (pOwner->m_nButtons & IN_RELOAD && m_iTubeArrayTop < SUPA7_TUBE_SIZE - 1 && m_iPrimaryAmmoCount > 0)
 			{
 				Reload();
 				return;
 			}
-			else if (pOwner->m_nButtons & IN_ATTACK2 && m_iTubeArrayTop <= SUPA7_TUBE_SIZE - 2 && m_iSecondaryAmmoCount > 0)
+			else if (pOwner->m_nButtons & IN_ATTACK2 && m_iTubeArrayTop < SUPA7_TUBE_SIZE - 1 && m_iSecondaryAmmoCount > 0)
 			{
 				ReloadSlug();
 				return;
@@ -343,7 +346,7 @@ void CWeaponSupa7::ItemPostFrame(void)
 
 	if (pOwner->m_nButtons & IN_ATTACK && m_flNextPrimaryAttack <= gpGlobals->curtime)
 	{
-		if (!m_iChamber && !m_iPrimaryAmmoCount && !m_iSecondaryAmmoCount)
+		if (!m_iChamber && m_iTubeArrayTop == -1)
 		{
 			DryFire();
 			return;
@@ -353,6 +356,7 @@ void CWeaponSupa7::ItemPostFrame(void)
 		{
 			m_iChamber = m_iTubeArray[m_iTubeArrayTop];
 			m_iTubeArrayTop--;
+			m_iClip1--;
 			WeaponSound(SPECIAL2);
 			SendWeaponAnim(ACT_SHOTGUN_PUMP);
 			ProposeNextAttack(gpGlobals->curtime + SequenceDuration());
@@ -380,11 +384,21 @@ void CWeaponSupa7::ItemPostFrame(void)
 
 	if (pOwner->m_nButtons & IN_RELOAD && !m_bInReload)
 	{
-		// reload when reload is pressed, or if no buttons are down and weapon is empty.
+		// reload when reload is pressed
+		if (m_iTubeArrayTop >= SUPA7_TUBE_SIZE - 1)
+		{
+			SendWeaponAnim(ACT_VM_IDLE);
+			return;
+		}
 		StartReload();
 	}
 	else if (pOwner->m_nButtons & IN_ATTACK2 && !m_bInReload)
 	{
+		if (m_iTubeArrayTop >= SUPA7_TUBE_SIZE - 1)
+		{
+			SendWeaponAnim(ACT_VM_IDLE);
+			return;
+		}
 		StartReloadSlug();
 	}
 	else
@@ -427,6 +441,11 @@ void CWeaponSupa7::AddViewKick(void)
 bool CWeaponSupa7::SlugLoaded() const
 {
 	return m_iChamber == 2;
+}
+
+bool CWeaponSupa7::ShotLoaded() const
+{
+	return m_iChamber == 1;
 }
 
 void CWeaponSupa7::Drop(const Vector& vecVelocity)

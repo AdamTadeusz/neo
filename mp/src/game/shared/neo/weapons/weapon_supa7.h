@@ -36,6 +36,8 @@ public:
 
 	CWeaponSupa7();
 
+	virtual void Spawn() override;
+
 	virtual NEO_WEP_BITS_UNDERLYING_TYPE GetNeoWepBits(void) const OVERRIDE { return NEO_WEP_SUPA7; }
 	virtual int GetNeoWepXPCost(const int neoClass) const OVERRIDE { return 0; }
 
@@ -49,6 +51,7 @@ public:
 	bool Reload(void);
 	bool ReloadSlug(void);
 	bool SlugLoaded(void) const;
+	bool ShotLoaded(void) const;
 
 	void FinishReload(void);
 	void AddViewKick(void);
@@ -77,10 +80,10 @@ private:
 		const int shell_visible = 0, shell_invisible = 1;
 		SetBodygroup(bodygroup_shell, is_visible ? shell_visible : shell_invisible);
 	}
-
-private:
+public:
 	CNetworkArray(int, m_iTubeArray, SUPA7_TUBE_SIZE); // The supa7 has a tube size of 6 plus one in the chamber
 	CNetworkVar(int, m_iTubeArrayTop); // Index of the first round to be loaded from the tube
+private:
 	CNetworkVar(int, m_iChamber); // The shot/ or lack thereof, currently in the chamber 
 	CNetworkVar(int, m_iShellToLoad); // Whether we are reloading Slug or Shot
 	CNetworkVar(bool, m_bStartedReloadingShot);

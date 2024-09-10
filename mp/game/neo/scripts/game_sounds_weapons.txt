@@ -247,6 +247,19 @@
 	}
 }
 
+"weapon_murata.loadSlug"
+{
+	"channel"		        "CHAN_ITEM"
+        "soundlevel"			"SNDLVL_NORM"
+	"volume"		        "1.0"
+	"CompatibilityAttenuation"	"1.0"
+	
+	"rndwave"
+	{
+		"wave"			")weapons/murata/murata_insertshell.wav"
+	}
+}
+
 //-------------------
 
 "weapon_murata.npc_reload"
