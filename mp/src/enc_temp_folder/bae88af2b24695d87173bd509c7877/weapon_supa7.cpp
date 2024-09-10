@@ -303,7 +303,6 @@ void CWeaponSupa7::ItemPostFrame(void)
 	if (!pOwner)
 		return;
 
-	// Firstly ongoing reload
 	if (m_bInReload)
 	{
 		if (m_flNextPrimaryAttack <= gpGlobals->curtime)
@@ -341,7 +340,6 @@ void CWeaponSupa7::ItemPostFrame(void)
 		SetShotgunShellVisible(false);
 	}
 
-	// Next starting a new reload
 	if (pOwner->m_nButtons & IN_RELOAD)
 	{
 		if (m_bInReload)
@@ -370,7 +368,6 @@ void CWeaponSupa7::ItemPostFrame(void)
 		StartReloadSlug();
 		return;
 	}
-	// Next attacking with no round in the chamber resulting in pumping the shotguns action
 	else if (pOwner->m_nButtons & IN_ATTACK && m_flNextPrimaryAttack - 0.3f <= gpGlobals->curtime && !m_iChamber && m_iTubeArrayTop >= 0)
 	{
 		m_iChamber = m_iTubeArray[m_iTubeArrayTop];
@@ -378,12 +375,12 @@ void CWeaponSupa7::ItemPostFrame(void)
 		m_iClip1--;
 		WeaponSound(SPECIAL2);
 		SendWeaponAnim(ACT_SHOTGUN_PUMP);
+		engine->Con_NPrintf(0, "Sequence Duration: %f", SequenceDuration());
 		const float nextPrimaryAttackDiff = clamp((gpGlobals->curtime - m_flNextPrimaryAttack), 0.f, 0.6f);
 		// Shotgun pump animation takes longer when the gun is idle vs already in the air due to shells being loaded. This adjusts time till next attack so shotgun is pumped fully regardless of when attack is initiated
 		m_flNextPrimaryAttack = (gpGlobals->curtime + SequenceDuration() - 0.6f + nextPrimaryAttackDiff);
 		return;
 	}
-	// Next attacking with a round in the chamber
 	else if (pOwner->m_nButtons & IN_ATTACK && m_flNextPrimaryAttack <= gpGlobals->curtime)
 	{
 		ProcessAnimationEvents();
@@ -419,7 +416,6 @@ void CWeaponSupa7::ItemPostFrame(void)
 		}
 	}
 
-	// End the shotgun firing animation early to stop the visual pumping of the shotgun in the firing animation unless attack is held down and there are more round in the tube, in which case load around into the chamber with the quick pump aniamtion
 	if (m_bJustShot && m_flNextPrimaryAttack - 0.7f < gpGlobals->curtime)
 	{
 		if (pOwner->m_nButtons & IN_ATTACK)
