@@ -268,13 +268,13 @@ void CWeaponSupa7::PrimaryAttack(void)
 
 	pPlayer->DoMuzzleFlash();
 
-	SendWeaponAnim(m_iChamber == 2 ? ACT_VM_SECONDARYATTACK : ACT_VM_PRIMARYATTACK);
+	SendWeaponAnim(ACT_VM_SECONDARYATTACK);
 
 	m_iChamber = 0;
 	m_bJustShot = true;
 
 	// Don't fire again until fire animation has completed
-	ProposeNextAttack(gpGlobals->curtime + GetFireRate() - 0.4);
+	ProposeNextAttack(gpGlobals->curtime + GetFireRate());
 
 	// player "shoot" animation
 	pPlayer->SetAnimation(PLAYER_ATTACK1);
@@ -344,22 +344,21 @@ void CWeaponSupa7::ItemPostFrame(void)
 		SetShotgunShellVisible(false);
 	}
 
+	if (pOwner->m_nButtons & IN_ATTACK && m_flNextPrimaryAttack - 0.3f <= gpGlobals->curtime && !m_iChamber && m_iTubeArrayTop >= 0)
+	{
+		m_iChamber = m_iTubeArray[m_iTubeArrayTop];
+		m_iTubeArrayTop--;
+		m_iClip1--;
+		WeaponSound(SPECIAL2);
+		SendWeaponAnim(ACT_SHOTGUN_PUMP);
+		return;
+	}
+
 	if (pOwner->m_nButtons & IN_ATTACK && m_flNextPrimaryAttack <= gpGlobals->curtime)
 	{
 		if (!m_iChamber && m_iTubeArrayTop == -1)
 		{
 			DryFire();
-			return;
-		}
-
-		if (!m_iChamber && m_iTubeArrayTop >= 0)
-		{
-			m_iChamber = m_iTubeArray[m_iTubeArrayTop];
-			m_iTubeArrayTop--;
-			m_iClip1--;
-			WeaponSound(SPECIAL2);
-			SendWeaponAnim(ACT_SHOTGUN_PUMP);
-			ProposeNextAttack(gpGlobals->curtime + SequenceDuration());
 			return;
 		}
 
@@ -418,8 +417,21 @@ void CWeaponSupa7::ItemPostFrame(void)
 
 		if (m_bJustShot && m_flNextPrimaryAttack - 0.7f < gpGlobals->curtime)
 		{
+			if (pOwner->m_nButtons & IN_ATTACK)
+			{
+				m_bJustShot = false;
+				if (m_iTubeArrayTop >= 0)
+				{
+					m_iChamber = m_iTubeArray[m_iTubeArrayTop];
+					m_iTubeArrayTop--;
+					m_iClip1--;
+					WeaponSound(SPECIAL2);
+					return;
+				}
+			}
 			SendWeaponAnim(ACT_VM_IDLE);
 			m_bJustShot = false;
+			return;
 		}
 
 		WeaponIdle();
