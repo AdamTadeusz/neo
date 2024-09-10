@@ -303,8 +303,6 @@ void CWeaponSupa7::ItemPostFrame(void)
 	if (!pOwner)
 		return;
 
-	ProcessAnimationEvents();
-
 	if (m_bInReload)
 	{
 		if (m_flNextPrimaryAttack <= gpGlobals->curtime)
@@ -378,13 +376,14 @@ void CWeaponSupa7::ItemPostFrame(void)
 		WeaponSound(SPECIAL2);
 		SendWeaponAnim(ACT_SHOTGUN_PUMP);
 		engine->Con_NPrintf(0, "Sequence Duration: %f", SequenceDuration());
-		const float nextPrimaryAttackDiff = clamp(gpGlobals->curtime - m_flNextPrimaryAttack, 0.f, 0.4f);
+		const float nextPrimaryAttackDiff = clamp((gpGlobals->curtime - m_flNextPrimaryAttack), 0.f, 0.6f);
 		// Shotgun pump animation takes longer when the gun is idle vs already in the air due to shells being loaded. This adjusts time till next attack so shotgun is pumped fully regardless of when attack is initiated
 		m_flNextPrimaryAttack = (gpGlobals->curtime + SequenceDuration() - 0.6f + nextPrimaryAttackDiff);
 		return;
 	}
 	else if (pOwner->m_nButtons & IN_ATTACK && m_flNextPrimaryAttack <= gpGlobals->curtime)
 	{
+		ProcessAnimationEvents();
 		if (!m_iChamber && m_iTubeArrayTop == -1)
 		{
 			DryFire();
@@ -404,6 +403,8 @@ void CWeaponSupa7::ItemPostFrame(void)
 				PrimaryAttack();
 		}
 	}
+
+	ProcessAnimationEvents();
 
 	if (!HasAnyAmmo() && m_flNextPrimaryAttack < gpGlobals->curtime)
 	{
