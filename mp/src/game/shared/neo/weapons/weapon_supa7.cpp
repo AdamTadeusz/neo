@@ -116,7 +116,6 @@ bool CWeaponSupa7::StartReload(void)
 
 	SetShotgunShellVisible(true);
 
-	pOwner->m_flNextAttack = gpGlobals->curtime;
 	ProposeNextAttack(gpGlobals->curtime + SequenceDuration());
 
 	return true;
@@ -146,7 +145,6 @@ bool CWeaponSupa7::StartReloadSlug(void)
 
 	SetShotgunShellVisible(true);
 
-	pOwner->m_flNextAttack = gpGlobals->curtime;
 	ProposeNextAttack(gpGlobals->curtime + SequenceDuration());
 
 	return true;
@@ -230,7 +228,7 @@ void CWeaponSupa7::FinishReload(void)
 	m_bInReload = false;
 
 	pOwner->m_flNextAttack = gpGlobals->curtime;
-	ProposeNextAttack(gpGlobals->curtime + SequenceDuration());
+	ProposeNextAttack(gpGlobals->curtime + SequenceDuration() - 0.4f);
 }
 
 void CWeaponSupa7::PrimaryAttack(void)
@@ -258,7 +256,7 @@ void CWeaponSupa7::PrimaryAttack(void)
 	if (m_iChamber == 2)
 	{
 		numBullets = 1;
-		bulletSpread *= 0.5;
+		bulletSpread *= 0.25;
 		ammoType = m_iSecondaryAmmoType;
 	}
 	WeaponSound(SINGLE);
@@ -344,17 +342,45 @@ void CWeaponSupa7::ItemPostFrame(void)
 		SetShotgunShellVisible(false);
 	}
 
-	if (pOwner->m_nButtons & IN_ATTACK && m_flNextPrimaryAttack - 0.3f <= gpGlobals->curtime && !m_iChamber && m_iTubeArrayTop >= 0)
+	if (pOwner->m_nButtons & IN_RELOAD)
+	{
+		if (m_bInReload)
+			return;
+
+		if (m_iTubeArrayTop >= SUPA7_TUBE_SIZE - 1 || m_iPrimaryAmmoCount <= 0)
+		{
+			SendWeaponAnim(ACT_VM_IDLE);
+			return;
+		}
+
+		StartReload();
+		return;
+	}
+	else if (pOwner->m_nButtons & IN_ATTACK2)
+	{
+		if (m_bInReload)
+			return;
+
+		if (m_iTubeArrayTop >= SUPA7_TUBE_SIZE - 1 || m_iSecondaryAmmoCount <= 0)
+		{
+			SendWeaponAnim(ACT_VM_IDLE);
+			return;
+		}
+
+		StartReloadSlug();
+		return;
+	}
+	else if (pOwner->m_nButtons & IN_ATTACK && m_flNextPrimaryAttack - 0.3f <= gpGlobals->curtime && !m_iChamber && m_iTubeArrayTop >= 0)
 	{
 		m_iChamber = m_iTubeArray[m_iTubeArrayTop];
 		m_iTubeArrayTop--;
 		m_iClip1--;
 		WeaponSound(SPECIAL2);
 		SendWeaponAnim(ACT_SHOTGUN_PUMP);
+		m_flNextPrimaryAttack = (gpGlobals->curtime + SequenceDuration());
 		return;
 	}
-
-	if (pOwner->m_nButtons & IN_ATTACK && m_flNextPrimaryAttack <= gpGlobals->curtime)
+	else if (pOwner->m_nButtons & IN_ATTACK && m_flNextPrimaryAttack <= gpGlobals->curtime)
 	{
 		if (!m_iChamber && m_iTubeArrayTop == -1)
 		{
@@ -381,61 +407,36 @@ void CWeaponSupa7::ItemPostFrame(void)
 		}
 	}
 
-	if (pOwner->m_nButtons & IN_RELOAD && !m_bInReload)
+	if (!HasAnyAmmo() && m_flNextPrimaryAttack < gpGlobals->curtime)
 	{
-		// reload when reload is pressed
-		if (m_iTubeArrayTop >= SUPA7_TUBE_SIZE - 1)
+		// weapon isn't useable, switch.
+		if (!(GetWeaponFlags() & ITEM_FLAG_NOAUTOSWITCHEMPTY) && pOwner->SwitchToNextBestWeapon(this))
 		{
-			SendWeaponAnim(ACT_VM_IDLE);
+			ProposeNextAttack(gpGlobals->curtime + 0.3);
 			return;
 		}
-		StartReload();
 	}
-	else if (pOwner->m_nButtons & IN_ATTACK2 && !m_bInReload)
-	{
-		if (m_iTubeArrayTop >= SUPA7_TUBE_SIZE - 1)
-		{
-			SendWeaponAnim(ACT_VM_IDLE);
-			return;
-		}
-		StartReloadSlug();
-	}
-	else
-	{
-		// no fire buttons down
-		m_bFireOnEmpty = false;
 
-		if (!HasAnyAmmo() && m_flNextPrimaryAttack < gpGlobals->curtime)
+	if (m_bJustShot && m_flNextPrimaryAttack - 0.7f < gpGlobals->curtime)
+	{
+		if (pOwner->m_nButtons & IN_ATTACK)
 		{
-			// weapon isn't useable, switch.
-			if (!(GetWeaponFlags() & ITEM_FLAG_NOAUTOSWITCHEMPTY) && pOwner->SwitchToNextBestWeapon(this))
+			m_bJustShot = false;
+			if (m_iTubeArrayTop >= 0)
 			{
-				ProposeNextAttack(gpGlobals->curtime + 0.3);
+				m_iChamber = m_iTubeArray[m_iTubeArrayTop];
+				m_iTubeArrayTop--;
+				m_iClip1--;
+				WeaponSound(SPECIAL2);
 				return;
 			}
 		}
-
-		if (m_bJustShot && m_flNextPrimaryAttack - 0.7f < gpGlobals->curtime)
-		{
-			if (pOwner->m_nButtons & IN_ATTACK)
-			{
-				m_bJustShot = false;
-				if (m_iTubeArrayTop >= 0)
-				{
-					m_iChamber = m_iTubeArray[m_iTubeArrayTop];
-					m_iTubeArrayTop--;
-					m_iClip1--;
-					WeaponSound(SPECIAL2);
-					return;
-				}
-			}
-			SendWeaponAnim(ACT_VM_IDLE);
-			m_bJustShot = false;
-			return;
-		}
-
-		WeaponIdle();
+		SendWeaponAnim(ACT_VM_IDLE);
+		m_bJustShot = false;
+		return;
 	}
+
+	WeaponIdle();
 }
 
 void CWeaponSupa7::AddViewKick(void)

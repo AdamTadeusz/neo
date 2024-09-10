@@ -62,7 +62,7 @@ public:
 	void Drop(const Vector& vecVelocity) OVERRIDE;
 
 protected:
-	virtual float GetFastestDryRefireTime() const OVERRIDE { return 0.2f; }
+	virtual float GetFastestDryRefireTime() const OVERRIDE { return 0.5f; }
 
 private:
 	// Purpose: Only update next attack time if it's further away in the future.
@@ -89,6 +89,8 @@ private:
 	CNetworkVar(bool, m_bStartedReloadingShot);
 	CNetworkVar(bool, m_bStartedReloadingSlug);
 	CNetworkVar(bool, m_bJustShot);
+
+	CNetworkVar(int, m_iStatus); // 0 
 
 private:
 	CWeaponSupa7(const CWeaponSupa7 &other);
