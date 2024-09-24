@@ -82,6 +82,8 @@ BEGIN_NETWORK_TABLE_NOBASE( CNEORules, DT_NEORules )
 #ifdef CLIENT_DLL
 	RecvPropFloat(RECVINFO(m_flNeoNextRoundStartTime)),
 	RecvPropFloat(RECVINFO(m_flNeoRoundStartTime)),
+	RecvPropFloat(RECVINFO(m_flNeoRoundOvertTimeGraceStartTime)),
+	RecvPropBool(RECVINFO(m_bNeoRoundOvertTimeInGraceTime)),
 	RecvPropInt(RECVINFO(m_nRoundStatus)),
 	RecvPropInt(RECVINFO(m_iRoundNumber)),
 	RecvPropInt(RECVINFO(m_iGhosterTeam)),
@@ -91,6 +93,8 @@ BEGIN_NETWORK_TABLE_NOBASE( CNEORules, DT_NEORules )
 #else
 	SendPropFloat(SENDINFO(m_flNeoNextRoundStartTime)),
 	SendPropFloat(SENDINFO(m_flNeoRoundStartTime)),
+	SendPropFloat(SENDINFO(m_flNeoRoundOvertTimeGraceStartTime)),
+	SendPropBool(SENDINFO(m_bNeoRoundOvertTimeInGraceTime)),
 	SendPropInt(SENDINFO(m_nRoundStatus)),
 	SendPropInt(SENDINFO(m_iRoundNumber)),
 	SendPropInt(SENDINFO(m_iGhosterTeam)),
@@ -176,6 +180,11 @@ ConVar neo_round_sudden_death("neo_round_sudden_death", "1", FCVAR_REPLICATED, "
 
 ConVar neo_round_timelimit("neo_round_timelimit", "2.75", FCVAR_REPLICATED, "Neo round timelimit, in minutes.",
 	true, 0.0f, false, 600.0f);
+
+ConVar neo_round_overtime_timelimit("neo_round_overtime_timelimit", "30", FCVAR_REPLICATED, "Neo round overtime timelimit, in seconds.",
+	true, 0.0f, false, 600.0f);
+ConVar neo_round_overtime_enabled("neo_round_overtime_enabled", "0", FCVAR_REPLICATED, "Neo round overtime enabled.",
+	true, 0.0f, true, 1.0f);
 
 ConVar neo_sv_ignore_wep_xp_limit("neo_sv_ignore_wep_xp_limit", "0", FCVAR_CHEAT | FCVAR_REPLICATED, "If true, allow equipping any loadout regardless of player XP.",
 	true, 0.0f, true, 1.0f);
@@ -799,16 +808,34 @@ void CNEORules::AwardRankUp(CNEO_Player *pClient)
 }
 
 // Return remaining time in seconds. Zero means there is no time limit.
-float CNEORules::GetRoundRemainingTime() const
+float CNEORules::GetRoundRemainingTime()
 {
 	if ((m_nRoundStatus != NeoRoundStatus::Warmup && neo_round_timelimit.GetFloat() == 0) ||
 			m_nRoundStatus == NeoRoundStatus::Idle)
 	{
 		return 0;
 	}
-
+	
 	const float roundTimeLimit = (m_nRoundStatus == NeoRoundStatus::Warmup) ? (mp_neo_warmup_round_time.GetFloat()) : (neo_round_timelimit.GetFloat() * 60.0f);
-	return (m_flNeoRoundStartTime + roundTimeLimit) - gpGlobals->curtime;
+	float roundTimeLeft = (m_flNeoRoundStartTime + roundTimeLimit) - gpGlobals->curtime;
+#ifdef GAME_DLL
+	if (roundTimeLeft <= 0 && neo_round_overtime_enabled.GetBool() && m_pGhost)
+	{
+		if (m_pGhost->GetMoveParent())
+		{ // Ghost being carried
+			m_bNeoRoundOvertTimeInGraceTime = false;
+		}
+		else if (!m_bNeoRoundOvertTimeInGraceTime)
+		{ // Round just entered grace time
+			m_bNeoRoundOvertTimeInGraceTime = true;
+			m_flNeoRoundOvertTimeGraceStartTime = gpGlobals->curtime;
+		}
+
+		// the following needs to be worked out clientside again if queried, values of m_bNeoRound... m_flNeoRound... are networked so should be the same for client and server
+		roundTimeLeft = m_bNeoRoundOvertTimeInGraceTime ? (min(m_flNeoRoundOvertTimeGraceStartTime + 5.f - gpGlobals->curtime, roundTimeLeft + neo_round_overtime_timelimit.GetFloat())) : roundTimeLeft + neo_round_overtime_timelimit.GetFloat();
+	}
+#endif
+	return roundTimeLeft;
 }
 
 float CNEORules::GetRoundAccumulatedTime() const

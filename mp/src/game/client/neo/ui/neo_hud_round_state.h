@@ -60,6 +60,7 @@ private:
 	// Center Box info
 	wchar_t m_wszRoundUnicode[9] = {};
 	wchar_t m_wszTime[6] = {};
+	bool m_bInOvertime;
 	wchar_t m_wszLeftTeamScore[3] = {};
 	wchar_t m_wszRightTeamScore[3] = {};
 	wchar_t m_wszPlayersAliveUnicode[9] = {};

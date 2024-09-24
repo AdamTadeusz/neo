@@ -182,7 +182,7 @@ public:
 
 	virtual bool CheckGameOver(void) OVERRIDE;
 
-	float GetRoundRemainingTime() const;
+	float GetRoundRemainingTime();
 	float GetRoundAccumulatedTime() const;
 #ifdef GAME_DLL
 	float MirrorDamageMultiplier() const;
@@ -297,6 +297,9 @@ private:
 
 	CNetworkVar(float, m_flNeoRoundStartTime);
 	CNetworkVar(float, m_flNeoNextRoundStartTime);
+public:
+	CNetworkVar(float, m_flNeoRoundOvertTimeGraceStartTime);
+	CNetworkVar(bool, m_bNeoRoundOvertTimeInGraceTime);
 };
 
 inline CNEORules *NEORules()

@@ -196,6 +196,7 @@ void CNEOHud_RoundState::ApplySchemeSettings(vgui::IScheme* pScheme)
 	SetBounds(0, Y_POS, res.w, res.h);
 }
 
+extern ConVar neo_round_overtime_timelimit;
 void CNEOHud_RoundState::UpdateStateForNeoHudElementDraw()
 {
 	float roundTimeLeft = NEORules()->GetRoundRemainingTime();
@@ -242,6 +243,7 @@ void CNEOHud_RoundState::UpdateStateForNeoHudElementDraw()
 	memset(m_wszLeftTeamScore, 0, sizeof(m_wszLeftTeamScore));
 	memset(m_wszRightTeamScore, 0, sizeof(m_wszRightTeamScore));
 
+	m_bInOvertime = false;
 	// Exactly zero means there's no time limit, so we don't need to draw anything.
 	if (roundTimeLeft == 0)
 	{
@@ -250,7 +252,17 @@ void CNEOHud_RoundState::UpdateStateForNeoHudElementDraw()
 	// Less than 0 means round is over, but cap the timer to zero for nicer display.
 	else if (roundTimeLeft < 0)
 	{
-		roundTimeLeft = 0;
+		if (roundStatus != NeoRoundStatus::RoundLive)
+		{
+			roundTimeLeft = 0;
+		}
+		else
+		{
+			m_bInOvertime = true;
+			roundTimeLeft = NEORules()->m_bNeoRoundOvertTimeInGraceTime ? 
+				(min(NEORules()->m_flNeoRoundOvertTimeGraceStartTime + 5.f - gpGlobals->curtime, roundTimeLeft + neo_round_overtime_timelimit.GetFloat())) : 
+				roundTimeLeft + neo_round_overtime_timelimit.GetFloat();
+		}
 	}
 
 	char szRoundANSI[9] = {};
@@ -457,7 +469,7 @@ void CNEOHud_RoundState::DrawNeoHudElement()
 	// Draw time
 	surface()->DrawSetTextFont(m_hOCRFont);
 	surface()->GetTextSize(m_hOCRFont, m_wszTime, fontWidth, fontHeight);
-	surface()->DrawSetTextColor(neo_cl_squad_hud_original.GetBool() ? COLOR_FADED_WHITE : (NEORules()->GetRoundStatus() == NeoRoundStatus::PreRoundFreeze) ?
+	surface()->DrawSetTextColor(neo_cl_squad_hud_original.GetBool() ? COLOR_FADED_WHITE : (NEORules()->GetRoundStatus() == NeoRoundStatus::PreRoundFreeze) || m_bInOvertime ?
 									COLOR_RED : COLOR_WHITE);
 	surface()->DrawSetTextPos(m_iXpos - (fontWidth / 2), neo_cl_squad_hud_original.GetBool() ? Y_POS : m_iSmallFontHeight);
 	surface()->DrawPrintText(m_wszTime, 6);
