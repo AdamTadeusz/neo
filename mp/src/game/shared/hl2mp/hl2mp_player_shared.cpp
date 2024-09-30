@@ -121,6 +121,41 @@ void CHL2MP_Player::PlayStepSound( Vector &vecOrigin, surfacedata_t *psurface, f
 	CRecipientFilter filter;
 	filter.AddRecipientsByPAS( vecOrigin );
 
+	for (int i = 0; i <= filter.GetRecipientCount(); i++)
+	{
+		auto recipient = UTIL_PlayerByIndex(filter.GetRecipientIndex(i));
+		if (!recipient)
+		{
+			continue;
+		}
+		Vector vecToRecipient;
+		VectorSubtract(recipient->EarPosition(), vecOrigin, vecToRecipient);
+		float distance = VectorLength(vecToRecipient);
+		if (distance > FOOTSTEP_SOUND_CLIP_DIST)
+		{
+			filter.RemoveRecipient(recipient);
+		}
+	}
+
+#ifdef CLIENT_DLL
+	if (IsLocalPlayer())
+	{
+		filter.RemoveRecipient(GetLocalPlayer());
+
+		EmitSound_t ep;
+		ep.m_nChannel = CHAN_BODY;
+		ep.m_pSoundName = params.soundname;
+		ep.m_flVolume = fvol/10;
+		ep.m_SoundLevel = params.soundlevel;
+		ep.m_nFlags = 0;
+		ep.m_nPitch = params.pitch;
+		ep.m_pOrigin = &vecOrigin;
+
+		CLocalPlayerFilter filter;
+		EmitSound(filter, entindex(), ep);
+	}
+#endif
+
 #ifndef CLIENT_DLL
 	if (gpGlobals->maxClients > 1)
 	{

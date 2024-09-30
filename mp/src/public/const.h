@@ -423,7 +423,9 @@ enum Collision_Group_t
 };
 
 #include "basetypes.h"
-
+#ifdef NEO
+#define FOOTSTEP_SOUND_CLIP_DIST	500.0f
+#endif
 #define SOUND_NORMAL_CLIP_DIST	1000.0f
 
 // How many networked area portals do we allow?
