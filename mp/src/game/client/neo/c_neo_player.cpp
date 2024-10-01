@@ -427,6 +427,7 @@ C_NEO_Player::C_NEO_Player()
 	m_bInAim = false;
 	m_bDroppedAnything = false;
 	m_bInLean = NEO_LEAN_NONE;
+	m_bInMap = false;
 
 	m_flCamoAuxLastTime = 0;
 	m_nVisionLastTick = 0;
@@ -1011,6 +1012,15 @@ void C_NEO_Player::PostThink(void)
 	}
 
 	CheckLeanButtons();
+
+	if (m_nButtons & IN_AIM)
+	{
+		m_bInMap = true;
+	}
+	else
+	{
+		m_bInMap = false;
+	}
 
 	if (auto *pNeoWep = static_cast<C_NEOBaseCombatWeapon *>(GetActiveWeapon()))
 	{

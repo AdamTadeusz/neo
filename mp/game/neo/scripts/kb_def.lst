@@ -20,6 +20,7 @@
 "c" "+thermoptic"
 "d" "+moveright"
 "e" "+leanr"
+"m" "+togglemap"
 "x" "+attack2"
 "g" "+toss"
 "q" "+leanl"

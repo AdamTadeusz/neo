@@ -154,6 +154,7 @@ static	kbutton_t	in_thermoptic;
 static	kbutton_t	in_vision;
 static	kbutton_t	in_spec_next;
 static	kbutton_t	in_spec_prev;
+kbutton_t	in_maptoggle;
 #endif
 
 /*
@@ -526,6 +527,18 @@ void IN_SpecNextDown(const CCommand &args) { KeyDown(&in_spec_next, args[1]); }
 
 void IN_SpecPrevUp(const CCommand &args) { KeyUp(&in_spec_prev, args[1]); }
 void IN_SpecPrevDown(const CCommand &args) { KeyDown(&in_spec_prev, args[1]); }
+
+void IN_MapToggle(const CCommand& args) 
+{
+	if (::input->KeyState(&in_maptoggle))
+	{
+		KeyUp(&in_maptoggle, args[1]);
+	}
+	else
+	{
+		KeyDown(&in_maptoggle, args[1]);
+	}
+}
 
 void IN_LeanLeftToggle(const CCommand& args)
 {
@@ -1542,6 +1555,11 @@ int CInput::GetButtonBits( int bResetState )
 	CalcButtonBits(bits, IN_VISION, s_ClearInputState, &in_vision, bResetState);
 #endif
 
+	if (KeyState(&in_maptoggle))
+	{
+		bits |= IN_MAP;
+	}
+
 	if ( KeyState(&in_ducktoggle) )
 	{
 		bits |= IN_DUCK;
@@ -1739,6 +1757,8 @@ static ConCommand endspecnextplayer("-specnextplayer", IN_SpecNextUp);
 
 static ConCommand startspecprevplayer("+specprevplayer", IN_SpecPrevDown);
 static ConCommand endspecprevplayer("-specprevplayer", IN_SpecPrevUp);
+
+static ConCommand togglemap("togglemap", IN_MapToggle);
 #endif
 
 /*

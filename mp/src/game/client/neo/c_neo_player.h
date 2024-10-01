@@ -203,6 +203,7 @@ public:
 	CNetworkVar(bool, m_bClientWantNeoName);
 
 	unsigned char m_NeoFlags;
+	int m_bInMap;
 
 private:
 	bool m_bFirstDeathTick;
