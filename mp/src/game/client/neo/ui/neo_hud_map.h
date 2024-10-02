@@ -30,9 +30,11 @@ private:
 
 private:
 	vgui::HFont m_hFont;
+	vgui::HTexture m_hPlayerTexture = 0UL;
 
 	int m_resX, m_resY, m_iX0, m_iX1, m_iY0, m_iY1;
 	float m_flCameraAngle;
+	float m_flOrthographicScale;
 	float m_flAngle;
 	float m_flCos;
 	float m_flSin;

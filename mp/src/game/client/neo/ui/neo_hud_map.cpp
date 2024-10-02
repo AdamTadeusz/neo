@@ -23,7 +23,7 @@ using vgui::surface;
 
 DECLARE_NAMED_HUDELEMENT(CNEOHud_Map, NHudMap);
 
-NEO_HUD_ELEMENT_DECLARE_FREQ_CVAR(Map, 0.00695)
+NEO_HUD_ELEMENT_DECLARE_FREQ_CVAR(Map, 0.1)
 
 CNEOHud_Map::CNEOHud_Map(const char *pElementName, vgui::Panel *parent)
 	: CHudElement(pElementName), EditablePanel(parent, pElementName)
@@ -38,6 +38,10 @@ CNEOHud_Map::CNEOHud_Map(const char *pElementName, vgui::Panel *parent)
 	{
 		SetParent(g_pClientMode->GetViewport());
 	}
+
+	m_hPlayerTexture = surface()->CreateNewTextureID();
+	Assert(m_hPlayerTexture > 0);
+	surface()->DrawSetTextureFile(m_hPlayerTexture, "maps/playerMapIcon", 1, false);
 
 	surface()->GetScreenSize(m_resX, m_resY);
 	SetBounds(0, 0, m_resX, m_resY);
@@ -85,6 +89,8 @@ void CNEOHud_Map::LoadMap()
 		pKeys = pKeys->GetNextKey();
 		m_flCameraAngle = pKeys->GetFloat();
 		pKeys = pKeys->GetNextKey();
+		m_flOrthographicScale = pKeys->GetFloat() * (103.f/35050.f);
+		pKeys = pKeys->GetNextKey();
 		m_iNumLevels = pKeys->GetInt();
 		for (int i = 0; i < m_iNumLevels; i++)
 		{
@@ -128,7 +134,7 @@ void CNEOHud_Map::DrawNeoHudElement(void)
 		return;
 	}
 
-	if (!(player->m_nButtons & IN_MAP)) // NEOTODO (Adam) Keybind
+	if (!(player->m_nButtons & IN_MAP))
 	{
 		return;
 	}
@@ -157,7 +163,7 @@ void CNEOHud_Map::ApplySchemeSettings(vgui::IScheme *pScheme)
 	m_flAngle = atan(sin(DEG2RAD(m_flCameraAngle)) * (sin(DEG2RAD(m_flCameraAngle)) / cos(DEG2RAD(m_flCameraAngle))));
 	m_flCos = cos(m_flAngle);
 	m_flSin = sin(m_flAngle);
-	m_flScale = ((float)m_resY / 1200.f) * 0.206;
+	m_flScale = ((float)m_resY / 1200.f) * m_flOrthographicScale;
 
 	SetBounds(m_iX0, m_iY0, m_iY1, m_iY1);
 
@@ -170,7 +176,9 @@ void CNEOHud_Map::DrawPlayer(C_NEO_Player *player, Color colour) const
 	auto playerX = (m_iY1 / 2) + (difference.y * m_flCos * m_flScale) + (difference.x * m_flCos * m_flScale);
 	auto playerY = (m_iY1 / 2) - (difference.y * m_flSin * m_flScale) + (difference.x * m_flSin * m_flScale) + difference.z * m_flScale;
 
-	DrawNeoHudRoundedBox(playerX - 5, playerY - 5, playerX + 5, playerY + 5, colour);
+	surface()->DrawSetTexture(m_hPlayerTexture);
+	surface()->DrawSetColor(colour);
+	surface()->DrawTexturedRect(playerX - 5, playerY - 5, playerX + 5, playerY + 5);
 
 	constexpr int LINE_SIZE = 20;
 	float directionY = player->GetAbsAngles().y + 180;
