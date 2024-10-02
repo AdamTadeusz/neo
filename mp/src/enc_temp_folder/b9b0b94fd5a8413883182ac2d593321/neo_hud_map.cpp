@@ -74,7 +74,7 @@ void CNEOHud_Map::LoadMap()
 		return;
 	}
 	mapName[mapNameLength] = '\0';
-	V_sprintf_safe(mapInfoFolder, "maps/minimaps/%s/%s", &mapName[5], "map_info.txt");
+	V_sprintf_safe(mapInfoFolder, "maps/minimaps/%s/%s", mapName[5], "map_info.txt");
 	
 	KeyValues* script = new KeyValues("minimapInfo");
 #ifndef _XBOX
@@ -109,7 +109,7 @@ void CNEOHud_Map::LoadMap()
 			}
 			m_iLevelMaxes[i] = pKeys->GetFloat();
 			m_hLevels[i] = surface()->CreateNewTextureID();
-			V_sprintf_safe(mapInfoFolder, "../maps/minimaps/%s/level%i", &mapName[5], i);
+			V_sprintf_safe(mapInfoFolder, "../%s/level%i", mapName, i);
 			surface()->DrawSetTextureFile(m_hLevels[i], mapInfoFolder, 1, false);
 		}
 	}
