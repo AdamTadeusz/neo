@@ -83,6 +83,8 @@ void CNEOHud_Map::LoadMap()
 		pKeys = pKeys->GetNextKey();
 		m_flInitialOffsetZ = pKeys->GetFloat();
 		pKeys = pKeys->GetNextKey();
+		m_flCameraAngle = pKeys->GetFloat();
+		pKeys = pKeys->GetNextKey();
 		m_iNumLevels = pKeys->GetInt();
 		for (int i = 0; i < m_iNumLevels; i++)
 		{
@@ -152,9 +154,33 @@ void CNEOHud_Map::ApplySchemeSettings(vgui::IScheme *pScheme)
 	m_iX0 = (m_resX / 2) - (m_iY0 * 3);
 	m_iX1 = (m_resX / 2) + (m_iY0 * 3);
 
+	m_flAngle = atan(sin(DEG2RAD(m_flCameraAngle)) * (sin(DEG2RAD(m_flCameraAngle)) / cos(DEG2RAD(m_flCameraAngle))));
+	m_flCos = cos(m_flAngle);
+	m_flSin = sin(m_flAngle);
+	m_flScale = ((float)m_resY / 1200.f) * 0.206;
+
 	SetBounds(m_iX0, m_iY0, m_iY1, m_iY1);
 
 	LoadMap();
+}
+
+void CNEOHud_Map::DrawPlayer(C_NEO_Player *player, Color colour) const
+{
+	Vector difference = (Vector(m_flInitialOffsetX, m_flInitialOffsetY, m_flInitialOffsetZ) - player->GetAbsOrigin());
+	auto playerX = (m_iY1 / 2) + (difference.y * m_flCos * m_flScale) + (difference.x * m_flCos * m_flScale);
+	auto playerY = (m_iY1 / 2) - (difference.y * m_flSin * m_flScale) + (difference.x * m_flSin * m_flScale) + difference.z * m_flScale;
+
+	DrawNeoHudRoundedBox(playerX - 5, playerY - 5, playerX + 5, playerY + 5, colour);
+
+	constexpr int LINE_SIZE = 20;
+	float directionY = player->GetAbsAngles().y + 180;
+	int viewX1 = LINE_SIZE * sin(DEG2RAD(directionY));
+	int viewY1 = LINE_SIZE * cos(DEG2RAD(directionY));
+	int viewX2 = LINE_SIZE * sin(DEG2RAD(directionY) + m_flAngle*2);
+	int viewY2 = LINE_SIZE * cos(DEG2RAD(directionY) + m_flAngle*2);
+
+	surface()->DrawLine(playerX, playerY, playerX + viewX1, playerY + viewY1);
+	surface()->DrawLine(playerX, playerY, playerX + viewX2, playerY + viewY2);
 }
 
 void CNEOHud_Map::DrawMap() const
@@ -193,13 +219,40 @@ void CNEOHud_Map::DrawMap() const
 		surface()->DrawTexturedRect(0, 0, m_iY1, m_iY1);
 	}
 
-	Vector difference = (Vector(m_flInitialOffsetX, m_flInitialOffsetY, m_flInitialOffsetZ) - playerOrigin);
-	constexpr float scaleX = 0.17;
-	constexpr float scaleY = 0.17;
+	int localPlayerIndex = GetLocalPlayerIndex();
+	int localPlayerTeam = GetLocalPlayerTeam();
+	
+	if (player->IsAlive())
+	{
+		DrawPlayer(player, COLOR_YELLOW);
+	}
 
-	auto playerX = (m_iY1 / 2) + (difference.y * cos(DEG2RAD(35)) * scaleX) + (difference.x * cos(DEG2RAD(55)) * scaleX);
-	auto playerY = (m_iY1 / 2) - (difference.y * sin(DEG2RAD(35)) * scaleY) + (difference.x * sin(DEG2RAD(55)) * scaleY) + difference.z * scaleY;
+	if (localPlayerTeam != TEAM_NSF)
+	{
+		C_Team *teamJinrai = GetGlobalTeam(TEAM_JINRAI);
+		auto memberCount = teamJinrai->GetNumPlayers();
+		for (int i = 0; i < memberCount; ++i)
+		{
+			auto player = static_cast<C_NEO_Player*>(teamJinrai->GetPlayer(i));
+			if (player && localPlayerIndex != player->entindex() && player->IsAlive())
+			{
+				DrawPlayer( player, COLOR_JINRAI);
+			}
+		}
+	}
 
-	DrawNeoHudRoundedBox(playerX -5, playerY-5, playerX+5, playerY+5, COLOR_WHITE);
+	if (localPlayerTeam != TEAM_JINRAI)
+	{
+		C_Team* teamNsf = GetGlobalTeam(TEAM_NSF);
+		auto memberCount = teamNsf->GetNumPlayers();
+		for (int i = 0; i < memberCount; ++i)
+		{
+			auto player = static_cast<C_NEO_Player*>(teamNsf->GetPlayer(i));
+			if (player && localPlayerIndex != player->entindex() && player->IsAlive())
+			{
+				DrawPlayer(player, COLOR_NSF);
+			}
+		}
+	}
 }
 

@@ -25,12 +25,18 @@ protected:
 	virtual ConVar* GetUpdateFrequencyConVar() const;
 
 private:
+	void DrawPlayer(C_NEO_Player* player, Color colour) const;
 	void DrawMap() const;
 
 private:
 	vgui::HFont m_hFont;
 
 	int m_resX, m_resY, m_iX0, m_iX1, m_iY0, m_iY1;
+	float m_flCameraAngle;
+	float m_flAngle;
+	float m_flCos;
+	float m_flSin;
+	float m_flScale;
 
 	float m_flInitialOffsetX = 0.0f;
 	float m_flInitialOffsetY = 0.0f;
