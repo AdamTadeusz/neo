@@ -255,8 +255,20 @@ EXPOSE_INTERFACE( CPlayerPositionProxy, IMaterialProxy, "PlayerPosition" IMATERI
 class CEntitySpeedProxy : public CResultProxy
 {
 public:
+	bool Init(IMaterial* pMaterial, KeyValues* pKeyValues);
 	void OnBind( void *pC_BaseEntity );
+private:
+	float m_Factor;
 };
+
+bool CEntitySpeedProxy::Init(IMaterial* pMaterial, KeyValues* pKeyValues)
+{
+	if (!CResultProxy::Init(pMaterial, pKeyValues))
+		return false;
+
+	m_Factor = pKeyValues->GetFloat("scale", 0.005);
+	return true;
+}
 
 void CEntitySpeedProxy::OnBind( void *pC_BaseEntity )
 {
@@ -268,7 +280,7 @@ void CEntitySpeedProxy::OnBind( void *pC_BaseEntity )
 	C_BaseEntity *pEntity = BindArgToEntity( pC_BaseEntity );
 
 	Assert( m_pResult );
-	m_pResult->SetFloatValue( pEntity->GetLocalVelocity().Length() );
+	SetFloatResult( pEntity->GetLocalVelocity().Length() * m_Factor);
 
 	if ( ToolsEnabled() )
 	{
