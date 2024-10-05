@@ -792,7 +792,7 @@ void CNEOBaseCombatWeapon::PrimaryAttack(void)
 	}
 
 	// Only the player fires this way so we can cast
-	CBasePlayer* pPlayer = ToBasePlayer(GetOwner());
+	auto pPlayer = static_cast<CNEO_Player*>(GetOwner());
 
 	if (!pPlayer)
 	{
@@ -805,7 +805,7 @@ void CNEOBaseCombatWeapon::PrimaryAttack(void)
 	SendWeaponAnim(GetPrimaryAttackActivity());
 
 	// player "shoot" animation
-	pPlayer->SetAnimation(PLAYER_ATTACK1);
+	pPlayer->DoAnimationEvent(PLAYERANIMEVENT_ATTACK_PRIMARY);
 
 	FireBulletsInfo_t info;
 	info.m_vecSrc = pPlayer->Weapon_ShootPosition();
