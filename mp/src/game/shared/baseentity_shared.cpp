@@ -1634,6 +1634,9 @@ void NormalizeAngles(QAngle& angles)
 #endif
 #endif
 
+#ifdef NEO
+ConVar cl_neo_bullet_trace("cl_neo_bullet_trace", "0", FCVAR_CHEAT, "Show bullet trace", true, 0, true, 1);
+#endif
 void CBaseEntity::FireBullets( const FireBulletsInfo_t &info )
 {
 	static int	tracerCount;
@@ -2020,6 +2023,12 @@ void CBaseEntity::FireBullets( const FireBulletsInfo_t &info )
 			}
 		}
 
+#ifdef NEO
+		if (cl_neo_bullet_trace.GetBool())
+		{
+			DebugDrawLine(info.m_vecSrc, tr.endpos, 255, 255 * (1 - (info.m_flPenetration / 65.0 /*Default penetration of the srs*/)), 0, 1, 30.f);
+		}
+#endif // NEO
 		// See if we hit glass
 		if ( tr.m_pEnt != NULL )
 		{
@@ -2033,10 +2042,12 @@ void CBaseEntity::FireBullets( const FireBulletsInfo_t &info )
 					bHitGlass = true;
 				}
 			}
-#endif
+#ifdef NEO
 			// Bullet penetration
 			if (!bHitGlass)
 				HandleShotPenetration(info, tr, vecDir, &traceFilter);
+#endif // NEO
+#endif
 		}
 
 		if ( ( info.m_iTracerFreq != 0 ) && ( tracerCount++ % info.m_iTracerFreq ) == 0 && ( bHitGlass == false ) )
@@ -2125,7 +2136,7 @@ void CBaseEntity::FireBullets( const FireBulletsInfo_t &info )
 }
 
 #ifdef NEO
-#define MAX_PENETRATION_DEPTH 12.f
+#define MAX_PENETRATION_DEPTH 24.f
 
 #define MATERIALS_NUM 26
 static const float penetrationResistance[MATERIALS_NUM] =
@@ -2178,17 +2189,74 @@ void CBaseEntity::HandleShotPenetration(const FireBulletsInfo_t& info,
 	data.m_vNormal = tr.plane.normal;
 	data.m_vOrigin = tr.endpos;
 
+	trace_t lastSuccessfulTrace;
 	trace_t	penetrationTrace;
+	
+	float distanceTraveled = 0;
+	Vector startPos = testPos;
+	Vector endPos = tr.endpos;
+	bool hitSomething = false;
+	int colour = 0;
+	do
+	{
+		// Re-trace as if the bullet had passed right through
+		UTIL_TraceLine(startPos, endPos, MASK_SHOT, pTraceFilter, &penetrationTrace);
 
-	// Re-trace as if the bullet had passed right through
-	UTIL_TraceLine(testPos, tr.endpos, MASK_SHOT, pTraceFilter, &penetrationTrace);
+		if (penetrationTrace.fraction < 0.1f)
+		{ // Stuck on the surface at the starting position, move into the object
+			if (cl_neo_bullet_trace.GetBool())
+			{
+				colour = colour ? 0 : 255;
+				//DebugDrawLine(startPos, startPos - vecDir.Normalized(), colour, colour, colour, 1, 30.f);
+			}
+			startPos -= vecDir.Normalized();
+			distanceTraveled += 1;
+		}
+		else
+		{
+			if (cl_neo_bullet_trace.GetBool())
+			{
+				//DebugDrawLine(startPos, startPos - vecDir.Normalized() * penetrationTrace.fraction * MAX_PENETRATION_DEPTH, 127, 127, 127, 1, 30.f);
+			}
+			float maxDistanceCouldHaveTraveled = (startPos - endPos).Length();
+			distanceTraveled += penetrationTrace.fraction * maxDistanceCouldHaveTraveled;
+			startPos -= vecDir.Normalized() * penetrationTrace.fraction * maxDistanceCouldHaveTraveled;
+			if (penetrationTrace.fraction != 1.0f && distanceTraveled < MAX_PENETRATION_DEPTH)
+			{
+				hitSomething = true;
+				lastSuccessfulTrace = penetrationTrace;
+			}
+		}
+
+
+	} while (distanceTraveled < MAX_PENETRATION_DEPTH && startPos != endPos);
+
+	if (cl_neo_bullet_trace.GetBool())
+	{
+		if (hitSomething)
+		{
+			float penUsed = (((1.0f - lastSuccessfulTrace.fraction) * MAX_PENETRATION_DEPTH) / penResistance);
+			if (info.m_flPenetration > penUsed)
+			{
+				DebugDrawLine(startPos, lastSuccessfulTrace.endpos, 0, 255, 0, 1, 30.f);
+			}
+			else
+			{
+				DebugDrawLine(startPos, startPos + ((lastSuccessfulTrace.endpos - startPos) / (penUsed / info.m_flPenetration)), 0, 255, 255, 1, 30.f);
+			}
+		}
+		else
+		{
+			DebugDrawLine(startPos, testPos, 0, 0, 255, 1, 30.f);
+		}
+	}
 
 	// See if we found the surface again
-	if (penetrationTrace.startsolid || tr.fraction == 0.0f || penetrationTrace.fraction == 1.0f)
+	if (!hitSomething)
 		return;
 
 	// See if we have enough pen to penetrate
-	float penUsed = ((1.0f - penetrationTrace.fraction) * MAX_PENETRATION_DEPTH) / penResistance;
+	float penUsed = ((1.0f - lastSuccessfulTrace.fraction) * MAX_PENETRATION_DEPTH) / penResistance;
 	if (penUsed > info.m_flPenetration)
 		return;
 
@@ -2196,15 +2264,15 @@ void CBaseEntity::HandleShotPenetration(const FireBulletsInfo_t& info,
 	//		 would do exactly the same anyway...
 
 	// Impact the other side (will look like an exit effect)
-	DoImpactEffect(penetrationTrace, GetAmmoDef()->DamageType(info.m_iAmmoType));
+	DoImpactEffect(lastSuccessfulTrace, GetAmmoDef()->DamageType(info.m_iAmmoType));
 
-	data.m_vNormal = penetrationTrace.plane.normal;
-	data.m_vOrigin = penetrationTrace.endpos;
+	data.m_vNormal = lastSuccessfulTrace.plane.normal;
+	data.m_vOrigin = lastSuccessfulTrace.endpos;
 
 	// Refire the round, as if starting from behind the material
 	FireBulletsInfo_t behindMaterialInfo;
 	behindMaterialInfo.m_iShots = 1;
-	behindMaterialInfo.m_vecSrc = penetrationTrace.endpos;
+	behindMaterialInfo.m_vecSrc = lastSuccessfulTrace.endpos;
 	behindMaterialInfo.m_vecDirShooting = vecDir;
 	behindMaterialInfo.m_vecSpread = vec3_origin;
 	behindMaterialInfo.m_flDistance = info.m_flDistance * (1.0f - tr.fraction);
