@@ -2181,98 +2181,111 @@ void CBaseEntity::HandleShotPenetration(const FireBulletsInfo_t& info,
 	if (material > 0 && material < MATERIALS_NUM)
 		penResistance = penetrationResistance[material];
 
-	// Move through the material until we're at the other side or bullet has run out of penetrative power
-	Vector	testPos = tr.endpos + (vecDir.Normalized() * MAX_PENETRATION_DEPTH);
+	if (cl_neo_bullet_trace.GetBool())
+	{ // Entrance wound (GREEN STAR)
+		Vector debugStartX = tr.endpos - Vector(1, 0, 0);
+		DebugDrawLine(debugStartX, debugStartX + Vector(2, 0, 0), 0, 255, 0, 0, 30.f);
+		Vector debugStartY = tr.endpos - Vector(0, 1, 0);
+		DebugDrawLine(debugStartY, debugStartY + Vector(0, 2, 0), 0, 255, 0, 0, 30.f);
+		Vector debugStartZ = tr.endpos - Vector(0, 0, 1);
+		DebugDrawLine(debugStartZ, debugStartZ + Vector(0, 0, 2), 0, 255, 0, 0, 30.f);
+	}
+	engine->Con_NPrintf(0, "Hitbox: %i, Hitgroup: %i", tr.hitbox, tr.hitgroup);
 
-	CEffectData	data;
-
-	data.m_vNormal = tr.plane.normal;
-	data.m_vOrigin = tr.endpos;
-
-	trace_t lastSuccessfulTrace;
-	trace_t	penetrationTrace;
-	
-	float distanceTraveled = 0;
-	Vector startPos = testPos;
-	Vector endPos = tr.endpos;
-	bool hitSomething = false;
-	int colour = 0;
+	trace_t nextObjectTrace;
+	int step = 0;
 	do
 	{
-		// Re-trace as if the bullet had passed right through
-		UTIL_TraceLine(startPos, endPos, MASK_SHOT, pTraceFilter, &penetrationTrace);
+		step += 1;
+		UTIL_TraceLine(tr.endpos + (vecDir.Normalized() * step), tr.endpos + (vecDir.Normalized() * (MAX_PENETRATION_DEPTH - step)), MASK_SHOT, pTraceFilter, &nextObjectTrace);
 
-		if (penetrationTrace.fraction < 0.1f)
-		{ // Stuck on the surface at the starting position, move into the object
-			if (cl_neo_bullet_trace.GetBool())
-			{
-				colour = colour ? 0 : 255;
-				//DebugDrawLine(startPos, startPos - vecDir.Normalized(), colour, colour, colour, 1, 30.f);
-			}
-			startPos -= vecDir.Normalized();
-			distanceTraveled += 1;
-		}
-		else
+	} while (MAX_PENETRATION_DEPTH > step && tr.m_pEnt && tr.m_pEnt->IsPlayer() && (nextObjectTrace.hitbox == tr.hitbox && nextObjectTrace.hitgroup == tr.hitgroup));
+	
+	if (step >= MAX_PENETRATION_DEPTH)
+	{ // Still in same hitbox hitgroup, MAX_PENETRATION_DEPTH too low (BLUE LINE)
+		if (cl_neo_bullet_trace.GetBool())
 		{
-			if (cl_neo_bullet_trace.GetBool())
-			{
-				//DebugDrawLine(startPos, startPos - vecDir.Normalized() * penetrationTrace.fraction * MAX_PENETRATION_DEPTH, 127, 127, 127, 1, 30.f);
-			}
-			float maxDistanceCouldHaveTraveled = (startPos - endPos).Length();
-			distanceTraveled += penetrationTrace.fraction * maxDistanceCouldHaveTraveled;
-			startPos -= vecDir.Normalized() * penetrationTrace.fraction * maxDistanceCouldHaveTraveled;
-			if (penetrationTrace.fraction != 1.0f && distanceTraveled < MAX_PENETRATION_DEPTH)
-			{
-				hitSomething = true;
-				lastSuccessfulTrace = penetrationTrace;
-			}
+			DebugDrawLine(tr.endpos, tr.endpos + (vecDir.Normalized() * (MAX_PENETRATION_DEPTH)), 0, 0, 255, 0, 30.f);
 		}
-
-
-	} while (distanceTraveled < MAX_PENETRATION_DEPTH && startPos != endPos);
-
-	if (cl_neo_bullet_trace.GetBool())
-	{
-		if (hitSomething)
-		{
-			float penUsed = (((1.0f - lastSuccessfulTrace.fraction) * MAX_PENETRATION_DEPTH) / penResistance);
-			if (info.m_flPenetration > penUsed)
-			{
-				DebugDrawLine(startPos, lastSuccessfulTrace.endpos, 0, 255, 0, 1, 30.f);
-			}
-			else
-			{
-				DebugDrawLine(startPos, startPos + ((lastSuccessfulTrace.endpos - startPos) / (penUsed / info.m_flPenetration)), 0, 255, 255, 1, 30.f);
-			}
-		}
-		else
-		{
-			DebugDrawLine(startPos, testPos, 0, 0, 255, 1, 30.f);
-		}
+		return;
 	}
 
-	// See if we found the surface again
-	if (!hitSomething)
+	// Regardless of whether there is another object behind the one we hit, we do a trace backwards from this point to find the exit point of our bullet
+	Vector startPos = nextObjectTrace.endpos;
+
+	if (cl_neo_bullet_trace.GetBool())
+	{ // Backwards trace start (BLUE STAR)
+		Vector debugStartX = startPos - Vector(0.5, 0.5, 0);
+		DebugDrawLine(debugStartX, debugStartX + Vector(1, 1, 0), 0, 0, 255, 0, 30.f);
+		Vector debugStartY = startPos - Vector(0, 0.5, 0.5);
+		DebugDrawLine(debugStartY, debugStartY + Vector(0, 1, 1), 0, 0, 255, 0, 30.f);
+		Vector debugStartZ = startPos - Vector(0.5, 0, 0.5);
+		DebugDrawLine(debugStartZ, debugStartZ + Vector(1, 0, 1), 0, 0, 255, 0, 30.f);
+	}
+
+	trace_t exitHoleTrace;
+	float maxDistanceTraveled = (startPos - tr.endpos).Length();
+	Assert(maxDistanceTraveled <= MAX_PENETRATION_DEPTH + 0.01);
+	do
+	{
+		UTIL_TraceLine(startPos, tr.endpos, MASK_SHOT, pTraceFilter, &exitHoleTrace);
+		if (exitHoleTrace.fraction == 0.0f)
+		{
+			startPos -= vecDir.Normalized();
+			maxDistanceTraveled -= 1;
+
+			if (cl_neo_bullet_trace.GetBool())
+			{ // Stuck in backwards trace (CYAN STAR)
+				Vector debugStartX = startPos - Vector(0.5, 0.5, 0);
+				DebugDrawLine(debugStartX, debugStartX + Vector(1, 1, 0), 0, 255, 255, 0, 30.f);
+				Vector debugStartY = startPos - Vector(0, 0.5, 0.5);
+				DebugDrawLine(debugStartY, debugStartY + Vector(0, 1, 1), 0, 255, 255, 0, 30.f);
+				Vector debugStartZ = startPos - Vector(0.5, 0, 0.5);
+				DebugDrawLine(debugStartZ, debugStartZ + Vector(1, 0, 1), 0, 255, 255, 0, 30.f);
+			}
+		}
+
+	} while (exitHoleTrace.fraction == 0.0f );
+	if (exitHoleTrace.fraction > 0.999f)
+	{ // We've ended up where we originally started, no exit surface found. Have we stepped into our original object? End penetration
+		if (cl_neo_bullet_trace.GetBool())
+		{ // Failed to find exit wound (Should be next to entrace wound (GREEN STAR)) (WHITE STAR) (WHITE LINE)
+			Vector debugStartX = startPos - Vector(0.5, 0.5, 0);
+			DebugDrawLine(debugStartX, debugStartX + Vector(1, 1, 0), 255, 255, 255, 0, 30.f);
+			Vector debugStartY = startPos - Vector(0, 0.5, 0.5);
+			DebugDrawLine(debugStartY, debugStartY + Vector(0, 1, 1), 255, 255, 255, 0, 30.f);
+			Vector debugStartZ = startPos - Vector(0.5, 0, 0.5);
+			DebugDrawLine(debugStartZ, debugStartZ + Vector(1, 0, 1), 255, 255, 255, 0, 30.f);
+			DebugDrawLine(startPos, tr.endpos, 255, 255, 255, 0, 30.f);
+		}
 		return;
+	}
 
 	// See if we have enough pen to penetrate
-	float penUsed = ((1.0f - lastSuccessfulTrace.fraction) * MAX_PENETRATION_DEPTH) / penResistance;
+	float penUsed = ((1.0f - exitHoleTrace.fraction) * maxDistanceTraveled) / penResistance;
 	if (penUsed > info.m_flPenetration)
+	{
+		if (cl_neo_bullet_trace.GetBool())
+		{ // Not enough penetration (CYAN LINE)
+			DebugDrawLine(tr.endpos, tr.endpos + (vecDir.Normalized() * (1.0f - exitHoleTrace.fraction) * maxDistanceTraveled * (info.m_flPenetration / penUsed)), 0, 255, 255, 0, 30.f);
+		}
 		return;
+	}
 
 	//FIXME: This is technically frustrating MultiDamage, but multiple shots hitting multiple targets in one call
 	//		 would do exactly the same anyway...
 
 	// Impact the other side (will look like an exit effect)
-	DoImpactEffect(lastSuccessfulTrace, GetAmmoDef()->DamageType(info.m_iAmmoType));
+	DoImpactEffect(exitHoleTrace, GetAmmoDef()->DamageType(info.m_iAmmoType));
 
-	data.m_vNormal = lastSuccessfulTrace.plane.normal;
-	data.m_vOrigin = lastSuccessfulTrace.endpos;
+	CEffectData	data;
+	data.m_vNormal = exitHoleTrace.plane.normal;
+	data.m_vOrigin = exitHoleTrace.endpos;
 
 	// Refire the round, as if starting from behind the material
 	FireBulletsInfo_t behindMaterialInfo;
 	behindMaterialInfo.m_iShots = 1;
-	behindMaterialInfo.m_vecSrc = lastSuccessfulTrace.endpos;
+	behindMaterialInfo.m_vecSrc = exitHoleTrace.endpos + vecDir.Normalized();
 	behindMaterialInfo.m_vecDirShooting = vecDir;
 	behindMaterialInfo.m_vecSpread = vec3_origin;
 	behindMaterialInfo.m_flDistance = info.m_flDistance * (1.0f - tr.fraction);
@@ -2282,6 +2295,22 @@ void CBaseEntity::HandleShotPenetration(const FireBulletsInfo_t& info,
 	behindMaterialInfo.m_pAttacker = info.m_pAttacker ? info.m_pAttacker : this;
 	behindMaterialInfo.m_nFlags = info.m_nFlags;
 	behindMaterialInfo.m_flPenetration = info.m_flPenetration - penUsed;
+
+	/*if (tr.m_pEnt && tr.m_pEnt->IsPlayer())
+	{
+		static_cast<CBulletsTraceFilter*>(pTraceFilter)->AddEntityToIgnore(tr.m_pEnt);
+	}*/
+
+	if (cl_neo_bullet_trace.GetBool())
+	{ // Exit Wound (RED STAR) Penetrating bullet path (GREEN LINE)
+		Vector debugStartX = exitHoleTrace.endpos - Vector(0.5, 0, 0);
+		DebugDrawLine(debugStartX, debugStartX + Vector(1, 0, 0), 255, 0, 0, 0, 30.f);
+		Vector debugStartY = exitHoleTrace.endpos - Vector(0, 0.5, 0);
+		DebugDrawLine(debugStartY, debugStartY + Vector(0, 1, 0), 255, 0, 0, 0, 30.f);
+		Vector debugStartZ = exitHoleTrace.endpos - Vector(0, 0, 0.5);
+		DebugDrawLine(debugStartZ, debugStartZ + Vector(0, 0, 1), 255, 0, 0, 0, 30.f);
+		DebugDrawLine(tr.endpos, exitHoleTrace.endpos, 0, 255, 0, 0, 30.f);
+	}
 
 	CBaseEntity::FireBullets(behindMaterialInfo);
 }
