@@ -309,45 +309,42 @@ float CNEOPredictedViewModel::lean(CNEO_Player *player){
 		{
 			Vector startPos = player->GetAbsOrigin();
 			startPos.z = player->EyePosition().z;
-			int distance = 80;
+			Vector forward, side; 
+			player->EyeVectors(&forward, &side, nullptr);
+			Vector endPos1, endPos2, endDirection1, endDirection2;
+			endPos1 = startPos - (side * 25);
+			endPos1.z = player->EyePosition().z;
+			endPos2 = startPos + (side * 25);
+			endPos2.z = player->EyePosition().z;
+			endDirection1 = (side * 25) + (forward * 75);
+			endDirection1.z = player->EyePosition().z;
+			endDirection2 = (-side * 25) + (forward * 75);
+			endDirection2.z = player->EyePosition().z;
 			int total = 0;
-			constexpr float tracelineAngleChange = 10.f;
 			trace_t tr;
-			CTraceFilterWorldAndPropsOnly filter;
-			for (int i = 2; i <= 7; i++)
+			CTraceFilterHitAll filter;
+			for (int i = 0; i <= 8; i++)
 			{
-				Vector endPos = startPos;
-				endPos.x += cos(DEG2RAD(viewAng.y) + (i / tracelineAngleChange)) * distance;
-				endPos.y += sin(DEG2RAD(viewAng.y) + (i / tracelineAngleChange)) * distance;
-				UTIL_TraceLine(startPos, endPos, MASK_SOLID_BRUSHONLY, &filter, &tr);
+				UTIL_TraceLine(startPos, endPos1 + Vector(endDirection1.x * i * 0.1, endDirection1.y * i * 0.1, 0), MASK_ALL, &filter, &tr);
 				if (tr.fraction != 1.0)
 				{
 					total -= 1;
 				}
-				distance -= 10;
 #ifdef DEBUG
 				if (cl_neo_lean_automatic_debug.GetBool())
 				{
-					DebugDrawLine(startPos, endPos, 255, 255, 0, 0, 0.1);
+					DebugDrawLine(startPos, endPos1 + Vector(endDirection1.x * i * 0.1, endDirection1.y * i * 0.1, 0), 255, tr.fraction != 1.0 ? 0 : 255, 0, 0, 0.1);
 				}
 #endif // DEBUG
-			}
-			distance = 80;
-			for (int i = -2; i >= -7; i--)
-			{
-				Vector endPos = startPos;
-				endPos.x += cos(DEG2RAD(viewAng.y) + (i / tracelineAngleChange)) * distance;
-				endPos.y += sin(DEG2RAD(viewAng.y) + (i / tracelineAngleChange)) * distance;
-				UTIL_TraceLine(startPos, endPos, MASK_SOLID_BRUSHONLY, &filter, &tr);
+				UTIL_TraceLine(startPos, endPos2 + Vector(endDirection2.x * i * 0.1, endDirection2.y * i * 0.1, 0), MASK_ALL, &filter, &tr);
 				if (tr.fraction != 1.0)
 				{
 					total += 1;
 				}
-				distance -= 10;
 #ifdef DEBUG
 				if (cl_neo_lean_automatic_debug.GetBool())
 				{
-					DebugDrawLine(startPos, endPos, 255, 255, 0, 0, 0.1);
+					DebugDrawLine(startPos, endPos2 + Vector(endDirection2.x * i * 0.1, endDirection2.y * i * 0.1, 0), 0, tr.fraction != 1.0 ? 0 : 255, 255, 0, 0.1);
 				}
 #endif // DEBUG
 			}
