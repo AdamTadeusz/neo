@@ -3384,6 +3384,19 @@ int C_BaseAnimating::InternalDrawModel( int flags )
 
 	DoInternalDrawModel( pInfo, ( bMarkAsDrawn && ( pInfo->flags & STUDIO_RENDER ) ) ? &state : NULL, pBoneToWorld );
 
+	auto index = GetBaseEntity()->index;
+	if (index == 52)
+	{
+		Vector forward, right, up;
+		MatrixVectors(*pBoneToWorld, &forward, &right, &up);
+		QAngle angle;
+		//MatrixAngles(*pBoneToWorld, angle);
+		//AngleVectors(pInfo->angles, &forward);
+		VectorAngles(forward, angle);
+		engine->Con_NPrintf(0, "Weapon Pitch: %f Yaw: %f", angle.x, angle.y);
+		Vector origin = GetBaseEntity()->GetMoveParent()->GetAbsOrigin() + GetBaseEntity()->GetMoveParent()->GetViewOffset();
+		DebugDrawLine(origin, (origin + (forward * 10000.f)), 255, 255, 0, false, 0);
+	}
 	OnPostInternalDrawModel( pInfo );
 
 	return bMarkAsDrawn;

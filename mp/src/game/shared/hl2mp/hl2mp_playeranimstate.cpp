@@ -736,7 +736,7 @@ void CHL2MPPlayerAnimState::ComputePoseParam_AimPitch( CStudioHdr *pStudioHdr )
 	float flAimPitch = m_flEyePitch;
 
 	// Set the aim pitch pose parameter and save.
-	GetBasePlayer()->SetPoseParameter( pStudioHdr, m_PoseParameterData.m_iAimPitch, flAimPitch );
+	GetBasePlayer()->SetPoseParameter( pStudioHdr, m_PoseParameterData.m_iAimPitch, (20 + ((20 - flAimPitch) * (flAimPitch > 20 ? -1.2 : -1.85))));
 	m_DebugAnimData.m_flAimPitch = flAimPitch;
 }
 
@@ -814,7 +814,7 @@ void CHL2MPPlayerAnimState::ComputePoseParam_AimYaw( CStudioHdr *pStudioHdr )
 	flAimYaw = AngleNormalize( flAimYaw );
 
 	// Set the aim yaw and save.
-	GetBasePlayer()->SetPoseParameter( pStudioHdr, m_PoseParameterData.m_iAimYaw, flAimYaw );
+	GetBasePlayer()->SetPoseParameter( pStudioHdr, m_PoseParameterData.m_iAimYaw, (flAimYaw * (1.4)) - 15 );
 	m_DebugAnimData.m_flAimYaw	= flAimYaw;
 
 	// Turn off a force aim yaw - either we have already updated or we don't need to.

@@ -997,6 +997,10 @@ void C_NEO_Player::ClientThink(void)
 {
 	BaseClass::ClientThink();
 
+	Vector forward;
+	AngleVectors(EyeAngles(), &forward);
+	DebugDrawLine(EyePosition(), (EyePosition() + forward * 100), 255, 0, 0, false, 0.1);
+
 	if (IsCloaked())
 	{ // PreThink and PostThink are only ran for local player, update every in pvs player's cloak strength here
 		auto pLocalPlayer = C_NEO_Player::GetLocalNEOPlayer();

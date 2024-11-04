@@ -1089,6 +1089,10 @@ int CNEOBaseCombatWeapon::DrawModel(int flags)
 	int ret = 0;
 	if (!pOwner->IsCloaked() || inThermalVision)
 	{
+		if (IsActiveByLocalPlayer())
+		{
+			engine->Con_NPrintf(0, "Our weapon");
+		}
 		ret |= BaseClass::DrawModel(flags);
 	}
 
