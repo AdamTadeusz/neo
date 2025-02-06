@@ -40,11 +40,13 @@ void CClientThinkList::Shutdown()
 }
 
 
+#ifdef NEO
+#include "qlimits.h"
+#endif // NEO
 void CClientThinkList::LevelInitPreEntity()
 {
 	m_nIterEnum = 0;
 #ifdef NEO
-	constexpr int MAX_OSPATH = 260;
 	char mapName[MAX_OSPATH];
 	char mapCFGCommand[MAX_OSPATH + 5];
 	Q_FileBase(engine->GetLevelName(), mapName, sizeof(mapName));
