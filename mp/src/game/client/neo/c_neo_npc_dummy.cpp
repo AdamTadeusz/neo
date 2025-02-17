@@ -22,14 +22,14 @@ int C_NEO_NPCDummy::DrawModel(int flags) // From c_neo_player
         return BaseClass::DrawModel(flags);
     }
 
-    auto pLocalPlayer = C_NEO_Player::GetLocalNEOPlayer();
-    if (!pLocalPlayer)
+    auto pTargetPlayer = C_NEO_Player::GetTargetNEOPlayer();
+    if (!pTargetPlayer)
     {
         Assert(false);
         return BaseClass::DrawModel(flags);
     }
 
-    bool inThermalVision = pLocalPlayer->IsInVision() && pLocalPlayer->GetClass() == NEO_CLASS_SUPPORT;
+    bool inThermalVision = pTargetPlayer ? (pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT) : false;
 
     int ret = 0;
     if (inThermalVision)
