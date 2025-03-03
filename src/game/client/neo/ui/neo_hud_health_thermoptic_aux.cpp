@@ -101,8 +101,8 @@ void CNEOHud_HTA::DrawBuildInfo() const
 	surface()->DrawPrintText(m_wszBuildInfo, ARRAYSIZE(m_wszBuildInfo) - 1);
 }
 
-ConVar neo_cl_hud_health_as_percentage("neo_cl_hud_health_as_percentage", "0", FCVAR_NONE,
-	"Health display mode. 0 = percent, 1 = hitpoints", true, 0, true, 2);
+ConVar neo_cl_hud_health_as_percentage("neo_cl_hud_health_as_percentage", "1", FCVAR_NONE,
+	"Health display mode", true, 0, true, 1);
 void CNEOHud_HTA::DrawHTA() const
 {
 	auto player = C_NEO_Player::GetLocalNEOPlayer();
