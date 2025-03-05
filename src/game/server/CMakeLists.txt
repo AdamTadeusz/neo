@@ -1338,6 +1338,8 @@ target_sources_grouped(
     TARGET server
     NAME "NEO"
     FILES
+    ${CMAKE_SOURCE_DIR}/game/shared/neo/neo_control_point.cpp
+    ${CMAKE_SOURCE_DIR}/game/shared/neo/neo_control_point.h
     ${CMAKE_SOURCE_DIR}/game/shared/neo/neo_gamerules.cpp
     ${CMAKE_SOURCE_DIR}/game/shared/neo/neo_gamerules.h
     ${CMAKE_SOURCE_DIR}/game/shared/neo/neo_ghost_cap_point.cpp

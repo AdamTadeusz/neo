@@ -411,6 +411,9 @@ private:
 	CNEO_Player *m_pVIP = nullptr;
 	int m_iVIPPreviousClass = 0;
 
+#define MAX_CONTROL_POINTS 16
+	int m_pControlPoints[MAX_CONTROL_POINTS];
+
 	float m_flPrevThinkKick = 0.0f;
 	float m_flPrevThinkMirrorDmg = 0.0f;
 	bool m_bTeamBeenAwardedDueToCapPrevent = false;
