@@ -532,7 +532,13 @@ protected:
 
 	friend class CCleanupDefaultRelationShips;
 	
+#ifdef NEO
+public:
+#endif // NEO
 	IntervalTimer m_aliveTimer;
+#ifdef NEO
+protected:
+#endif // NEO
 
 	unsigned int m_hasBeenInjured;							// bitfield corresponding to team ID that did the injury	
 

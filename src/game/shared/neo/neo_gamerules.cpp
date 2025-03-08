@@ -6,6 +6,7 @@
 
 #include "takedamageinfo.h"
 #include "basegrenade_shared.h"
+#include "neo_gamemode.h"
 
 #ifdef CLIENT_DLL
 	#include "c_neo_player.h"
@@ -210,25 +211,6 @@ static NEOViewVectors g_NEOViewVectors(
 	Vector(-16, -16, 0 ),	  //VEC_CROUCH_TRACE_MIN (m_vCrouchTraceMin)
 	Vector(16, 16, 60)	  //VEC_CROUCH_TRACE_MAX (m_vCrouchTraceMax)
 );
-
-struct NeoGameTypeSettings {
-	const char* gameTypeName;
-	bool respawns;
-	bool neoRulesThink;
-	bool changeTeamClassLoadoutWhenAlive;
-	bool comp;
-	bool capPrevent;
-};
-
-const NeoGameTypeSettings NEO_GAME_TYPE_SETTINGS[NEO_GAME_TYPE__TOTAL] = {
-//						gametypeName	respawns	neoRulesThink	changeTeamClassLoadoutWhenAlive	comp	capPrevent
-/*NEO_GAME_TYPE_TDM*/	{"TDM",			true,		true,			false,							false,	false},
-/*NEO_GAME_TYPE_CTG*/	{"CTG",			false,		true,			false,							true,	true},
-/*NEO_GAME_TYPE_VIP*/	{"VIP",			false,		true,			false,							true,	true},
-/*NEO_GAME_TYPE_DM*/	{"DM",			true,		true,			false,							false,	false},
-/*NEO_GAME_TYPE_EMT*/	{"EMT",			true,		false,			true,							false,	false},
-/*NEO_GAME_TYPE_TUT*/	{"TUT",			false,		false,			false,							false,	false},
-};
 
 #ifdef CLIENT_DLL
 	void RecvProxy_NEORules( const RecvProp *pProp, void **pOut,
@@ -3531,56 +3513,8 @@ bool CNEORules::GetTeamPlayEnabled() const
 #ifdef GAME_DLL
 bool CNEORules::FPlayerCanRespawn(CBasePlayer* pPlayer)
 {
-	auto gameType = GetGameType();
-
-	if (NEO_GAME_TYPE_SETTINGS[gameType].respawns)
-	{
-		return true;
-	}
-
-	else if (gameType == NEO_GAME_TYPE_TUT)
-	{
-		if (pPlayer->IsAlive())
-		{
-			return false;
-		}
-		return true;
-	}
-
-	auto jinrai = GetGlobalTeam(TEAM_JINRAI);
-	auto nsf = GetGlobalTeam(TEAM_NSF);
-
-	if (jinrai && nsf)
-	{
-		if (!IsRoundOn())
-		{
-			return true;
-		}
-
-		CNEO_Player* pNeoPlayer = ToNEOPlayer(pPlayer);
-		if (pNeoPlayer->m_bSpawnedThisRound)
-		{
-			return false;
-		}
-	}
-	else
-	{
-		Assert(false);
-	}
-
-	// Do not let anyone who tried to team-kill during mirror damage + live round to respawn
-	if (static_cast<CNEO_Player *>(pPlayer)->m_bKilledInflicted)
-	{
-		return false;
-	}
-
-	// Did we make it in time to spawn for this round?
-	if (GetRemainingPreRoundFreezeTime(false) + mp_neo_latespawn_max_time.GetFloat() > 0)
-	{
-		return true;
-	}
-
-	return false;
+	auto neoPlayer = static_cast<CNEO_Player*>(pPlayer);
+	return NEO_GAME_TYPE_SETTINGS[GetGameType()].canRespawn(neoPlayer);
 }
 
 CBaseEntity *CNEORules::GetPlayerSpawnSpot(CBasePlayer *pPlayer)
@@ -3694,12 +3628,12 @@ int CNEORules::GetForcedWeapon(void)
 
 const char* CNEORules::GetGameTypeName(void)
 {
-	return NEO_GAME_TYPE_SETTINGS[GetGameType()].gameTypeName;
+	return NEO_GAME_TYPE_SETTINGS[GetGameType()].name;
 }
 
 bool CNEORules::CanChangeTeamClassWeaponWhenAlive()
 {
-	return NEO_GAME_TYPE_SETTINGS[GetGameType()].changeTeamClassLoadoutWhenAlive;
+	return NEO_GAME_TYPE_SETTINGS[GetGameType()].canChangeTeamClassLoadout;
 }
 
 float CNEORules::GetRemainingPreRoundFreezeTime(const bool clampToZero) const

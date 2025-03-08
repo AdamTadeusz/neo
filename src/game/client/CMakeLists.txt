@@ -1588,6 +1588,7 @@ target_sources_grouped(
     TARGET client
     NAME "Source Files\\Shared"
     FILES
+    ${CMAKE_SOURCE_DIR}/game/shared/neo/neo_gamemode.h
     ${CMAKE_SOURCE_DIR}/game/shared/neo/neo_gamerules.cpp
     ${CMAKE_SOURCE_DIR}/game/shared/neo/neo_gamerules.h
     ${CMAKE_SOURCE_DIR}/game/shared/neo/neo_ghost_cap_point.cpp
