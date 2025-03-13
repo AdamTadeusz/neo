@@ -1195,9 +1195,34 @@ void CGameMovement::ProcessMovement( CBasePlayer *pPlayer, CMoveData *pMove )
 	// CheckV( player->CurrentCommandNumber(), "StartPos", mv->GetAbsOrigin() );
 
 	DiffPrint( "start %f %f %f", mv->GetAbsOrigin().x, mv->GetAbsOrigin().y, mv->GetAbsOrigin().z );
+	/*auto neoPlayer = static_cast<CNEO_Player*>(player);
+	mv->SetAbsOrigin(neoPlayer->GetAbsOrigin() + neoPlayer->m_vecLeanStep.Get());*/
 
 	// Run the command.
 	PlayerMove();
+#ifdef NEO
+	QAngle vecViewAngles = mv->m_vecViewAngles;
+	vecViewAngles.z = 0.f;
+	Vector eyeVectorRight;
+
+	AngleVectors(vecViewAngles, nullptr, &eyeVectorRight, nullptr);  // Determine movement angles
+	//player->EyeVectors(nullptr, &eyeVectorRight, nullptr);
+	auto viewModel = static_cast<CNEOPredictedViewModel*>(player->GetViewModel());
+	float difference = abs(viewModel->m_flLeanRatio) - abs(viewModel->m_flOldLeanRatio);
+	float maxOffset = viewModel->m_flLeanRatio > 0 ? 7.5 : 15;
+	if (viewModel->m_flLeanRatio < 0)
+	{
+		difference *= -1;
+	}
+	eyeVectorRight.z = 0;
+	Vector destination = mv->GetAbsOrigin() + (difference * maxOffset * eyeVectorRight);
+	trace_t pm;
+	TracePlayerBBox(mv->GetAbsOrigin(), destination, PlayerSolidMask(), COLLISION_GROUP_PLAYER_MOVEMENT, pm);
+	if (pm.fraction == 1.f)
+	{
+		mv->SetAbsOrigin(destination);
+	}
+#endif // NEO
 
 	FinishMove();
 

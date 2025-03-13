@@ -62,8 +62,10 @@ public:
 
 #ifdef GAME_DLL
 	CNetworkVar(float, m_flLeanRatio);
+	CNetworkVar(float, m_flOldLeanRatio);
 #else
 	float m_flLeanRatio;
+	float m_flOldLeanRatio;
 	CInterpolatedVar<float> m_iv_flLeanRatio;
 #endif
 

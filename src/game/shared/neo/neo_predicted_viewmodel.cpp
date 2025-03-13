@@ -4,6 +4,7 @@
 #include "in_buttons.h"
 #include "neo_gamerules.h"
 #include "weapon_hl2mpbase.h"
+#include "gamemovement.h"
 
 #ifdef CLIENT_DLL
 #include "c_neo_player.h"
@@ -30,14 +31,17 @@ IMPLEMENT_NETWORKCLASS_ALIASED(NEOPredictedViewModel, DT_NEOPredictedViewModel)
 BEGIN_NETWORK_TABLE(CNEOPredictedViewModel, DT_NEOPredictedViewModel)
 #ifdef CLIENT_DLL
 RecvPropFloat(RECVINFO(m_flLeanRatio)),
+RecvPropFloat(RECVINFO(m_flOldLeanRatio)),
 #else
 SendPropFloat(SENDINFO(m_flLeanRatio)),
+SendPropFloat(SENDINFO(m_flOldLeanRatio)),
 #endif
 END_NETWORK_TABLE()
 
 #ifdef CLIENT_DLL
 BEGIN_PREDICTION_DATA(CNEOPredictedViewModel)
 DEFINE_PRED_FIELD(m_flLeanRatio, FIELD_FLOAT, FTYPEDESC_INSENDTABLE),
+DEFINE_PRED_FIELD(m_flOldLeanRatio, FIELD_FLOAT, FTYPEDESC_INSENDTABLE),
 END_PREDICTION_DATA()
 #endif
 
@@ -58,6 +62,7 @@ CNEOPredictedViewModel::CNEOPredictedViewModel()
 #endif
 
 	m_flLeanRatio = 0;
+	m_flOldLeanRatio = 0;
 	m_flStartAimingChange = 0;
 	m_bViewAim = false;
 }
@@ -382,12 +387,45 @@ float CNEOPredictedViewModel::lean(CNEO_Player *player){
 	}
 
 	const float diff = leanRatio - m_flLeanRatio;
-
+	m_flOldLeanRatio = m_flLeanRatio;
 	if (diff != 0)
 	{
 		const float leanStep = 1 / neo_lean_speed.GetFloat() * gpGlobals->frametime;
 		m_flLeanRatio = EaseOut(m_flLeanRatio, leanRatio, leanStep);
 	}
+
+//	Vector eyeRight;
+//	player->EyeVectors(nullptr, &eyeRight, nullptr);
+//	eyeRight.z = 0.f;
+//
+//#ifdef CLIENT_DLL
+//	float leanRatioDifference = m_iv_flLeanRatio.GetCurrent() - oldLeanRatio;
+//#else
+//	float leanRatioDifference = m_flLeanRatio - oldLeanRatio;
+//#endif // CLIENT_DLL
+//	if (abs(leanRatioDifference) > 0.01)
+//	{
+//		float maxOffset = m_flLeanRatio > 0 ? 7.5 : 15;
+//		if (m_flLeanRatio < 0)
+//		{
+//			leanRatioDifference *= -1;
+//		}
+//		eyeRight.z = 0;
+//		Vector destination = (leanRatioDifference * maxOffset * eyeRight);
+//
+//		bool isDucked = (player->GetFlags() & FL_DUCKING);
+//		CTraceFilterNoNPCsOrPlayer filter(player, COLLISION_GROUP_PLAYER_MOVEMENT);
+//		trace_t trace;
+//		UTIL_TraceHull(GetAbsOrigin(), GetAbsOrigin() + destination, isDucked ? VEC_DUCK_HULL_MIN_SCALED(player) : VEC_HULL_MIN_SCALED(player), isDucked ? VEC_DUCK_HULL_MAX_SCALED(player) : VEC_HULL_MAX_SCALED(player), player->PhysicsSolidMaskForEntity(), &filter, &trace);
+//		player->m_vecLeanStep = trace.fraction * destination;
+//	}
+//	else
+//	{
+//		player->m_vecLeanStep = vec3_origin;
+//	}
+//
+//	engine->Con_NPrintf(0, "diff: %f", leanRatioDifference);
+//	engine->Con_NPrintf(1, "lean step: %f, %f, %f", player->m_vecLeanStep.Get().x, player->m_vecLeanStep.Get().y, player->m_vecLeanStep.Get().z);
 
 	Vector viewOffset(0, 0, 0);
 	viewOffset.y = m_flLeanRatio * (m_flLeanRatio < 0 ? neo_lean_peek_right_amount.GetFloat() : neo_lean_peek_left_amount.GetFloat());
@@ -487,9 +525,9 @@ void CNEOPredictedViewModel::CalcViewModelView(CBasePlayer *pOwner,
 			if (cl_neo_lean_viewmodel_only.GetBool())
 			{ // extra viewmodel offset for when gun rotation would obstruct center of the screen. Should probably be done on a per weapon basis instead
 				QAngle angles = pOwner->EyeAngles();
-				float percent = angles.z / neo_lean_fp_angle.GetFloat();
+				float percent = m_iv_flLeanRatio.GetCurrent();
 				bool rightHand = cl_righthand.GetBool();
-				if ((rightHand && percent > 0) || (!rightHand && percent < 0))
+				if ((rightHand && percent < 0) || (!rightHand && percent > 0))
 				{
 					percent = abs(percent);
 					constexpr float FINAL_Y_EXTRA_OFFSET = 3;

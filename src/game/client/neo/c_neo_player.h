@@ -209,6 +209,7 @@ public:
 	CNetworkVar(bool, m_bInVision);
 	CNetworkVar(bool, m_bInAim);
 	CNetworkVar(int, m_bInLean);
+	CNetworkVar(Vector, m_vecLeanStep);
 	CNetworkVar(bool, m_bCarryingGhost);
 	CNetworkVar(bool, m_bIneligibleForLoadoutPick);
 
