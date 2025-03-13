@@ -1195,27 +1195,41 @@ void CGameMovement::ProcessMovement( CBasePlayer *pPlayer, CMoveData *pMove )
 	// CheckV( player->CurrentCommandNumber(), "StartPos", mv->GetAbsOrigin() );
 
 	DiffPrint( "start %f %f %f", mv->GetAbsOrigin().x, mv->GetAbsOrigin().y, mv->GetAbsOrigin().z );
-	/*auto neoPlayer = static_cast<CNEO_Player*>(player);
-	mv->SetAbsOrigin(neoPlayer->GetAbsOrigin() + neoPlayer->m_vecLeanStep.Get());*/
 
 	// Run the command.
 	PlayerMove();
 #ifdef NEO
+	/*auto neoPlayer = static_cast<CNEO_Player*>(player);
+	mv->SetAbsOrigin(neoPlayer->GetAbsOrigin() + neoPlayer->m_vecLeanStep.Get());*/
 	QAngle vecViewAngles = mv->m_vecViewAngles;
 	vecViewAngles.z = 0.f;
 	Vector eyeVectorRight;
 
 	AngleVectors(vecViewAngles, nullptr, &eyeVectorRight, nullptr);  // Determine movement angles
-	//player->EyeVectors(nullptr, &eyeVectorRight, nullptr);
 	auto viewModel = static_cast<CNEOPredictedViewModel*>(player->GetViewModel());
 	float difference = abs(viewModel->m_flLeanRatio) - abs(viewModel->m_flOldLeanRatio);
 	float maxOffset = viewModel->m_flLeanRatio > 0 ? 7.5 : 15;
-	if (viewModel->m_flLeanRatio < 0)
+	bool switchingDirections = false;
+	if (viewModel->m_flLeanRatio > 0 && viewModel->m_flOldLeanRatio < 0)
+	{
+		difference = viewModel->m_flLeanRatio * 15 + abs(viewModel->m_flOldLeanRatio * 7.5);
+		switchingDirections = true;
+	}
+	else if (viewModel->m_flLeanRatio < 0 && viewModel->m_flOldLeanRatio > 0)
+	{
+		difference = abs(viewModel->m_flLeanRatio * 7.5) + viewModel->m_flOldLeanRatio * 15;
+		switchingDirections = true;
+	}
+	//if (viewModel->m_flLeanRatio < viewModel->m_flOldLeanRatio)
+	//{ // our viewmodel is moving to the right, we need to move to the left 
+	//	difference *= -1;
+	//}
+	if (viewModel->m_flLeanRatio < 0) // I don't understand why this works, surely we want the direction of change instead
 	{
 		difference *= -1;
 	}
 	eyeVectorRight.z = 0;
-	Vector destination = mv->GetAbsOrigin() + (difference * maxOffset * eyeVectorRight);
+	Vector destination = mv->GetAbsOrigin() + (difference * (switchingDirections ? 1 : maxOffset) * eyeVectorRight);
 	trace_t pm;
 	TracePlayerBBox(mv->GetAbsOrigin(), destination, PlayerSolidMask(), COLLISION_GROUP_PLAYER_MOVEMENT, pm);
 	if (pm.fraction == 1.f)
