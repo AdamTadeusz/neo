@@ -16,11 +16,13 @@ ConVar mat_neo_nv_screentint_blue("mat_neo_nv_screentint_blue", "0.08", FCVAR_CH
 ConVar mat_neo_nv_luminosity_mp("mat_neo_nv_luminosity_mp", "0.01", FCVAR_CHEAT);
 ConVar mat_neo_nv_luminosity_intensity("mat_neo_nv_luminosity_intensity", "0.25", FCVAR_CHEAT);
 ConVar mat_neo_nv_nightvision_intensity("mat_neo_nv_nightvision_intensity", "120", FCVAR_CHEAT);
+ConVar mat_neo_nv_nightvision_percentage("mat_neo_nv_nightvision_percentage", "0", FCVAR_CLIENTDLL);
 
 BEGIN_SHADER_FLAGS(Neo_NightVision, "Help for my shader.", SHADER_NOT_EDITABLE)
 
 BEGIN_SHADER_PARAMS
 SHADER_PARAM(FBTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "_rt_FullFrameFB", "")
+SHADER_PARAM(NIGHTVISIONPERCENTAGE, SHADER_PARAM_TYPE_FLOAT, "0", "")
 //SHADER_PARAM(BLURTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "_rt_SmallHDR0", "")
 END_SHADER_PARAMS
 
@@ -86,6 +88,7 @@ SHADER_DRAW
 		const float flLuminosityMP = mat_neo_nv_luminosity_mp.GetFloat();
 		const float flLuminosityIntensity = mat_neo_nv_luminosity_intensity.GetFloat();
 		const float flNightvisionIntensity = mat_neo_nv_nightvision_intensity.GetFloat();
+		const float flNightvisionPercentage = params[NIGHTVISIONPERCENTAGE]->GetFloatValue();
 
 		pShaderAPI->SetPixelShaderConstant(1, &flScreenTintRed);
 		pShaderAPI->SetPixelShaderConstant(2, &flScreenTintGreen);
@@ -93,6 +96,7 @@ SHADER_DRAW
 		pShaderAPI->SetPixelShaderConstant(4, &flLuminosityMP);
 		pShaderAPI->SetPixelShaderConstant(5, &flLuminosityIntensity);
 		pShaderAPI->SetPixelShaderConstant(6, &flNightvisionIntensity);
+		pShaderAPI->SetPixelShaderConstant(7, &flNightvisionPercentage);
 
 		DECLARE_DYNAMIC_VERTEX_SHADER(neo_passthrough_vs30);
 		SET_DYNAMIC_VERTEX_SHADER(neo_passthrough_vs30);

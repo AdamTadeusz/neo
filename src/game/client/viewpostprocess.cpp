@@ -2524,26 +2524,6 @@ void DoEnginePostProcessing( int x, int y, int w, int h, bool bFlashlightIsOn, b
 	float flBloomScale = GetBloomAmount();
 
 	HDRType_t hdrType = g_pMaterialSystemHardwareConfig->GetHDRType();
-#ifdef NEO
-	auto target = C_NEO_Player::GetLocalNEOPlayer();
-	if (target)
-	{
-		if (target->GetObserverMode() == OBS_MODE_IN_EYE)
-		{
-			AssertMsg(!target->GetObserverTarget() || dynamic_cast<C_NEO_Player*>(target->GetObserverTarget()), "can't cast obs target into neo player");
-			target = static_cast<C_NEO_Player*>(target->GetObserverTarget());
-		}
-		if (target && target->IsInVision()) // don't want HDR to interfere with vision effects
-		{
-			if (hdrType == HDR_TYPE_INTEGER || hdrType == HDR_TYPE_FLOAT)
-			{
-				SetToneMapScale(pRenderContext, 1.f, 0.5f, 2.f);
-			}
-			hdrType = HDR_TYPE_NONE;
-			flBloomScale = 0.f;
-		}
-	}
-#endif
 
 	g_bFlashlightIsOn = bFlashlightIsOn;
 
@@ -2626,9 +2606,6 @@ void DoEnginePostProcessing( int x, int y, int w, int h, bool bFlashlightIsOn, b
 										  ( g_pMaterialSystemHardwareConfig->GetDXSupportLevel() >= 90) &&
 										  ( g_pMaterialSystemHardwareConfig->GetHDRType() != HDR_TYPE_FLOAT ) &&
 										  g_pColorCorrectionMgr->HasNonZeroColorCorrectionWeights() &&
-#ifdef NEO
-										  (!target || (target && !target->IsInVision())) &&
-#endif // NEO
 										  mat_colorcorrection.GetInt();
 			bool  bSplitScreenHDR		= mat_show_ab_hdr.GetInt();
 			pRenderContext->EnableColorCorrection( bPerformColCorrect );

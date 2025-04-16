@@ -12,6 +12,7 @@ const float g_ScreenTint_Blue : register(c3);
 const float g_LuminosityMP : register(c4);
 const float g_LuminosityIntensity : register(c5);
 const float g_NightVisionIntensity : register(c6);
+const float g_NightVisionPercentage : register(c7);
 
 struct PS_INPUT
 {
@@ -22,9 +23,21 @@ float4 main( const PS_INPUT i ) : COLOR
 {
 	float4 cColor = tex2D(FBSampler, i.texCoord);
 	
+	//if (g_NightVisionPercentage == 0)
+	//{
+	//	return cColor;
+	//}
+	
+	float cBrightness = cColor.x + cColor.y + cColor.z;
+	float difference = (0.05 - cBrightness) * 10;
+	if (difference < 0)
+	{
+		return cColor;
+	}
+	
 	// Luminance
 	float luminosity = saturate(lerp(g_LuminosityMP, dot(cColor.rgb, float3(0.2126729, 0.7151522, 0.0721750)), g_LuminosityIntensity));
 	float3 screenTint = float3(g_ScreenTint_Red, g_ScreenTint_Green, g_ScreenTint_Blue);
-	cColor.rgb = screenTint * luminosity * g_NightVisionIntensity;
+	cColor.rgb = (cColor.rgb * (1 - difference)) + (screenTint * luminosity * g_NightVisionIntensity * difference);
 	return cColor;
 }
