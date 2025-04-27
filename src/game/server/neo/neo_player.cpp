@@ -700,7 +700,7 @@ void CNEO_Player::CheckVisionButtons()
 					params.m_bEmitCloseCaption = false;
 					params.m_hSoundScriptHandle = visionToggle;
 					params.m_pOrigin = &GetAbsOrigin();
-					params.m_nChannel = CHAN_ITEM;
+					params.m_nChannel = CHAN_OPTICS;
 
 					EmitSound(filter, edict()->m_EdictIndex, params);
 				}

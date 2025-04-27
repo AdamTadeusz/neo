@@ -585,7 +585,7 @@ void C_NEO_Player::CheckVisionButtons()
 				EmitSound_t params;
 				params.m_bEmitCloseCaption = false;
 				params.m_pOrigin = &GetAbsOrigin();
-				params.m_nChannel = CHAN_ITEM;
+				params.m_nChannel = CHAN_OPTICS;
 				params.m_nFlags |= SND_DO_NOT_OVERWRITE_EXISTING_ON_CHANNEL;
 				static int visionToggle = CBaseEntity::PrecacheScriptSound("NeoPlayer.VisionOn");
 				params.m_hSoundScriptHandle = visionToggle;
