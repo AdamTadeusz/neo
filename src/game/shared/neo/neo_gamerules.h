@@ -267,6 +267,7 @@ public:
 
 	float GetRoundRemainingTime() const;
 	float GetRoundAccumulatedTime() const;
+	int GetScoreLimit() const;
 #ifdef GAME_DLL
 	float MirrorDamageMultiplier() const;
 #endif

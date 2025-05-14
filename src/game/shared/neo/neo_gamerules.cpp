@@ -283,6 +283,7 @@ const NeoGameTypeSettings NEO_GAME_TYPE_SETTINGS[NEO_GAME_TYPE__TOTAL] = {
 
 
 ConVar neo_score_limit("neo_score_limit", "7", FCVAR_REPLICATED, "Neo score limit.", true, 0.0f, true, 99.0f);
+ConVar neo_dm_score_limit("neo_dm_score_limit", "1", FCVAR_REPLICATED, "Neo deathmatch score limit.", true, 0.0f, true, 99.0f);
 ConVar neo_round_limit("neo_round_limit", "0", FCVAR_REPLICATED, "Max amount of rounds, 0 for no limit.", true, 0.0f, false, 0.0f);
 ConVar neo_round_sudden_death("neo_round_sudden_death", "1", FCVAR_REPLICATED, "If neo_round_limit is not 0 and round is past "
 	"neo_round_limit, go into sudden death where match won't end until a team won.", true, 0.0f, true, 1.0f);
@@ -1493,6 +1494,18 @@ float CNEORules::GetRoundRemainingTime() const
 float CNEORules::GetRoundAccumulatedTime() const
 {
 	return gpGlobals->curtime - (m_flNeoRoundStartTime + sv_neo_preround_freeze_time.GetFloat());
+}
+
+int CNEORules::GetScoreLimit() const
+{
+	switch (NEORules()->GetGameType())
+	{
+		case NeoGameType::NEO_GAME_TYPE_DM:
+		case NeoGameType::NEO_GAME_TYPE_TDM:
+			return neo_dm_score_limit.GetInt();
+		default:
+			return neo_score_limit.GetInt();
+	}
 }
 
 #ifdef GAME_DLL
@@ -2969,14 +2982,10 @@ void CNEORules::SetWinningTeam(int team, int iWinReason, bool bForceMapReset, bo
 		auto teamJinrai = GetGlobalTeam(TEAM_JINRAI);
 		auto teamNSF = GetGlobalTeam(TEAM_NSF);
 
-		if (neo_score_limit.GetInt() != 0)
+		const int scoreLimit = GetScoreLimit();
+		if (scoreLimit > 0)
 		{
-#ifdef DEBUG
-			float neoScoreLimitMin = -1.0f;
-			AssertOnce(neo_score_limit.GetMin(neoScoreLimitMin));
-			AssertOnce(neoScoreLimitMin >= 0);
-#endif
-			if (winningTeam->GetRoundsWon() >= neo_score_limit.GetInt())
+			if (winningTeam->GetRoundsWon() >= scoreLimit)
 			{
 				V_sprintf_safe(victoryMsg, "Team %s wins the match!\n", (team == TEAM_JINRAI ? "Jinrai" : "NSF"));
 				m_flNeoNextRoundStartTime = FLT_MAX;
