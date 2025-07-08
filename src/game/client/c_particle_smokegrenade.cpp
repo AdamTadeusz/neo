@@ -22,6 +22,7 @@
 
 #ifdef NEO
 #include "c_neo_player.h"
+#include "c_baseanimating.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -899,6 +900,11 @@ void C_ParticleSmokeGrenade::FillVolume()
 	float invNumPerDimY = 1.0f / (m_yCount-1);
 	float invNumPerDimZ = 1.0f / (m_zCount-1);
 
+#ifdef NEO
+	Ray_t ray;
+	trace_t trace;
+#endif // NEO
+
 	Vector vPos;
 	for(int x=0; x < m_xCount; x++)
 	{
@@ -921,6 +927,24 @@ void C_ParticleSmokeGrenade::FillVolume()
 				//	continue;
 				//}
 
+#ifdef NEO
+				const int contents = enginetrace->GetPointContents(vPos);
+				bool moveTowardCenter = false;
+				if (contents & CONTENTS_SOLID)
+				{ // Don't spawn particles inside of walls
+					continue;
+				}
+				else
+				{
+					ray.Init(vPos, m_SmokeBasePos);
+					enginetrace->TraceRay(ray, PhysicsSolidMaskForEntity(), nullptr, &trace);
+					if (trace.fraction != 1.0)
+					{ // Don't spawn particles on the other side of a wall
+						continue;
+					}
+				}
+
+#endif // NEO
 				if(SmokeParticleInfo *pInfo = GetSmokeParticleInfo(x,y,z))
 				{
 					// MD 11/10/03: disabled this because we weren't getting coverage near the ground.
