@@ -95,6 +95,13 @@ void CHL2MP_Player::PlayStepSound( Vector &vecOrigin, surfacedata_t *psurface, f
 		return;
 #endif
 
+#ifdef NEO
+	if (!psurface)
+	{ // If we slam into a wall mid air there will be no surface but the game will try to play a step sound as its playing the rough landing effect. Return early
+		return;
+	}
+#endif // NEO
+
 	m_Local.m_nStepside = !m_Local.m_nStepside;
 
 	char szStepSound[128];

@@ -2243,12 +2243,28 @@ void CGameMovement::FullObserverMove( void )
 	float fmove = mv->m_flForwardMove * factor;
 	float smove = mv->m_flSideMove * factor;
 
+#ifdef NEO
+	if (mv->m_nButtons & IN_WALK)
+	{ // Drone-like movement
+		if (fmove != 0 && smove != 0)
+		{
+			const float ONE_OVER_UNIT_VECTOR_NORMALIZED = 0.7071067924;
+			fmove *= ONE_OVER_UNIT_VECTOR_NORMALIZED;
+			smove *= ONE_OVER_UNIT_VECTOR_NORMALIZED;
+		}
+		forward[2] = 0;
+	}
+#endif // NEO
 	VectorNormalize (forward);  // Normalize remainder of vectors
 	VectorNormalize (right);    //
 
 	for (int i=0 ; i<3 ; i++)       // Determine x and y parts of velocity
 		wishvel[i] = forward[i]*fmove + right[i]*smove;
+#ifdef NEO
+	wishvel[2] += mv->m_flUpMove * factor;
+#else
 	wishvel[2] += mv->m_flUpMove;
+#endif // NEO
 
 	VectorCopy (wishvel, wishdir);   // Determine maginitude of speed of move
 	wishspeed = VectorNormalize(wishdir);
