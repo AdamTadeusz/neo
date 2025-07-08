@@ -1579,7 +1579,11 @@ int CInput::GetButtonBits( int bResetState )
 	CalcButtonBits( bits, IN_VISION, s_ClearInputState, &in_vision, bResetState);
 	if (KeyState(&in_speed))
 	{
-		bits &= ~(IN_WALK);
+		C_BasePlayer* pPlayer = C_BasePlayer::GetLocalPlayer();
+		if (pPlayer && pPlayer->GetMoveType() != (MOVETYPE_NOCLIP) && pPlayer->GetMoveType() != (MOVETYPE_OBSERVER))
+		{
+			bits &= ~(IN_WALK);
+		}
 	}
 #endif
 

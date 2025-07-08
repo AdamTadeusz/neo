@@ -2310,7 +2310,7 @@ void CGameMovement::FullNoClipMove( float factor, float maxacceleration )
 	float maxspeed = sv_maxspeed.GetFloat() * factor;
 
 	AngleVectors (mv->m_vecViewAngles, &forward, &right, &up);  // Determine movement angles
-
+	
 	if ( mv->m_nButtons & IN_SPEED )
 	{
 		factor /= 2.0f;
@@ -2320,6 +2320,18 @@ void CGameMovement::FullNoClipMove( float factor, float maxacceleration )
 	float fmove = mv->m_flForwardMove * factor;
 	float smove = mv->m_flSideMove * factor;
 
+#ifdef NEO
+	if ( mv->m_nButtons & IN_WALK)
+	{ // Drone-like movement
+		if (fmove != 0 && smove != 0)
+		{
+			const float ONE_OVER_UNIT_VECTOR_NORMALIZED = 0.7071067924;
+			fmove *= ONE_OVER_UNIT_VECTOR_NORMALIZED;
+			smove *= ONE_OVER_UNIT_VECTOR_NORMALIZED;
+		}
+		forward[2] = 0;
+	}
+#endif // NEO
 	VectorNormalize (forward);  // Normalize remainder of vectors
 	VectorNormalize (right);    //
 
