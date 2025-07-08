@@ -17,6 +17,9 @@ IMPLEMENT_SERVERCLASS_ST(ParticleSmokeGrenade, DT_ParticleSmokeGrenade)
 	SendPropFloat(SENDINFO(m_FadeStartTime), 0, SPROP_NOSCALE),
 	SendPropFloat(SENDINFO(m_FadeEndTime), 0, SPROP_NOSCALE),
 	SendPropInt(SENDINFO(m_CurrentStage), 1, SPROP_UNSIGNED),
+#ifdef NEO
+	SendPropVector(SENDINFO(m_vecLastExplosionOrigin)),
+#endif // NEO
 END_SEND_TABLE()
 
 LINK_ENTITY_TO_CLASS( env_particlesmokegrenade, ParticleSmokeGrenade );
@@ -27,6 +30,9 @@ BEGIN_DATADESC( ParticleSmokeGrenade )
 	DEFINE_FIELD( m_FadeStartTime, FIELD_TIME ),
 	DEFINE_FIELD( m_FadeEndTime, FIELD_TIME ),
 	DEFINE_FIELD( m_flSpawnTime, FIELD_TIME ),
+#ifdef NEO
+	DEFINE_FIELD( m_vecLastExplosionOrigin, FIELD_VECTOR ),
+#endif // NEO
 
 END_DATADESC()
 
@@ -38,6 +44,9 @@ ParticleSmokeGrenade::ParticleSmokeGrenade()
 	m_FadeEndTime = 22;
 
 	m_flSpawnTime = gpGlobals->curtime;
+#ifdef NEO
+	m_vecLastExplosionOrigin = vec3_origin;
+#endif // NEO
 }
 
 

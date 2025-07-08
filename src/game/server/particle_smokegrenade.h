@@ -50,6 +50,10 @@ public:
 	// When to fade in and out.
 	CNetworkVar( float, m_FadeStartTime );
 	CNetworkVar( float, m_FadeEndTime );
+
+#ifdef NEO
+	CNetworkVar( Vector, m_vecLastExplosionOrigin);
+#endif // NEO
 };
 
 

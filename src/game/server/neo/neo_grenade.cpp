@@ -9,6 +9,7 @@
 
 #include "vcollide_parse.h"
 #include "sdk/sdk_basegrenade_projectile.h"
+#include "particle_smokegrenade.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -102,6 +103,19 @@ void CNEOGrenadeFrag::Explode(trace_t* pTrace, int bitsDamageType)
 		gamestats->Event_WeaponHit(pPlayer, true, "weapon_grenade", info);
 	}
 #endif
+	CBaseEntity* list[1024];
+	int nCount = UTIL_EntitiesInSphere(list, 1024, GetAbsOrigin(), m_DmgRadius, 0);
+	for (int i = 0; i < nCount; i++)
+	{
+		auto smokeParticle = dynamic_cast<ParticleSmokeGrenade*>(list[i]);
+		if (!smokeParticle)
+		{
+			continue;
+		}
+
+		smokeParticle->m_vecLastExplosionOrigin.Set(GetAbsOrigin());
+	}
+
 }
 
 void CNEOGrenadeFrag::InputSetTimer(inputdata_t &inputdata)

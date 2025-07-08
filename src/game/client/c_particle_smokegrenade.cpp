@@ -106,6 +106,9 @@ public:
 public:
 
 	static void		RecvProxy_CurrentStage(  const CRecvProxyData *pData, void *pStruct, void *pOut );
+#ifdef NEO
+	static void		RecvProxy_LastExplosion(  const CRecvProxyData *pData, void *pStruct, void *pOut );
+#endif // NEO
 
 
 private:
@@ -181,6 +184,11 @@ public:
 	float				m_FadeEndTime;
 	float				m_FadeAlpha;	// Calculated from the fade start/end times each frame.
 
+#ifdef NEO
+	Vector				m_vecLastExplosionOrigin;
+	int					m_iLastExplosionRadius;
+#endif // NEO
+
 	// Used during rendering.. active dlights.
 	class CActiveLight
 	{
@@ -224,6 +232,7 @@ IMPLEMENT_CLIENTCLASS_DT(C_ParticleSmokeGrenade, DT_ParticleSmokeGrenade, Partic
 	RecvPropFloat(RECVINFO(m_FadeStartTime)),
 	RecvPropFloat(RECVINFO(m_FadeEndTime)),
 	RecvPropInt(RECVINFO(m_CurrentStage), 0, &C_ParticleSmokeGrenade::RecvProxy_CurrentStage),
+	RecvPropVector(RECVINFO(m_vecLastExplosionOrigin), 0, &C_ParticleSmokeGrenade::RecvProxy_LastExplosion),
 END_RECV_TABLE()
 
 
@@ -323,6 +332,9 @@ C_ParticleSmokeGrenade::C_ParticleSmokeGrenade()
 	m_CurrentStage = 0;
 
 	m_bStarted = false;
+#ifdef NEO
+	m_vecLastExplosionOrigin = vec3_origin;
+#endif // NEO
 }
 
 
@@ -821,6 +833,53 @@ void C_ParticleSmokeGrenade::RecvProxy_CurrentStage(  const CRecvProxyData *pDat
 			pGrenade->m_CurrentStage = 2;
 	}
 }
+
+#ifdef NEO
+void C_ParticleSmokeGrenade::RecvProxy_LastExplosion(const CRecvProxyData* pData, void* pStruct, void* pOut)
+{
+	C_ParticleSmokeGrenade* pGrenade = (C_ParticleSmokeGrenade*)pStruct;
+	if (pGrenade)
+	{
+		Vector explosionOrigin;
+
+		explosionOrigin.x = pData->m_Value.m_Vector[0];
+		explosionOrigin.y = pData->m_Value.m_Vector[1];
+		explosionOrigin.z = pData->m_Value.m_Vector[2];
+
+		if (explosionOrigin == vec3_origin)
+		{
+			return;
+		}
+
+		float invNumPerDimX = 1.0f / (pGrenade->m_xCount - 1);
+		float invNumPerDimY = 1.0f / (pGrenade->m_yCount - 1);
+		float invNumPerDimZ = 1.0f / (pGrenade->m_zCount - 1);
+
+		Vector vPos;
+		for (int x = 0; x < pGrenade->m_xCount; x++)
+		{
+			vPos.x = pGrenade->m_SmokeBasePos.x + ((float)x * invNumPerDimX) * pGrenade->m_SpacingRadius * 2 - pGrenade->m_SpacingRadius;
+
+			for (int y = 0; y < pGrenade->m_yCount; y++)
+			{
+				vPos.y = pGrenade->m_SmokeBasePos.y + ((float)y * invNumPerDimY) * pGrenade->m_SpacingRadius * 2 - pGrenade->m_SpacingRadius;
+
+				for (int z = 0; z < pGrenade->m_zCount; z++)
+				{
+					vPos.z = pGrenade->m_SmokeBasePos.z + ((float)z * invNumPerDimZ) * pGrenade->m_SpacingRadius * 2 - pGrenade->m_SpacingRadius;
+					if (vPos.DistToSqr(explosionOrigin) <= 250 * 250)
+					{
+						if (SmokeParticleInfo* pInfo = pGrenade->GetSmokeParticleInfo(x, y, z))
+						{
+							pInfo->m_FadeAlpha = 0;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+#endif // NEO
 
 void C_ParticleSmokeGrenade::FillVolume()
 {
