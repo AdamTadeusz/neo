@@ -1020,12 +1020,18 @@ void C_ParticleSmokeGrenade::FillVolume()
 			continue;
 		}
 
+		const float MAGIC_VALUE = 0.2;
+		const float MAGIC_VALUE_Z = 0.5;
+		//NEO NOTE (Adam) shouled really be doing this per particle
+		float differenceX = abs(abs(n.pos.x) - abs(m_SmokeBasePos.x)) * MAGIC_VALUE;
+		float differenceY = abs(abs(n.pos.y) - abs(m_SmokeBasePos.y)) * MAGIC_VALUE;
+
 		numParticles++; // Regardless of whether particle was created or not increment so we don't get stuck here
-		queue.AddToTail(SmokeParticlePath(Vector(n.pos.x + searchRadius, n.pos.y, n.pos.z), n.pos));
-		queue.AddToTail(SmokeParticlePath(Vector(n.pos.x - searchRadius, n.pos.y, n.pos.z), n.pos));
-		queue.AddToTail(SmokeParticlePath(Vector(n.pos.x, n.pos.y + searchRadius, n.pos.z), n.pos));
-		queue.AddToTail(SmokeParticlePath(Vector(n.pos.x, n.pos.y - searchRadius, n.pos.z), n.pos));
-		queue.AddToTail(SmokeParticlePath(Vector(n.pos.x, n.pos.y, n.pos.z + searchRadius), n.pos));
+		queue.AddToTail(SmokeParticlePath(Vector(n.pos.x + searchRadius - differenceX, n.pos.y, n.pos.z), n.pos));
+		queue.AddToTail(SmokeParticlePath(Vector(n.pos.x - searchRadius + differenceX, n.pos.y, n.pos.z), n.pos));
+		queue.AddToTail(SmokeParticlePath(Vector(n.pos.x, n.pos.y + searchRadius - differenceY, n.pos.z), n.pos));
+		queue.AddToTail(SmokeParticlePath(Vector(n.pos.x, n.pos.y - searchRadius + differenceY, n.pos.z), n.pos));
+		queue.AddToTail(SmokeParticlePath(Vector(n.pos.x, n.pos.y, n.pos.z + (searchRadius * MAGIC_VALUE_Z)), n.pos));
 		queue.AddToTail(SmokeParticlePath(Vector(n.pos.x, n.pos.y, n.pos.z - searchRadius), n.pos));
 
 		if (SmokeParticleInfo* pInfo = &m_SmokeParticleInfos[numParticles-1])
