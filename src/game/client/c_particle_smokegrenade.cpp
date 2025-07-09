@@ -1000,19 +1000,10 @@ void C_ParticleSmokeGrenade::FillVolume()
 	{
 		n = queue[queue.Head()];
 		queue.Remove(queue.Head());
-		try
-		{
-			visitedLocations.at({ n.pos });
-			continue;
-		}
-		catch (...)
-		{
-			// nothing at this point, do nothing;
-		}
-		/*if (visitedLocations.at({ n.pos }) == true)
+		if (visitedLocations.contains({ n.pos }))
 		{
 			continue;
-		}*/
+		}
 
 		int contents = enginetrace->GetPointContents(n.pos);
 		if( contents & CONTENTS_SOLID )
