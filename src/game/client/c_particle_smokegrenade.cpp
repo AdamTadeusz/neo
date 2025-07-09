@@ -165,6 +165,9 @@ private:
 
 	// Start filling the smoke volume (and stop the smoke trail).
 	void						FillVolume();
+#ifdef NEO
+	void	FloodFill();
+#endif // NEO
 
 
 // State variables from server.
@@ -480,8 +483,8 @@ inline void C_ParticleSmokeGrenade::UpdateParticleDuringTrade( int iParticle, fl
 		{
 			pInfo->m_TradeIndex = pOther->m_TradeIndex = -1;
 			
-			pInfo->m_pParticle->m_Pos = otherPos;
-			pOther->m_pParticle->m_Pos = myPos;
+			//pInfo->m_pParticle->m_Pos = otherPos;
+			//pOther->m_pParticle->m_Pos = myPos;
 
 			SmokeGrenadeParticle *temp = pInfo->m_pParticle;
 			pInfo->m_pParticle = pOther->m_pParticle;
@@ -499,8 +502,8 @@ inline void C_ParticleSmokeGrenade::UpdateParticleDuringTrade( int iParticle, fl
 			InterpColor(pInfo->m_pParticle->m_Color,  pInfo->m_Color, pOther->m_Color, 1-percent);
 			InterpColor(pOther->m_pParticle->m_Color, pInfo->m_Color, pOther->m_Color, percent);
 
-			pInfo->m_pParticle->m_Pos  = myPos + (otherPos - myPos) * (1 - percent);
-			pOther->m_pParticle->m_Pos = myPos + (otherPos - myPos) * percent;
+			//pInfo->m_pParticle->m_Pos  = myPos + (otherPos - myPos) * (1 - percent);
+			//pOther->m_pParticle->m_Pos = myPos + (otherPos - myPos) * percent;
 		}
 	}
 }
@@ -616,14 +619,14 @@ void C_ParticleSmokeGrenade::Update(float fTimeDelta)
 			if(!pInfo->m_pParticle)
 				continue;
 		
-			if(pInfo->m_TradeIndex == -1)
+			/*if(pInfo->m_TradeIndex == -1)
 			{
 				UpdateParticleAndFindTrade( i, fTimeDelta );
 			}
 			else
 			{
 				UpdateParticleDuringTrade( i, fTimeDelta );
-			}
+			}*/
 		}
 	}
 
@@ -739,8 +742,10 @@ void C_ParticleSmokeGrenade::RenderParticles( CParticleRenderIterator *pIterator
 				// Fade out globally.
 				alpha *= m_FadeAlpha;
 
+#ifndef NEO
 				// Apply the precalculated fade alpha from world geometry.
 				alpha *= pParticle->m_FadeAlpha;
+#endif // NEO
 
 				// TODO: optimize this whole routine!
 				Vector color = m_MinColor + (m_MaxColor - m_MinColor) * (pParticle->m_ColorInterp / 255.1f);
@@ -754,7 +759,11 @@ void C_ParticleSmokeGrenade::RenderParticles( CParticleRenderIterator *pIterator
 				color = (color + Vector(0.5, 0.5, 0.5)) / 2;   //Desaturate
 
 				Vector tRenderPos;
+#ifdef NEO
+				TransformParticle(ParticleMgr()->GetModelView(), vWorldSpacePos, tRenderPos);
+#else
 				TransformParticle(ParticleMgr()->GetModelView(), renderPos, tRenderPos);
+#endif // NEO
 				sortKey = tRenderPos.z;
 
 				//debugoverlay->AddBoxOverlay( renderPos, Vector( -2, -2, -2), Vector( 2, 2, 2), vec3_angle, 255, 255, 255, 255, 1.0f );
@@ -763,7 +772,7 @@ void C_ParticleSmokeGrenade::RenderParticles( CParticleRenderIterator *pIterator
 					pIterator->GetParticleDraw(),
 					tRenderPos,
 					color,
-					alpha * GetAlphaDistanceFade(tRenderPos, 0, 10),	// Alpha
+					alpha,// * GetAlphaDistanceFade(tRenderPos, 0, 10),	// Alpha
 					SMOKEPARTICLE_SIZE,
 					pParticle->m_CurRotation
 				);
@@ -822,7 +831,7 @@ void C_ParticleSmokeGrenade::RecvProxy_CurrentStage(  const CRecvProxyData *pDat
 	}
 }
 
-void C_ParticleSmokeGrenade::FillVolume()
+void C_ParticleSmokeGrenade::FloodFill()
 {
 	m_CurrentStage = 1;
 	m_SmokeBasePos = GetPos();
@@ -932,6 +941,117 @@ void C_ParticleSmokeGrenade::FillVolume()
 		}
 	}
 }
+
+#ifdef NEO
+void C_ParticleSmokeGrenade::FillVolume()
+{
+	m_CurrentStage = 1;
+	m_SmokeBasePos = GetPos();
+	m_SmokeTrail.SetEmit(false);
+	m_ExpandTimeCounter = m_ExpandRadius = 0;
+	m_bVolumeFilled = true;
+
+	// Spawn all of our particles.
+	float overlap = SMOKEPARTICLE_OVERLAP;
+
+	m_SpacingRadius = (SMOKEGRENADE_PARTICLERADIUS - overlap) * NUM_PARTICLES_PER_DIMENSION * 0.5f;
+	const float searchRadius = 48.f;
+	m_xCount = m_yCount = m_zCount = NUM_PARTICLES_PER_DIMENSION;
+
+	struct SmokeParticlePath
+	{
+		Vector pos;
+		Vector parentPos;
+		SmokeParticlePath(Vector vpos, Vector vparentPos)
+		{
+			pos = vpos;
+			parentPos = vparentPos;
+		}
+	};
+
+	CUtlLinkedList<SmokeParticlePath> queue;
+	SmokeParticlePath n = SmokeParticlePath(Vector(m_SmokeBasePos.x, m_SmokeBasePos.y, m_SmokeBasePos.z), Vector(m_SmokeBasePos.x, m_SmokeBasePos.y, m_SmokeBasePos.z));
+	queue.AddToHead(n);
+	int numParticles = 0;
+	while (!queue.IsEmpty() && numParticles < (NUM_PARTICLES_PER_DIMENSION * NUM_PARTICLES_PER_DIMENSION * NUM_PARTICLES_PER_DIMENSION))
+	{
+		n = queue[queue.Head()];
+		queue.Remove(queue.Head());
+
+		int contents = enginetrace->GetPointContents(n.pos);
+		if( contents & CONTENTS_SOLID )
+		{
+			//DebugDrawLine(n.pos + Vector(2, 2, 2), n.pos - Vector(2, 2, 2), 255, 0, 0, 0, 12);
+			continue;
+		}
+
+		Ray_t ray;
+		trace_t trace;
+		ray.Init(n.parentPos, n.pos);
+		enginetrace->TraceRay(ray, MASK_SOLID, nullptr, &trace);
+		if (trace.fraction != 1.0)
+		{ // Don't spawn particles on the other side of an obstacle to the "parent particle"
+			//DebugDrawLine(n.parentPos, n.pos, 255, 0, 0, 0, 12);
+			continue;
+		}
+
+		numParticles++; // Regardless of whether particle was created or not increment so we don't get stuck here
+		int lastParticleMadeIndex = queue.AddToTail(SmokeParticlePath(Vector(n.pos.x + searchRadius, n.pos.y, n.pos.z), n.pos));
+		Vector placeToDraw = queue[lastParticleMadeIndex].pos;
+		//DebugDrawLine(placeToDraw + Vector(2, -2, 2), placeToDraw - Vector(2, -2, 2), 0, 0, 255, 0, 12.f);
+		lastParticleMadeIndex = queue.AddToTail(SmokeParticlePath(Vector(n.pos.x - searchRadius, n.pos.y, n.pos.z), n.pos));
+		placeToDraw = queue[lastParticleMadeIndex].pos;
+		//DebugDrawLine(placeToDraw + Vector(2, -2, 2), placeToDraw - Vector(2, -2, 2), 0, 0, 255, 0, 12.f);
+		lastParticleMadeIndex = queue.AddToTail(SmokeParticlePath(Vector(n.pos.x, n.pos.y + searchRadius, n.pos.z), n.pos));
+		placeToDraw = queue[lastParticleMadeIndex].pos;
+		//DebugDrawLine(placeToDraw + Vector(2, -2, 2), placeToDraw - Vector(2, -2, 2), 0, 0, 255, 0, 12.f);
+		lastParticleMadeIndex = queue.AddToTail(SmokeParticlePath(Vector(n.pos.x, n.pos.y - searchRadius, n.pos.z), n.pos));
+		placeToDraw = queue[lastParticleMadeIndex].pos;
+		//DebugDrawLine(placeToDraw + Vector(2, -2, 2), placeToDraw - Vector(2, -2, 2), 0, 0, 255, 0, 12.f);
+		lastParticleMadeIndex = queue.AddToTail(SmokeParticlePath(Vector(n.pos.x, n.pos.y, n.pos.z + searchRadius), n.pos));
+		placeToDraw = queue[lastParticleMadeIndex].pos;
+		//DebugDrawLine(placeToDraw + Vector(2, -2, 2), placeToDraw - Vector(2, -2, 2), 0, 0, 255, 0, 12.f);
+		lastParticleMadeIndex = queue.AddToTail(SmokeParticlePath(Vector(n.pos.x, n.pos.y, n.pos.z - searchRadius), n.pos));
+		placeToDraw = queue[lastParticleMadeIndex].pos;
+		//DebugDrawLine(placeToDraw + Vector(2, -2, 2), placeToDraw - Vector(2, -2, 2), 0, 0, 255, 0, 12.f);
+
+
+		if (SmokeParticleInfo* pInfo = &m_SmokeParticleInfos[numParticles-1])
+		{
+			SmokeGrenadeParticle* pParticle = (SmokeGrenadeParticle*)m_ParticleEffect.AddParticle(sizeof(SmokeGrenadeParticle), m_MaterialHandles[rand() % NUM_MATERIAL_HANDLES]);
+			if (pParticle)
+			{
+				Vector placeToDraw = n.pos;
+				//DebugDrawLine(placeToDraw + Vector(2, -2, -2), placeToDraw - Vector(2, -2, -2), 0, 255, 0, 0, 12.f);
+
+				pParticle->m_Pos = n.pos - m_SmokeBasePos; // store its position in local space
+				pParticle->m_ColorInterp = (unsigned char)((rand() * 255) / VALVE_RAND_MAX);
+				pParticle->m_RotationSpeed = FRand(-ROTATION_SPEED, ROTATION_SPEED); // Rotation speed.
+				pParticle->m_CurRotation = FRand(-6, 6);
+			}
+			else
+			{
+				Assert(false);
+			}
+
+
+			Vector vColor = EngineGetLightForPoint(n.pos);
+			pInfo->m_Color[0] = (unsigned char)(vColor.x * 255.9f);
+			pInfo->m_Color[1] = (unsigned char)(vColor.y * 255.9f);
+			pInfo->m_Color[2] = (unsigned char)(vColor.z * 255.9f);
+
+			pInfo->m_FadeAlpha = 1;
+			pInfo->m_pParticle = pParticle;
+			pInfo->m_TradeIndex = -1;
+		}
+		else
+		{
+			Assert(false);
+		}
+	}
+
+}
+#endif // NEO
 
 //-----------------------------------------------------------------------------
 // This is called after sending this entity's recording state

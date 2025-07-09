@@ -2210,8 +2210,10 @@ void CViewRender::RenderView( const CViewSetup &viewRender, int nClearFlags, int
 		UpdateThermalOverride();
 #endif
 
+#ifndef NEO
 		// Draw an overlay to make it even harder to see inside smoke particle systems.
 		DrawSmokeFogOverlay();
+#endif // NEO
 
 		// Overlay screen fade on entire screen
 		IMaterial* pMaterial = blend ? m_ModulateSingleColor : m_TranslucentSingleColor;
