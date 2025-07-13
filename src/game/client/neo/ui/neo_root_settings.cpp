@@ -427,6 +427,7 @@ void NeoSettingsRestore(NeoSettings *ns, const NeoSettings::Keys::Flags flagsKey
 		{
 			ImportCrosshair(&pCrosshair->info, CL_NEO_CROSSHAIR_DEFAULT);
 		}
+		pCrosshair->bPreviewDynamicAccuracy = false;
 		pCrosshair->eClipboardInfo = XHAIREXPORTNOTIFY_NONE;
 	}
 }
@@ -886,7 +887,8 @@ void NeoSettings_Crosshair(NeoSettings *ns)
 		}
 		else
 		{
-			PaintCrosshair(pCrosshair->info, MAX(0, (int)(sin(gpGlobals->curtime) * 24) + 16),
+			const int iPreviewDynamicAccuracy = (pCrosshair->bPreviewDynamicAccuracy) ? (MAX(0, (int)(sin(gpGlobals->curtime) * 24) + 16)) : 0;
+			PaintCrosshair(pCrosshair->info, iPreviewDynamicAccuracy,
 						   g_uiCtx.dPanel.x + g_uiCtx.iLayoutX + (g_uiCtx.dPanel.wide / 2),
 						   g_uiCtx.dPanel.y + g_uiCtx.iLayoutY + (g_uiCtx.dPanel.tall / 2));
 		}
@@ -894,11 +896,15 @@ void NeoSettings_Crosshair(NeoSettings *ns)
 
 		if (pCrosshair->info.iStyle == CROSSHAIR_STYLE_CUSTOM)
 		{
-			NeoUI::SetPerRowLayout(4);
+			NeoUI::SetPerRowLayout(3);
 			{
+				g_uiCtx.eButtonTextStyle = NeoUI::TEXTSTYLE_CENTER;
 				const bool bExportPressed = NeoUI::Button(L"Export to clipboard").bPressed;
+				const bool bTestCrosshairPressed = NeoUI::Button(L"Test dynamic crosshair").bPressed;
 				const bool bImportPressed = NeoUI::Button(L"Import from clipboard").bPressed;
-				if (bExportPressed || bImportPressed)
+				g_uiCtx.eButtonTextStyle = NeoUI::TEXTSTYLE_LEFT;
+
+				if (bExportPressed || bTestCrosshairPressed || bImportPressed )
 				{
 					char szClipboardCrosshair[NEO_XHAIR_SEQMAX] = {}; // zero-init
 					if (bExportPressed)
@@ -907,6 +913,10 @@ void NeoSettings_Crosshair(NeoSettings *ns)
 						ExportCrosshair(&pCrosshair->info, szClipboardCrosshair);
 						vgui::system()->SetClipboardText(szClipboardCrosshair, V_strlen(szClipboardCrosshair));
 						pCrosshair->eClipboardInfo = XHAIREXPORTNOTIFY_EXPORT_TO_CLIPBOARD;
+					}
+					else if (bTestCrosshairPressed)
+					{
+						pCrosshair->bPreviewDynamicAccuracy = !pCrosshair->bPreviewDynamicAccuracy;
 					}
 					else // bImportPressed
 					{
