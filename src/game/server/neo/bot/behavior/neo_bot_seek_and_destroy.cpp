@@ -67,6 +67,8 @@ ActionResult< CNEOBot >	CNEOBotSeekAndDestroy::Update( CNEOBot *me, float interv
 		const float engageRange = 1000.0f;
 		if ( me->IsRangeLessThan( threat->GetLastKnownPosition(), engageRange ) )
 		{
+			// TODO: naive approach, start pursuing enemy with cloak if applicable
+			me->GetLocomotionInterface()->Thermoptic();
 			return SuspendFor( new CNEOBotAttack, "Going after an enemy" );
 		}
 	}

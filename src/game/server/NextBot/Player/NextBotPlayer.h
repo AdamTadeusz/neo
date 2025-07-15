@@ -120,6 +120,11 @@ public:
 
 	virtual void PressJumpButton( float duration = -1.0f ) = 0;
 	virtual void ReleaseJumpButton( void ) = 0;
+	
+#ifdef NEO
+	virtual void PressThermopticButton( float duration = -1.0f ) = 0;
+	virtual void ReleaseThermopticButton( void ) = 0;
+#endif
 
 	virtual void PressCrouchButton( float duration = -1.0f ) = 0;
 	virtual void ReleaseCrouchButton( void ) = 0;
@@ -189,6 +194,9 @@ public:
 
 	virtual void PressSpecialFireButton( float duration = -1.0f );
 	virtual void ReleaseSpecialFireButton( void );
+
+	virtual void PressThermopticButton( float duration = -1.0f );
+	virtual void ReleaseThermopticButton( void );
 
 	virtual void PressUseButton( float duration = -1.0f );
 	virtual void ReleaseUseButton( void );
@@ -410,6 +418,22 @@ inline void NextBotPlayer< PlayerType >::ReleaseJumpButton( void )
 	m_inputButtons &= ~IN_JUMP;
 	m_jumpButtonTimer.Invalidate();
 }
+
+#ifdef NEO
+template < typename PlayerType >
+inline void NextBotPlayer< PlayerType >::PressThermopticButton( float duration )
+{
+	m_inputButtons |= IN_THERMOPTIC;
+	m_useButtonTimer.Start( duration );
+}
+
+template < typename PlayerType >
+inline void NextBotPlayer< PlayerType >::ReleaseThermopticButton( void )
+{
+	m_inputButtons &= ~IN_THERMOPTIC;
+	m_useButtonTimer.Invalidate();
+}
+#endif
 
 template < typename PlayerType >
 inline void NextBotPlayer< PlayerType >::PressCrouchButton( float duration )

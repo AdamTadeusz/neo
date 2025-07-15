@@ -673,6 +673,40 @@ void PlayerLocomotion::Jump( void )
 	}
 }
 
+#ifdef NEO
+
+//----------------------------------------------------------------------------------------------------
+void PlayerLocomotion::Thermoptic( void )
+{
+	m_isThermoptic = true;
+	// naive approach: check countdown timer instead of querying bot thermoptic state
+	// set to twice the Assault class's cloak range to allow regeneration 
+	m_thermopticTimer.Start( 16.0f );
+
+	INextBotPlayerInput *playerButtons = dynamic_cast< INextBotPlayerInput * >( GetBot() );
+	if ( playerButtons )
+	{
+		playerButtons->PressThermopticButton();
+	}
+}
+
+//----------------------------------------------------------------------------------------------------
+bool PlayerLocomotion::IsThermoptic( void ) const
+{
+	if ( !m_isThermoptic )
+		return false;
+		
+	if ( m_thermopticTimer.IsElapsed() )
+	{
+		m_isThermoptic = false;
+		return false;
+	}
+	
+	return true;
+}
+
+#endif // NEO
+
 
 //----------------------------------------------------------------------------------------------------
 bool PlayerLocomotion::IsClimbingOrJumping( void ) const
