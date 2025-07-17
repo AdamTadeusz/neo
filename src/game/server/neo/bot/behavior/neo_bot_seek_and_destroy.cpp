@@ -68,7 +68,13 @@ ActionResult< CNEOBot >	CNEOBotSeekAndDestroy::Update( CNEOBot *me, float interv
 		if ( me->IsRangeLessThan( threat->GetLastKnownPosition(), engageRange ) )
 		{
 			// TODO: naive approach, start pursuing enemy with cloak if applicable
-			me->GetLocomotionInterface()->Thermoptic();
+			auto myBody = me->GetBodyInterface();
+			float myCloakPower = myBody->GetCloakPower();
+			float amCloaked = myBody->IsCloakEnabled();
+			if (myCloakPower > 4.0 && !amCloaked)
+			{
+				me->GetLocomotionInterface()->Thermoptic();
+			}
 			return SuspendFor( new CNEOBotAttack, "Going after an enemy" );
 		}
 	}

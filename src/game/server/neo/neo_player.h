@@ -156,6 +156,7 @@ public:
 
 	int GetSkin() const { return m_iNeoSkin; }
 	int GetClass() const { return m_iNeoClass; }
+	bool GetCloakState() { return m_bInThermOpticCamo; }
 	int GetStar() const { return m_iNeoStar; }
 	bool IsInAim() const { return m_bInAim; }
 
@@ -172,6 +173,7 @@ public:
 	virtual void StopWalking(void) OVERRIDE;
 
 	// Cloak Power Interface
+	float CloakPower_Get(void);
 	void CloakPower_Update(void);
 	bool CloakPower_Drain(float flPower);
 	void CloakPower_Charge(float flPower);

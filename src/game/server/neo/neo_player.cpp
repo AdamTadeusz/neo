@@ -3038,6 +3038,11 @@ void CNEO_Player::StopWalking(void)
 	m_fIsWalking = false;
 }
 
+float CNEO_Player::CloakPower_Get(void)
+{
+	return m_HL2Local.m_cloakPower;
+}
+
 void CNEO_Player::CloakPower_Update(void)
 {
 	if (m_HL2Local.m_cloakPower < CloakPower_Cap())

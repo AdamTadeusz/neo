@@ -38,7 +38,6 @@ public:
 	virtual void Jump( void );								// initiate a simple undirected jump in the air
 #ifdef NEO
 	virtual void Thermoptic( void );						// initiate a simple thermoptic toggle
-	virtual bool IsThermoptic( void ) const;				// has toggled thermoptic recently
 #endif
 	virtual bool IsClimbingOrJumping( void ) const;					// is jumping in any form
 	virtual bool IsClimbingUpToLedge( void ) const;			// is climbing up to a high ledge
@@ -92,10 +91,6 @@ private:
 	CBasePlayer *m_player;									// the player we are locomoting	
 
 	mutable bool m_isJumping;
-#ifdef NEO
-	mutable bool m_isThermoptic;
-	CountdownTimer m_thermopticTimer;
-#endif
 	CountdownTimer m_jumpTimer;
 
 	bool m_isClimbingUpToLedge;

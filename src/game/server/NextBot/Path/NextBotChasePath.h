@@ -321,14 +321,6 @@ public:
 
 		Vector leadVictimPos = PredictSubjectPosition( me, victim );
 
-#ifdef NEO
-		// TODO kludge: currently relies on a countdown timer instead of bot thermoptic state
-		if (!me->GetLocomotionInterface()->IsThermoptic())
-		{
-			me->GetLocomotionInterface()->Thermoptic();
-		}
-#endif
-
 		// Don't want to have to compute the predicted position twice.
 		*pPredictedPositionComputed = true;
 		*pPredictedPos = leadVictimPos;

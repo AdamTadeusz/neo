@@ -12,6 +12,7 @@
 #include "NextBotVisionInterface.h"
 #include "NextBotBodyInterface.h"
 #include "NextBotUtil.h"
+#include "neo_player.h"
 
 #ifdef TERROR
 #include "querycache.h"
@@ -75,13 +76,20 @@ const CKnownEntity *IVision::GetPrimaryKnownThreat( bool onlyVisibleThreats ) co
 	{
 		const CKnownEntity &firstThreat = m_knownEntityVector[i];
 
-		// check in case status changes between updates
 		if ( IsAwareOf( firstThreat ) && !firstThreat.IsObsolete() && !IsIgnored( firstThreat.GetEntity() ) && GetBot()->IsEnemy( firstThreat.GetEntity() ) )
 		{
 			if ( !onlyVisibleThreats || firstThreat.IsVisibleRecently() )
 			{
-				threat = &firstThreat;
-				break;
+				// naive approach where bots will ignore everyone who has thermoptic engaged
+				// TODO: Add variables which affect visiblity
+				auto neoThreat = (CNEO_Player*)firstThreat.GetEntity();
+				auto isThreatCloaked = neoThreat->GetCloakState(); // naive logic of ignoring cloaked enemies
+				if (!isThreatCloaked)
+				{
+					// check in case status changes between updates
+					threat = &firstThreat;
+					break;
+				}
 			}
 		}
 	}
