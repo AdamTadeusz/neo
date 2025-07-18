@@ -1145,6 +1145,12 @@ void CNEO_Player::PlayCloakSound(bool removeLocalPlayer)
 		params.m_nChannel = CHAN_VOICE;
 
 		EmitSound(filter, edict()->m_EdictIndex, params);
+
+		// Aggro due to large sound and flash
+		if (m_bInThermOpticCamo)
+		{
+			m_aggroTimer.Start(0.5f);
+		}
 	}
 }
 
@@ -2172,6 +2178,12 @@ bool CNEO_Player::WantsLagCompensationOnEntity( const CBasePlayer *pPlayer,
 void CNEO_Player::FireBullets ( const FireBulletsInfo_t &info )
 {
 	BaseClass::FireBullets(info);
+
+	if (!((static_cast<CNEOBaseCombatWeapon*>(GetActiveWeapon()))->GetNeoWepBits() & NEO_WEP_SUPPRESSED))
+	{
+		// flash/bang from unsuppressed weapons
+		m_aggroTimer.Start(0.5);
+	}
 }
 
 void CNEO_Player::Weapon_Equip(CBaseCombatWeapon* pWeapon)
