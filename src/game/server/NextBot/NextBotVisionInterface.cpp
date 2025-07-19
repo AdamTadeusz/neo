@@ -57,6 +57,113 @@ void IVision::Reset( void )
 }
 
 
+
+//------------------------------------------------------------------------------------------
+/**
+ * Determine of target can be seen based on various situational variables
+ * Prerequisite: Depends on known being a neo player
+ */
+bool IVision::IsPerceptiveOf(const CKnownEntity& known) const
+{
+	auto neoThreat = (CNEO_Player*)known.GetEntity();
+	auto me = (CNEO_Player*)GetBot()->GetEntity();
+	if ( (neoThreat == nullptr) || (me == nullptr) )
+	{
+		// short-circuit on perception code which is NT exclusive
+		return true;
+	}
+
+	bool isThreatDetected = true;
+	auto isThreatCloaked = neoThreat->GetCloakState();
+
+	if (isThreatCloaked)
+	{
+		// Base detection chances
+		const float BASE_CLOAK_DETECTION_CHANCE_STATIONARY = 5.0f; // Base chance if target is stationary
+
+		// Movement modifiers
+		const float DETECTOR_STATIONARY_BONUS = 20.0f; // Bonus if I am standing still
+		const float THREAT_MOVING_BONUS = 20.0f;       // Bonus if target is moving
+
+		// Class-specific modifiers
+		const float SUPPORT_CLOAK_PENALTY = 10.0f; // Support class penalty for detecting cloaked players
+
+		// Injured target detection bonus
+		const float INJURED_CLOAK_DETECTION_BONUS_PER_HEALTH_POINT = 0.5f; // 0.5% detection bonus per health point below 100
+		const float MAX_INJURED_CLOAK_DETECTION_BONUS = 40.0f; // Caps the bonus to ensure at least 10% chance to *not* be detected (100 - 90 max detection)
+
+		float noticePercentage = 0.0f; // Initialize notice percentage
+
+
+		// Check if an entity is moving
+		auto isMoving = [](CNEO_Player* player) {
+			return !player->GetAbsVelocity().IsZero(100.0f);
+			};
+
+		bool meIsMoving = isMoving(me);
+		bool threatIsMoving = isMoving(neoThreat);
+
+		// Special logic for Assault class: always detect if stationary and threat is moving
+		if (me->GetClass() == NEO_CLASS_ASSAULT && !meIsMoving && threatIsMoving)
+		{
+			noticePercentage = 100.0f; // Always detect
+		}
+		else
+		{
+			// Determine base chance based on movement states
+			if (!meIsMoving && !threatIsMoving)
+			{
+				// Both stationary
+				noticePercentage = BASE_CLOAK_DETECTION_CHANCE_STATIONARY;
+			}
+			else if (!meIsMoving && threatIsMoving)
+			{
+				// I am stationary, threat is moving
+				noticePercentage = DETECTOR_STATIONARY_BONUS + THREAT_MOVING_BONUS; // Combine bonuses for both being still and threat moving
+			}
+			else if (meIsMoving && !threatIsMoving)
+			{
+				// I am moving, threat is stationary
+				// A moving detector might have a slight penalty.
+				// For simplicity here, if only the threat is stationary, we use the base and add specific modifiers later.
+				noticePercentage = BASE_CLOAK_DETECTION_CHANCE_STATIONARY; // Start with base for a stationary threat
+			}
+			else // Both are moving
+			{
+				noticePercentage = BASE_CLOAK_DETECTION_CHANCE_STATIONARY + THREAT_MOVING_BONUS;
+			}
+
+			// Apply Support Class Penalty (if applicable)
+			if (me->GetClass() == NEO_CLASS_SUPPORT)
+			{
+				noticePercentage -= SUPPORT_CLOAK_PENALTY;
+			}
+
+			// Apply Injured Target Bonus
+			// Target is injured so their cloak is less effective. The more damaged they are, the more likely they are to be noticed.
+			if (noticePercentage < 100.0f && neoThreat->GetHealth() < 100)
+			{
+				float healthDeficit = 100.0f - neoThreat->GetHealth();
+				float healthBonus = healthDeficit * INJURED_CLOAK_DETECTION_BONUS_PER_HEALTH_POINT;
+
+				// Clamp the health bonus to ensure a slight bonus (10%) to not being detected even for very injured targets
+				healthBonus = fminf(healthBonus, MAX_INJURED_CLOAK_DETECTION_BONUS);
+				noticePercentage += healthBonus;
+			}
+		}
+
+
+		// Ensure the notice percentage is within valid bounds [0, 100]
+		noticePercentage = fmaxf(0.0f, fminf(100.0f, noticePercentage));
+
+		// Roll the chance to determine if the threat is detected
+		isThreatDetected = (RandomInt(1, 100) <= noticePercentage);
+	}
+
+	return isThreatDetected;
+}
+
+
 //------------------------------------------------------------------------------------------
 /**
  * Ask the current behavior to select the most dangerous threat from
@@ -78,95 +185,11 @@ const CKnownEntity *IVision::GetPrimaryKnownThreat( bool onlyVisibleThreats ) co
 
 		if ( IsAwareOf( firstThreat ) && !firstThreat.IsObsolete() && !IsIgnored( firstThreat.GetEntity() ) && GetBot()->IsEnemy( firstThreat.GetEntity() ) )
 		{
-			if ( !onlyVisibleThreats || firstThreat.IsVisibleRecently() )
+			if (!onlyVisibleThreats || firstThreat.IsVisibleRecently())
 			{
-				// TODO: Figure out a better place for this cloaking detection code.
-				auto neoThreat = (CNEO_Player*)firstThreat.GetEntity();
-				bool isThreatDetected = true;
-				auto isThreatCloaked = neoThreat->GetCloakState();
-
-				if (isThreatCloaked)
-				{
-					// Base detection chances
-					const float BASE_CLOAK_DETECTION_CHANCE_STATIONARY = 5.0f; // Base chance if target is stationary
-
-					// Movement modifiers
-					const float DETECTOR_STATIONARY_BONUS = 20.0f; // Bonus if I am standing still
-					const float THREAT_MOVING_BONUS = 20.0f;       // Bonus if target is moving
-
-					// Class-specific modifiers
-					const float SUPPORT_CLOAK_PENALTY = 10.0f; // Support class penalty for detecting cloaked players
-
-					// Injured target detection bonus
-					const float INJURED_CLOAK_DETECTION_BONUS_PER_HEALTH_POINT = 0.5f; // 0.5% detection bonus per health point below 100
-					const float MAX_INJURED_CLOAK_DETECTION_BONUS = 40.0f; // Caps the bonus to ensure at least 10% chance to *not* be detected (100 - 90 max detection)
-
-					float noticePercentage = 0.0f; // Initialize notice percentage
-					auto me = (CNEO_Player*)GetBot()->GetEntity();
-
-					// Special logic for Assault class: always detect if stationary and threat is moving
-					if (me->GetClass() == NEO_CLASS_ASSAULT && me->GetAbsVelocity().IsZero() && !neoThreat->GetAbsVelocity().IsZero())
-					{
-						noticePercentage = 100.0f; // Always detect
-					}
-					else
-					{
-						// Determine base chance based on movement states
-						if (me->GetAbsVelocity().IsZero() && neoThreat->GetAbsVelocity().IsZero())
-						{
-							// Both stationary
-							noticePercentage = BASE_CLOAK_DETECTION_CHANCE_STATIONARY;
-						}
-						else if (me->GetAbsVelocity().IsZero() && !neoThreat->GetAbsVelocity().IsZero())
-						{
-							// I am stationary, threat is moving
-							noticePercentage = DETECTOR_STATIONARY_BONUS + THREAT_MOVING_BONUS; // Combine bonuses for both being still and threat moving
-						}
-						else if (!me->GetAbsVelocity().IsZero() && neoThreat->GetAbsVelocity().IsZero())
-						{
-							// I am moving, threat is stationary
-							// A moving detector might have a slight penalty.
-							// For simplicity here, if only the threat is stationary, we use the base and add specific modifiers later.
-							noticePercentage = BASE_CLOAK_DETECTION_CHANCE_STATIONARY; // Start with base for a stationary threat
-						}
-						else // Both are moving
-						{
-							noticePercentage = BASE_CLOAK_DETECTION_CHANCE_STATIONARY + THREAT_MOVING_BONUS;
-						}
-
-						// Apply Support Class Penalty (if applicable)
-						if (me->GetClass() == NEO_CLASS_SUPPORT)
-						{
-							noticePercentage -= SUPPORT_CLOAK_PENALTY;
-						}
-
-						// Apply Injured Target Bonus
-						// Target is injured so their cloak is less effective. The more damaged they are, the more likely they are to be noticed.
-						if (noticePercentage < 100.0f && neoThreat->GetHealth() < 100)
-						{
-							float healthDeficit = 100.0f - neoThreat->GetHealth();
-							float healthBonus = healthDeficit * INJURED_CLOAK_DETECTION_BONUS_PER_HEALTH_POINT;
-
-							// Clamp the health bonus to ensure a slight bonus (10%) to not being detected even for very injured targets
-							healthBonus = fminf(healthBonus, MAX_INJURED_CLOAK_DETECTION_BONUS);
-							noticePercentage += healthBonus;
-						}
-					}
-
-
-					// Ensure the notice percentage is within valid bounds [0, 100]
-					noticePercentage = fmaxf(0.0f, fminf(100.0f, noticePercentage));
-
-					// Roll the chance to determine if the threat is detected
-					isThreatDetected = (RandomInt(1, 100) <= noticePercentage);
-				}
-
-				if (isThreatDetected)
-				{
-					// check in case status changes between updates
-					threat = &firstThreat;
-					break;
-				}
+				// check in case status changes between updates
+				threat = &firstThreat;
+				break;
 			}
 		}
 	}
@@ -688,6 +711,11 @@ bool IVision::IsAbleToSee( CBaseEntity *subject, FieldOfViewCheckType checkFOV, 
 
 	// do actual line-of-sight trace
 	if ( !IsLineOfSightClearToEntity( subject ) )
+	{
+		return false;
+	}
+
+	if ( !IsPerceptiveOf( subject ) )
 	{
 		return false;
 	}

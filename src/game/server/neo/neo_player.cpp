@@ -2182,7 +2182,7 @@ void CNEO_Player::FireBullets ( const FireBulletsInfo_t &info )
 	if (!((static_cast<CNEOBaseCombatWeapon*>(GetActiveWeapon()))->GetNeoWepBits() & NEO_WEP_SUPPRESSED))
 	{
 		// flash/bang from unsuppressed weapons
-		m_aggroTimer.Start(0.5);
+		m_aggroTimer.Start(0.5f);
 	}
 }
 
