@@ -60,107 +60,211 @@ void IVision::Reset( void )
 
 //------------------------------------------------------------------------------------------
 /**
- * Determine of target can be seen based on various situational variables
- * Prerequisite: Depends on known being a neo player
+ * Determine if target can be seen.
  */
 bool IVision::IsPerceptiveOf(const CKnownEntity& known) const
 {
-	auto neoThreat = (CNEO_Player*)known.GetEntity();
-	auto me = (CNEO_Player*)GetBot()->GetEntity();
-	if ( (neoThreat == nullptr) || (me == nullptr) )
+	auto targetPlayer = (CNEO_Player*)known.GetEntity();
+	auto myPlayer = (CNEO_Player*)GetBot()->GetEntity();
+	if ((targetPlayer == nullptr) || (myPlayer == nullptr))
 	{
-		// short-circuit on perception code which is NT exclusive
+		// If it's not a player, this cloaking logic doesn't apply, so it's "perceivable".
 		return true;
 	}
 
-	bool isThreatDetected = true;
-	auto isThreatCloaked = neoThreat->GetCloakState();
+	bool detected = true;
+	auto targetIsCloaked = targetPlayer->GetCloakState();
 
-	if (isThreatCloaked)
+	if (targetIsCloaked)
 	{
-		// Base detection chances
-		const float BASE_CLOAK_DETECTION_CHANCE_STATIONARY = 5.0f; // Base chance if target is stationary
+		// --- Base Detection Chance (Per Tick) ---
+		// This is the fundamental chance of detection in ideal conditions (stationary, far, healthy, non-specialized bot).
+		// Aiming for ~5% detection per second at 66 ticks/sec, this translates to ~0.078% per tick.
+		float detectionChance = 0.0008f; // Starting very low (0.08% per tick)
 
-		// Movement modifiers
-		const float DETECTOR_STATIONARY_BONUS = 20.0f; // Bonus if I am standing still
-		const float THREAT_MOVING_BONUS = 20.0f;       // Bonus if target is moving
+		// --- Multipliers for Detection Chance ---
+		// Multipliers > 1.0 increase detection likelihood. Multipliers < 1.0 decrease it.
 
-		// Class-specific modifiers
-		const float SUPPORT_CLOAK_PENALTY = 10.0f; // Support class penalty for detecting cloaked players
+		// Movement Multipliers (Player's impact on their own stealth)
+		const float MULT_TARGET_WALKING = 20.0f;   // Walking increases detection chance by 20x
+		const float MULT_TARGET_RUNNING = 50.0f;   // Running increases detection chance by 50x (very high risk)
 
-		// Injured target detection bonus
-		const float INJURED_CLOAK_DETECTION_BONUS_PER_HEALTH_POINT = 0.5f; // 0.5% detection bonus per health point below 100
-		const float MAX_INJURED_CLOAK_DETECTION_BONUS = 40.0f; // Caps the bonus to ensure at least 10% chance to *not* be detected (100 - 90 max detection)
+		// Bot's State Multipliers (How the bot's state affects its perception)
+		const float MULT_MY_PLAYER_MOVING = 0.5f;  // Bot moving: 50% less chance to detect (detectionChance *= 0.5)
+		const float MULT_SUPPORT_BOT_VISION = 0.6; // Support bot: 40% less chance to detect (detectionChance *= 0.6)
 
-		float noticePercentage = 0.0f; // Initialize notice percentage
+		// Injured Target Multiplier (How target's health affects their stealth)
+		// Each health point lost increases detection by 1% of current chance (additive to multiplier)
+		const float MULT_INJURED_PER_HEALTH_POINT_FACTOR = 0.01f;
 
+		// Distance Multipliers (How distance affects detection)
+		// These define ranges where detection scales.
+		const float DISTANCE_MAX_DETECTION_SQ = 10000.0f;  // Max detection effect at 100 units (100^2)
+		const float DISTANCE_MIN_DETECTION_SQ = 30000000.0f; // Min detection effect at 3000 units (3000^2)
 
-		// Check if an entity is moving
-		auto isMoving = [](CNEO_Player* player) {
-			return !player->GetAbsVelocity().IsZero(100.0f);
+		const float DISTANCE_MULT_CLOSE = 5.0f; // Multiplier when very close (e.g., within 100 units)
+		const float DISTANCE_MULT_FAR = 0.01f;    // Multiplier when very far (e.g., beyond 3000 units)
+
+		// --- Helper Lambdas for Movement ---
+		auto isMoving = [](CNEO_Player* player, float tolerance = 10.0f) {
+			return !player->GetAbsVelocity().IsZero(tolerance);
+			};
+		// Defined a clear threshold for 'running' velocity.
+		auto isRunning = [](CNEO_Player* player, float runSpeedThreshold = 200.0f) {
+			return player->GetAbsVelocity().LengthSqr() > (runSpeedThreshold * runSpeedThreshold);
 			};
 
-		bool meIsMoving = isMoving(me);
-		bool threatIsMoving = isMoving(neoThreat);
+		bool myPlayerIsMoving = isMoving(myPlayer);
+		bool targetIsMoving = isMoving(targetPlayer);
+		bool targetIsRunning = isRunning(targetPlayer);
 
-		// Special logic for Assault class: always detect if stationary and threat is moving
-		if (me->GetClass() == NEO_CLASS_ASSAULT && !meIsMoving && threatIsMoving)
+		// --- Apply Multipliers to Base Detection Chance ---
+
+		// 1. Player Movement Impact
+		if (targetIsRunning) // Running is the most severe penalty
 		{
-			noticePercentage = 100.0f; // Always detect
+			detectionChance *= MULT_TARGET_RUNNING;
 		}
-		else
+		else if (targetIsMoving) // Walking/strafing
 		{
-			// Determine base chance based on movement states
-			if (!meIsMoving && !threatIsMoving)
-			{
-				// Both stationary
-				noticePercentage = BASE_CLOAK_DETECTION_CHANCE_STATIONARY;
-			}
-			else if (!meIsMoving && threatIsMoving)
-			{
-				// I am stationary, threat is moving
-				noticePercentage = DETECTOR_STATIONARY_BONUS + THREAT_MOVING_BONUS; // Combine bonuses for both being still and threat moving
-			}
-			else if (meIsMoving && !threatIsMoving)
-			{
-				// I am moving, threat is stationary
-				// A moving detector might have a slight penalty.
-				// For simplicity here, if only the threat is stationary, we use the base and add specific modifiers later.
-				noticePercentage = BASE_CLOAK_DETECTION_CHANCE_STATIONARY; // Start with base for a stationary threat
-			}
-			else // Both are moving
-			{
-				noticePercentage = BASE_CLOAK_DETECTION_CHANCE_STATIONARY + THREAT_MOVING_BONUS;
-			}
-
-			// Apply Support Class Penalty (if applicable)
-			if (me->GetClass() == NEO_CLASS_SUPPORT)
-			{
-				noticePercentage -= SUPPORT_CLOAK_PENALTY;
-			}
-
-			// Apply Injured Target Bonus
-			// Target is injured so their cloak is less effective. The more damaged they are, the more likely they are to be noticed.
-			if (noticePercentage < 100.0f && neoThreat->GetHealth() < 100)
-			{
-				float healthDeficit = 100.0f - neoThreat->GetHealth();
-				float healthBonus = healthDeficit * INJURED_CLOAK_DETECTION_BONUS_PER_HEALTH_POINT;
-
-				// Clamp the health bonus to ensure a slight bonus (10%) to not being detected even for very injured targets
-				healthBonus = fminf(healthBonus, MAX_INJURED_CLOAK_DETECTION_BONUS);
-				noticePercentage += healthBonus;
-			}
+			detectionChance *= MULT_TARGET_WALKING;
 		}
 
+		// 2. Bot Movement Impact
+		if (myPlayerIsMoving)
+		{
+			detectionChance *= MULT_MY_PLAYER_MOVING;
+		}
 
-		// Ensure the notice percentage is within valid bounds [0, 100]
-		noticePercentage = fmaxf(0.0f, fminf(100.0f, noticePercentage));
+		// 3. Distance Impact
+		const Vector& myPos = GetBot()->GetPosition();
+		float currentRangeSq = (known.GetLastKnownPosition() - myPos).LengthSqr();
 
-		// Roll the chance to determine if the threat is detected
-		isThreatDetected = (RandomInt(1, 100) <= noticePercentage);
+		float distanceMultiplier;
+		if (currentRangeSq <= DISTANCE_MAX_DETECTION_SQ) // Very close range
+		{
+			distanceMultiplier = DISTANCE_MULT_CLOSE;
+		}
+		else if (currentRangeSq >= DISTANCE_MIN_DETECTION_SQ) // Very far range
+		{
+			distanceMultiplier = DISTANCE_MULT_FAR;
+		}
+		else // Interpolate between max and min detection effects
+		{
+			// Alpha: 1.0 when at DISTANCE_MAX_DETECTION_SQ, 0.0 when at DISTANCE_MIN_DETECTION_SQ
+			float alpha = 1.0f - ((currentRangeSq - DISTANCE_MAX_DETECTION_SQ) / (DISTANCE_MIN_DETECTION_SQ - DISTANCE_MAX_DETECTION_SQ));
+			distanceMultiplier = DISTANCE_MULT_FAR * (1.0f - alpha) + DISTANCE_MULT_CLOSE * alpha;
+		}
+		detectionChance *= distanceMultiplier;
+
+		// 4. Class-specific Bot Perception
+		if (myPlayer->GetClass() == NEO_CLASS_SUPPORT)
+		{
+			detectionChance *= MULT_SUPPORT_BOT_VISION;
+		}
+
+		// 5. Injured Target Impact
+		if (targetPlayer->GetHealth() < 100)
+		{
+			float healthDeficit = 100.0f - targetPlayer->GetHealth();
+			detectionChance *= (1.0f + (healthDeficit * MULT_INJURED_PER_HEALTH_POINT_FACTOR));
+		}
+
+		// --- Special Logic for Assault class ---
+		// This is designed to be a strong counter, but now it sets a *minimum* detection chance,
+		// allowing other factors to still increase it if they push it higher.
+		const float MIN_ASSAULT_DETECTION_CHANCE_PER_TICK = 0.20f; // 20% detection per tick (very high)
+		if (myPlayer->GetClass() == NEO_CLASS_ASSAULT && targetIsMoving)
+		{
+			detectionChance = fmaxf(detectionChance, MIN_ASSAULT_DETECTION_CHANCE_PER_TICK);
+		}
+
+		// Ensure the final detection chance is within valid bounds [0, 1] (as a ratio)
+		detectionChance = fmaxf(0.0f, fminf(1.0f, detectionChance));
+
+		// Convert to percentage for the RandomInt roll
+		float detectionChancePercent = detectionChance * 100.0f;
+
+		// Roll the chance to determine if the target is detected
+		detected = (RandomInt(1, 100) <= detectionChancePercent);
+
+		// --- Debugging Output ---
+		// It's crucial to update the debug output to reflect the new variables and calculations.
+		// You'll want to log 'detectionChance' (as a ratio and percentage) and the individual multipliers.
+		
+		if (GetBot()->IsDebugging(NEXTBOT_VISION))
+		{
+			bool meIsMovingDebug = isMoving(myPlayer);
+			bool threatIsMovingDebug = isMoving(targetPlayer);
+			bool threatIsRunningDebug = isRunning(targetPlayer);
+			const Vector& myPosDebug = GetBot()->GetPosition();
+			Vector toDebug = known.GetLastKnownPosition() - myPosDebug;
+			float currentRangeSqDebug = toDebug.LengthSqr();
+			float healthDeficitDebug = (targetPlayer->GetHealth() < 100) ? (100.0f - targetPlayer->GetHealth()) : 0.0f;
+
+			// Recalculate multipliers for logging purposes (or store them)
+			float log_player_move_mult = myPlayerIsMoving ? MULT_MY_PLAYER_MOVING : 1.0f;
+			float log_target_move_mult = 1.0f;
+			if (threatIsRunningDebug) log_target_move_mult = MULT_TARGET_RUNNING;
+			else if (threatIsMovingDebug) log_target_move_mult = MULT_TARGET_WALKING;
+
+			float log_dist_mult;
+			if (currentRangeSqDebug <= DISTANCE_MAX_DETECTION_SQ) log_dist_mult = DISTANCE_MULT_CLOSE;
+			else if (currentRangeSqDebug >= DISTANCE_MIN_DETECTION_SQ) log_dist_mult = DISTANCE_MULT_FAR;
+			else {
+				float alpha = 1.0f - ((currentRangeSqDebug - DISTANCE_MAX_DETECTION_SQ) / (DISTANCE_MIN_DETECTION_SQ - DISTANCE_MAX_DETECTION_SQ));
+				log_dist_mult = DISTANCE_MULT_FAR * (1.0f - alpha) + DISTANCE_MULT_CLOSE * alpha;
+			}
+
+			float log_support_mult = (myPlayer->GetClass() == NEO_CLASS_SUPPORT) ? MULT_SUPPORT_BOT_VISION : 1.0f;
+			float log_injured_mult = (targetPlayer->GetHealth() < 100) ? (1.0f + (healthDeficitDebug * MULT_INJURED_PER_HEALTH_POINT_FACTOR)) : 1.0f;
+
+			float log_assault_override_val = (myPlayer->GetClass() == NEO_CLASS_ASSAULT && !myPlayerIsMoving && targetIsMoving) ? MIN_ASSAULT_DETECTION_CHANCE_PER_TICK * 100.0f : -1.0f;
+
+
+			ConColorMsg(Color(0, 255, 0, 255), "%3.2f: %s Cloak Detection for %s(#%d):\n"
+				"  - Cloaked: %s\n"
+				"  - Me Moving: %s, Target Moving: %s (Running: %s)\n"
+				"  - RangeSq: %.2f (Dist Mult: %.2fx)\n"
+				"  - Health Deficit: %.2f (Injured Mult: %.2fx)\n"
+				"  - Bot Class: %s (Class Mult: %.2fx)\n"
+				"  - Base Chance (Per Tick): %.4f%%\n"
+				"  - Applied Multipliers: BotMove: %.2fx, TargetMove: %.2fx, Distance: %.2fx, Class: %.2fx, Injured: %.2fx\n"
+				"  - Assault Override Triggered: %s (Min Chance: %.2f%%)\n"
+				"  - Final Detection Chance (Clamped): %.4f%%\n"
+				"  - Detection Result: %s\n",
+				gpGlobals->curtime,
+				GetBot()->GetDebugIdentifier(),
+				targetPlayer->GetClassname(),
+				targetPlayer->entindex(),
+				targetIsCloaked ? "TRUE" : "FALSE",
+				meIsMovingDebug ? "TRUE" : "FALSE",
+				threatIsMovingDebug ? "TRUE" : "FALSE",
+				threatIsRunningDebug ? "TRUE" : "FALSE",
+				currentRangeSqDebug,
+				distanceMultiplier,
+				healthDeficitDebug,
+				log_injured_mult,
+				(myPlayer->GetClass() == NEO_CLASS_ASSAULT) ? "ASSAULT" : ((myPlayer->GetClass() == NEO_CLASS_SUPPORT) ? "SUPPORT" : "OTHER"),
+				log_support_mult, // This will be 1.0 for non-support, but 0.2 for support
+				0.0008f * 100.0f, // Base chance for logging
+				log_player_move_mult,
+				log_target_move_mult,
+				distanceMultiplier,
+				log_support_mult,
+				log_injured_mult,
+				(log_assault_override_val != -1.0f) ? "TRUE" : "FALSE",
+				MIN_ASSAULT_DETECTION_CHANCE_PER_TICK * 100.0f,
+				detectionChancePercent,
+				detected ? "DETECTED" : "NOT DETECTED"
+			);
+
+			NDebugOverlay::Line(GetBot()->GetBodyInterface()->GetEyePosition(), known.GetLastKnownPosition(), 255, 255, 0, false, 0.2f);
+		}
+        // --- End of Debugging Output ---
 	}
 
-	return isThreatDetected;
+	return detected;
 }
 
 
@@ -183,13 +287,16 @@ const CKnownEntity *IVision::GetPrimaryKnownThreat( bool onlyVisibleThreats ) co
 	{
 		const CKnownEntity &firstThreat = m_knownEntityVector[i];
 
+		// check in case status changes between updates
 		if ( IsAwareOf( firstThreat ) && !firstThreat.IsObsolete() && !IsIgnored( firstThreat.GetEntity() ) && GetBot()->IsEnemy( firstThreat.GetEntity() ) )
 		{
-			if (!onlyVisibleThreats || firstThreat.IsVisibleRecently())
+			if ( !onlyVisibleThreats || firstThreat.IsVisibleRecently() )
 			{
-				// check in case status changes between updates
-				threat = &firstThreat;
-				break;
+				if (IsPerceptiveOf(firstThreat))
+				{
+					threat = &firstThreat;
+					break;
+				}
 			}
 		}
 	}
@@ -209,7 +316,10 @@ const CKnownEntity *IVision::GetPrimaryKnownThreat( bool onlyVisibleThreats ) co
 		{
 			if ( !onlyVisibleThreats || newThreat.IsVisibleRecently() )
 			{
-				threat = GetBot()->GetIntentionInterface()->SelectMoreDangerousThreat( GetBot(), GetBot()->GetEntity(), threat, &newThreat );
+				if (IsPerceptiveOf(newThreat))
+				{
+					threat = GetBot()->GetIntentionInterface()->SelectMoreDangerousThreat(GetBot(), GetBot()->GetEntity(), threat, &newThreat);
+				}
 			}
 		}
 	}
@@ -711,11 +821,6 @@ bool IVision::IsAbleToSee( CBaseEntity *subject, FieldOfViewCheckType checkFOV, 
 
 	// do actual line-of-sight trace
 	if ( !IsLineOfSightClearToEntity( subject ) )
-	{
-		return false;
-	}
-
-	if ( !IsPerceptiveOf( subject ) )
 	{
 		return false;
 	}
