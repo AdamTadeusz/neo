@@ -2179,7 +2179,7 @@ void CNEO_Player::FireBullets ( const FireBulletsInfo_t &info )
 	if ((static_cast<CNEOBaseCombatWeapon*>(GetActiveWeapon()))->GetNeoWepBits() & NEO_WEP_SUPPRESSED)
 	{
 		// suppressed
-		m_aggroTimer.Start(0.1f);
+		m_aggroTimer.Start(0.01f);
 	}
 	else
 	{

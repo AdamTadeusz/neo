@@ -31,6 +31,30 @@ ActionResult< CNEOBot >	CNEOBotAttack::OnStart( CNEOBot *me, Action< CNEOBot > *
 // head aiming and weapon firing is handled elsewhere - we just need to get into position to fight
 ActionResult< CNEOBot >	CNEOBotAttack::Update( CNEOBot *me, float interval )
 {
+	auto enableCloak = [me](float cloakThreshold = 6.0f)
+		{
+			auto myBody = me->GetBodyInterface();
+			float cloakPower = myBody->GetCloakPower();
+			bool amCloaked = myBody->IsCloakEnabled();
+
+			if (cloakPower > cloakThreshold && !amCloaked)
+			{
+				me->PressThermopticButton();
+			}
+		};
+
+	auto disableCloak = [me]()
+		{
+			auto myBody = me->GetBodyInterface();
+			float cloakPower = myBody->GetCloakPower();
+			bool amCloaked = myBody->IsCloakEnabled();
+
+			if (amCloaked)
+			{
+				me->PressThermopticButton();
+			}
+		};
+
 	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
 	me->EquipBestWeaponForThreat( threat );
 
@@ -43,6 +67,9 @@ ActionResult< CNEOBot >	CNEOBotAttack::Update( CNEOBot *me, float interval )
 	bool isUsingCloseRangeWeapon = me->IsCloseRange( myWeapon );
 	if ( isUsingCloseRangeWeapon && threat->IsVisibleRecently() && me->IsRangeLessThan( threat->GetLastKnownPosition(), 1.1f * me->GetDesiredAttackRange() ) )
 	{
+		// TODO add difficulty for easier bots to forget this
+		disableCloak();
+
 		// circle around our victim
 		if ( me->TransientlyConsistentRandomValue( 3.0f ) < 0.5f )
 		{
@@ -53,6 +80,19 @@ ActionResult< CNEOBot >	CNEOBotAttack::Update( CNEOBot *me, float interval )
 			me->PressRightButton();
 		}
 	}
+	else if (threat->IsVisibleRecently())
+	{
+		// TODO add difficulty for easier bots to forget this
+		if (myWeapon && myWeapon->GetNeoWepBits() & NEO_WEP_SUPPRESSED)
+		{
+			enableCloak(0.3f);
+		}
+		else
+		{
+			disableCloak();
+		}
+	}
+
 
 	bool bHasRangedWeapon = me->IsRanged( myWeapon );
 
@@ -61,14 +101,24 @@ ActionResult< CNEOBot >	CNEOBotAttack::Update( CNEOBot *me, float interval )
 					   !bHasRangedWeapon &&
 					   me->GetDifficulty() > CNEOBot::EASY;
 
+
 	// pursue the threat. if not visible, go to the last known position
 	if ( bAggressive ||
 	     !threat->IsVisibleRecently() || 
 		 me->IsRangeGreaterThan( threat->GetEntity()->GetAbsOrigin(), me->GetDesiredAttackRange() ) || 
 		 !me->IsLineOfFireClear( threat->GetEntity()->EyePosition() ) )
 	{
+		// SUPA7 reload can be interrupted so proactively reload
+		if (myWeapon && (myWeapon->GetNeoWepBits() & NEO_WEP_SUPA7) && (myWeapon->Clip1() < myWeapon->GetMaxClip1()))
+		{
+			me->ReleaseFireButton();
+			me->PressReloadButton();
+		}
+		
 		if ( threat->IsVisibleRecently() )
 		{
+			enableCloak(5.0f);
+
 			if ( isUsingCloseRangeWeapon )
 			{
 				CNEOBotPathCost cost( me, FASTEST_ROUTE );

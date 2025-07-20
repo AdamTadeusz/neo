@@ -62,20 +62,40 @@ ActionResult< CNEOBot >	CNEOBotSeekAndDestroy::Update( CNEOBot *me, float interv
 
 	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
 
-	if ( threat )
+	if (threat)
 	{
 		const float engageRange = 1000.0f;
-		if ( me->IsRangeLessThan( threat->GetLastKnownPosition(), engageRange ) )
+		if (me->IsRangeLessThan(threat->GetLastKnownPosition(), engageRange))
 		{
-			// TODO: naive approach, start pursuing enemy with cloak if applicable
-			auto myBody = me->GetBodyInterface();
-			float myCloakPower = myBody->GetCloakPower();
-			float amCloaked = myBody->IsCloakEnabled();
-			if (myCloakPower > 4.0 && !amCloaked)
+			return SuspendFor(new CNEOBotAttack, "Going after an enemy");
+		}
+	}
+	else
+	{
+		// Out of combat
+		auto myBody = me->GetBodyInterface();
+		float amCloaked = myBody->IsCloakEnabled();
+		CNEOBaseCombatWeapon* myWeapon = static_cast<CNEOBaseCombatWeapon*>(me->GetActiveWeapon());
+
+		if (amCloaked)
+		{
+			me->PressThermopticButton();
+		}
+
+		// Reload when safe
+		if (myWeapon && myWeapon->GetPrimaryAmmoCount() > 0)
+		{
+			if (myWeapon->Clip1() < myWeapon->GetMaxClip1() / 2)
 			{
-				me->GetLocomotionInterface()->Thermoptic();
+				me->ReleaseFireButton();
+				me->PressReloadButton();
 			}
-			return SuspendFor( new CNEOBotAttack, "Going after an enemy" );
+			// SUPA7 reload doesn't discard ammo
+			else if ((myWeapon->GetNeoWepBits() & NEO_WEP_SUPA7) && (myWeapon->Clip1() < myWeapon->GetMaxClip1()))
+			{
+				me->ReleaseFireButton();
+				me->PressReloadButton();
+			}
 		}
 	}
 
