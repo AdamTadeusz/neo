@@ -511,8 +511,21 @@ void CNEOBotMainAction::FireWeaponAtEnemy( CNEOBot *me )
 		{
 			if (myWeapon->m_iClip1 == 0)
 			{
-				me->ReleaseFireButton();
-				me->PressReloadButton();
+				me->PressCrouchButton(0.3f);
+				if (m_isWaitingForFullReload)
+				{
+					// passthrough: don't introduce decision jitter
+				}
+				else if (threat->IsVisibleInFOVNow())
+				{
+					me->EquipBestWeaponForThreat(threat);
+
+				}
+				else
+				{
+					me->ReleaseFireButton();
+					me->PressReloadButton();
+				}
 				return;
 			}
 

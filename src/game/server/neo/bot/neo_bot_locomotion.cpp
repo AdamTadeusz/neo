@@ -20,7 +20,9 @@ void CNEOBotLocomotion::Update( void )
 	// always 'crouch jump'
 	if ( IsOnGround() )
 	{
-		me->ReleaseCrouchButton();
+		// TODO: watch out for glitches with crouch jumping
+		// Divergence from HL2 bots needed to allow bots to crouch
+		//me->ReleaseCrouchButton();
 	}
 	else
 	{

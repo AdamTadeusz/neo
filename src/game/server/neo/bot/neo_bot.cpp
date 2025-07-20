@@ -1480,7 +1480,20 @@ void CNEOBot::EquipBestWeaponForThreat(const CKnownEntity* threat)
 	{
 		pChosen = secondaryWeapon;
 	}
-	if (primaryWeapon)
+
+	// Kludge: for immediate response but might bias towards using secondary weapons
+	if (!primaryWeapon)
+	{
+		// passthrough
+	}
+	else if (threat->IsVisibleInFOVNow()
+		&& primaryWeapon->Clip1() <= 0
+		&& secondaryWeapon
+		&& (secondaryWeapon->Clip1() > 0))
+	{
+		// passthrough
+	}
+	else
 	{
 		pChosen = primaryWeapon;
 	}

@@ -85,17 +85,34 @@ ActionResult< CNEOBot >	CNEOBotSeekAndDestroy::Update( CNEOBot *me, float interv
 		// Reload when safe
 		if (myWeapon && myWeapon->GetPrimaryAmmoCount() > 0)
 		{
-			if (myWeapon->Clip1() < myWeapon->GetMaxClip1() / 2)
-			{
-				me->ReleaseFireButton();
-				me->PressReloadButton();
-			}
+			bool shouldReload = false;
 			// SUPA7 reload doesn't discard ammo
-			else if ((myWeapon->GetNeoWepBits() & NEO_WEP_SUPA7) && (myWeapon->Clip1() < myWeapon->GetMaxClip1()))
+			if ((myWeapon->GetNeoWepBits() & NEO_WEP_SUPA7) && (myWeapon->Clip1() < myWeapon->GetMaxClip1()))
+			{
+				shouldReload = true;
+			}
+			else if (me->IsBarrageAndReloadWeapon(myWeapon))
+			{
+				if (myWeapon->Clip1() < myWeapon->GetMaxClip1() / 3)
+				{
+					shouldReload = true;
+				}
+			}
+			else
+			{
+				if (myWeapon->Clip1() < myWeapon->GetMaxClip1() / 2)
+				{
+					shouldReload = true;
+				}
+			}
+
+			if (shouldReload)
 			{
 				me->ReleaseFireButton();
 				me->PressReloadButton();
+				me->PressCrouchButton(0.3f);
 			}
+
 		}
 	}
 

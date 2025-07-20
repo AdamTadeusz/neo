@@ -410,6 +410,8 @@ inline void NextBotPlayer< PlayerType >::PressJumpButton( float duration )
 {
 	m_inputButtons |= IN_JUMP;
 	m_jumpButtonTimer.Start( duration );
+	// Jank: workaround to allow bots to crouch while attempting to preserve crouch jumping
+	m_crouchButtonTimer.Invalidate();
 }
 
 template < typename PlayerType >
