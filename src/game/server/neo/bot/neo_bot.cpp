@@ -1518,7 +1518,8 @@ void CNEOBot::EquipBestWeaponForThreat(const CKnownEntity* threat)
 	else if (threat->IsVisibleInFOVNow()
 		&& primaryWeapon->Clip1() <= 0
 		&& secondaryWeapon
-		&& (secondaryWeapon->Clip1() > 0))
+		&& (secondaryWeapon->Clip1() > 0)
+		&& (IsRangeLessThan(threat->GetLastKnownPosition(), 250.0f)) )
 	{
 		// passthrough
 	}

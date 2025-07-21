@@ -39,12 +39,22 @@ ActionResult< CNEOBot >	CNEOBotAttack::Update( CNEOBot *me, float interval )
 		return Done( "No threat" );
 	}
 
+	bool isThreatSupport = (threat && (static_cast<CNEO_Player*>(threat->GetEntity())->GetClass() == NEO_CLASS_SUPPORT));
+
 	CNEOBaseCombatWeapon* myWeapon = static_cast<CNEOBaseCombatWeapon* >( me->GetActiveWeapon() );
 	bool isUsingCloseRangeWeapon = me->IsCloseRange( myWeapon );
 	if ( isUsingCloseRangeWeapon && threat->IsVisibleRecently() && me->IsRangeLessThan( threat->GetLastKnownPosition(), 1.1f * me->GetDesiredAttackRange() ) )
 	{
-		// TODO add difficulty for easier bots to forget this
-		me->DisableCloak();
+		// TODO add difficulty checks for easier bots to forget optimal tactics
+		if (isThreatSupport)
+		{
+			// Assume Support is using thermal vision
+			me->EnableCloak(0.2f);
+		}
+		else
+		{
+			me->DisableCloak();
+		}
 
 		// circle around our victim
 		if ( me->TransientlyConsistentRandomValue( 3.0f ) < 0.5f )
@@ -61,6 +71,11 @@ ActionResult< CNEOBot >	CNEOBotAttack::Update( CNEOBot *me, float interval )
 		// TODO add difficulty for easier bots to forget this
 		if (myWeapon && myWeapon->GetNeoWepBits() & NEO_WEP_SUPPRESSED)
 		{
+			me->EnableCloak(0.3f);
+		}
+		else if (isThreatSupport)
+		{
+			// Assume Support is using thermal vision
 			me->EnableCloak(0.3f);
 		}
 		else
