@@ -31,30 +31,6 @@ ActionResult< CNEOBot >	CNEOBotAttack::OnStart( CNEOBot *me, Action< CNEOBot > *
 // head aiming and weapon firing is handled elsewhere - we just need to get into position to fight
 ActionResult< CNEOBot >	CNEOBotAttack::Update( CNEOBot *me, float interval )
 {
-	auto enableCloak = [me](float cloakThreshold = 6.0f)
-		{
-			auto myBody = me->GetBodyInterface();
-			float cloakPower = myBody->GetCloakPower();
-			bool amCloaked = myBody->IsCloakEnabled();
-
-			if (cloakPower > cloakThreshold && !amCloaked)
-			{
-				me->PressThermopticButton();
-			}
-		};
-
-	auto disableCloak = [me]()
-		{
-			auto myBody = me->GetBodyInterface();
-			float cloakPower = myBody->GetCloakPower();
-			bool amCloaked = myBody->IsCloakEnabled();
-
-			if (amCloaked)
-			{
-				me->PressThermopticButton();
-			}
-		};
-
 	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
 	me->EquipBestWeaponForThreat( threat );
 
@@ -68,7 +44,7 @@ ActionResult< CNEOBot >	CNEOBotAttack::Update( CNEOBot *me, float interval )
 	if ( isUsingCloseRangeWeapon && threat->IsVisibleRecently() && me->IsRangeLessThan( threat->GetLastKnownPosition(), 1.1f * me->GetDesiredAttackRange() ) )
 	{
 		// TODO add difficulty for easier bots to forget this
-		disableCloak();
+		me->DisableCloak();
 
 		// circle around our victim
 		if ( me->TransientlyConsistentRandomValue( 3.0f ) < 0.5f )
@@ -85,11 +61,11 @@ ActionResult< CNEOBot >	CNEOBotAttack::Update( CNEOBot *me, float interval )
 		// TODO add difficulty for easier bots to forget this
 		if (myWeapon && myWeapon->GetNeoWepBits() & NEO_WEP_SUPPRESSED)
 		{
-			enableCloak(0.3f);
+			me->EnableCloak(0.3f);
 		}
 		else
 		{
-			disableCloak();
+			me->DisableCloak();
 		}
 	}
 
@@ -100,7 +76,6 @@ ActionResult< CNEOBot >	CNEOBotAttack::Update( CNEOBot *me, float interval )
 	bool bAggressive = neo_bot_aggressive.GetBool() &&
 					   !bHasRangedWeapon &&
 					   me->GetDifficulty() > CNEOBot::EASY;
-
 
 	// pursue the threat. if not visible, go to the last known position
 	if ( bAggressive ||
@@ -117,7 +92,7 @@ ActionResult< CNEOBot >	CNEOBotAttack::Update( CNEOBot *me, float interval )
 		
 		if ( threat->IsVisibleRecently() )
 		{
-			enableCloak(5.0f);
+			me->EnableCloak(5.0f);
 
 			if ( isUsingCloseRangeWeapon )
 			{

@@ -983,6 +983,35 @@ bool CNEOBot::IsAmmoFull(void) const
 	return isPrimaryFull && isSecondaryFull;
 }
 
+bool CNEOBot::IsCloakEnabled(void) const
+{
+	auto myBody = GetBodyInterface();
+	return myBody->IsCloakEnabled();
+}
+
+float CNEOBot::GetCloakPower(void) const
+{
+	auto myBody = GetBodyInterface();
+	return myBody->GetCloakPower();
+}
+
+void CNEOBot::EnableCloak(float threshold)
+{
+	if ( (GetCloakPower() > threshold)
+		&& !IsCloakEnabled() )
+	{
+		PressThermopticButton();
+	}
+}
+
+void CNEOBot::DisableCloak(void)
+{
+	if ( IsCloakEnabled() )
+	{
+		PressThermopticButton();
+	}
+}
+
 
 bool CNEOBot::IsDormantWhenDead(void) const
 {

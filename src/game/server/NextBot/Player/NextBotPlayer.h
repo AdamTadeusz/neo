@@ -265,6 +265,7 @@ protected:
 	CountdownTimer m_crouchButtonTimer;
 	CountdownTimer m_walkButtonTimer;
 	CountdownTimer m_buttonScaleTimer;
+	CountdownTimer m_thermopticButtonTimer;
 	IntervalTimer m_burningTimer;		// how long since we were last burning
 	float m_forwardScale;
 	float m_rightScale;
@@ -410,7 +411,7 @@ inline void NextBotPlayer< PlayerType >::PressJumpButton( float duration )
 {
 	m_inputButtons |= IN_JUMP;
 	m_jumpButtonTimer.Start( duration );
-	// Jank: workaround to allow bots to crouch while attempting to preserve crouch jumping
+	// NEO JANK workaround to allow bots to crouch while attempting to preserve crouch jumping
 	m_crouchButtonTimer.Invalidate();
 }
 
@@ -426,14 +427,14 @@ template < typename PlayerType >
 inline void NextBotPlayer< PlayerType >::PressThermopticButton( float duration )
 {
 	m_inputButtons |= IN_THERMOPTIC;
-	m_useButtonTimer.Start( duration );
+	m_thermopticButtonTimer.Start( duration );
 }
 
 template < typename PlayerType >
 inline void NextBotPlayer< PlayerType >::ReleaseThermopticButton( void )
 {
 	m_inputButtons &= ~IN_THERMOPTIC;
-	m_useButtonTimer.Invalidate();
+	m_thermopticButtonTimer.Invalidate();
 }
 #endif
 
@@ -571,6 +572,7 @@ inline void NextBotPlayer< PlayerType >::Spawn( void )
 	m_buttonScaleTimer.Invalidate();
 	m_forwardScale = m_rightScale = 0.04;
 	m_burningTimer.Invalidate();
+	m_thermopticButtonTimer.Invalidate();
 
 	// reset first, because Spawn() may access various interfaces
 	INextBot::Reset();

@@ -20,9 +20,11 @@ void CNEOBotLocomotion::Update( void )
 	// always 'crouch jump'
 	if ( IsOnGround() )
 	{
-		// TODO: watch out for glitches with crouch jumping
-		// Divergence from HL2 bots needed to allow bots to crouch
-		//me->ReleaseCrouchButton();
+		// NEO JANK resetting of crouch timer moved to NextBotPlayer::PressJumpButton
+		// so far crouch jump seems to still be working, but watch out for a regression
+		/* disabled:
+		me->ReleaseCrouchButton();
+		*/
 	}
 	else
 	{

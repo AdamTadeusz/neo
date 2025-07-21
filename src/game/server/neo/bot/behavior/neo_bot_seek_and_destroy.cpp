@@ -62,25 +62,20 @@ ActionResult< CNEOBot >	CNEOBotSeekAndDestroy::Update( CNEOBot *me, float interv
 
 	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
 
-	if (threat)
+	if ( threat )
 	{
 		const float engageRange = 1000.0f;
-		if (me->IsRangeLessThan(threat->GetLastKnownPosition(), engageRange))
+		if ( me->IsRangeLessThan(threat->GetLastKnownPosition(), engageRange) )
 		{
-			return SuspendFor(new CNEOBotAttack, "Going after an enemy");
+			return SuspendFor( new CNEOBotAttack, "Going after an enemy" );
 		}
 	}
 	else
 	{
 		// Out of combat
-		auto myBody = me->GetBodyInterface();
-		float amCloaked = myBody->IsCloakEnabled();
 		CNEOBaseCombatWeapon* myWeapon = static_cast<CNEOBaseCombatWeapon*>(me->GetActiveWeapon());
 
-		if (amCloaked)
-		{
-			me->PressThermopticButton();
-		}
+		me->DisableCloak();
 
 		// Reload when safe
 		if (myWeapon && myWeapon->GetPrimaryAmmoCount() > 0)
