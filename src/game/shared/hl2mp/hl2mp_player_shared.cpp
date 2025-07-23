@@ -109,7 +109,7 @@ void CHL2MP_Player::PlayStepSound( Vector &vecOrigin, surfacedata_t *psurface, f
 	}
 
 #ifdef NEO
-	unsigned short stepSoundName = m_Local.m_nStepside ? psurface->sounds.stepleft : psurface->sounds.stepright;
+	unsigned short stepSoundName = psurface ? m_Local.m_nStepside ? psurface->sounds.stepleft : psurface->sounds.stepright : NULL;
 	const char* pSoundName = physprops->GetString(stepSoundName);
 
 	if (!stepSoundName) // If can't find material step sound use default footstep sound
