@@ -65,9 +65,49 @@ ActionResult< CNEOBot >	CNEOBotSeekAndDestroy::Update( CNEOBot *me, float interv
 	if ( threat )
 	{
 		const float engageRange = 1000.0f;
-		if ( me->IsRangeLessThan( threat->GetLastKnownPosition(), engageRange ) )
+		if ( me->IsRangeLessThan(threat->GetLastKnownPosition(), engageRange) )
 		{
 			return SuspendFor( new CNEOBotAttack, "Going after an enemy" );
+		}
+	}
+	else
+	{
+		// Out of combat
+		CNEOBaseCombatWeapon* myWeapon = static_cast<CNEOBaseCombatWeapon*>(me->GetActiveWeapon());
+
+		me->DisableCloak();
+
+		// Reload when safe
+		if (myWeapon && myWeapon->GetPrimaryAmmoCount() > 0)
+		{
+			bool shouldReload = false;
+			// SUPA7 reload doesn't discard ammo
+			if ((myWeapon->GetNeoWepBits() & NEO_WEP_SUPA7) && (myWeapon->Clip1() < myWeapon->GetMaxClip1()))
+			{
+				shouldReload = true;
+			}
+			else if (me->IsBarrageAndReloadWeapon(myWeapon))
+			{
+				if (myWeapon->Clip1() < myWeapon->GetMaxClip1() / 3)
+				{
+					shouldReload = true;
+				}
+			}
+			else
+			{
+				if (myWeapon->Clip1() < myWeapon->GetMaxClip1() / 2)
+				{
+					shouldReload = true;
+				}
+			}
+
+			if (shouldReload)
+			{
+				me->ReleaseFireButton();
+				me->PressReloadButton();
+				me->PressCrouchButton(0.3f);
+			}
+
 		}
 	}
 

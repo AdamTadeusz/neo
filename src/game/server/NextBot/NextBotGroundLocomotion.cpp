@@ -1163,6 +1163,22 @@ void NextBotGroundLocomotion::Jump( void )
 	GetBot()->OnLeaveGround( m_nextBot->GetGroundEntity() );
 }
 
+#ifdef NEO
+//----------------------------------------------------------------------------------------------------------
+/**
+ * Initiate a simple thermoptic toggle
+ */
+void NextBotGroundLocomotion::Thermoptic( void )
+{
+	IBody *body = GetBot()->GetBodyInterface();
+	if ( !body->StartActivity( ACT_THERMOPTIC ) )
+	{
+		// body can't thermoptic right now
+		return;
+	}
+}
+#endif
+
 
 //----------------------------------------------------------------------------------------------------------
 /**

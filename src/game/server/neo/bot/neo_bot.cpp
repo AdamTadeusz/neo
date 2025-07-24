@@ -983,6 +983,35 @@ bool CNEOBot::IsAmmoFull(void) const
 	return isPrimaryFull && isSecondaryFull;
 }
 
+bool CNEOBot::IsCloakEnabled(void) const
+{
+	auto myBody = GetBodyInterface();
+	return myBody->IsCloakEnabled();
+}
+
+float CNEOBot::GetCloakPower(void) const
+{
+	auto myBody = GetBodyInterface();
+	return myBody->GetCloakPower();
+}
+
+void CNEOBot::EnableCloak(float threshold)
+{
+	if ( (GetCloakPower() > threshold)
+		&& !IsCloakEnabled() )
+	{
+		PressThermopticButton();
+	}
+}
+
+void CNEOBot::DisableCloak(void)
+{
+	if ( IsCloakEnabled() )
+	{
+		PressThermopticButton();
+	}
+}
+
 
 bool CNEOBot::IsDormantWhenDead(void) const
 {
@@ -1480,7 +1509,21 @@ void CNEOBot::EquipBestWeaponForThreat(const CKnownEntity* threat)
 	{
 		pChosen = secondaryWeapon;
 	}
-	if (primaryWeapon)
+
+	// Kludge: for immediate response but might bias towards using secondary weapons
+	if (!primaryWeapon)
+	{
+		// passthrough
+	}
+	else if (threat->IsVisibleInFOVNow()
+		&& primaryWeapon->Clip1() <= 0
+		&& secondaryWeapon
+		&& (secondaryWeapon->Clip1() > 0)
+		&& (IsRangeLessThan(threat->GetLastKnownPosition(), 250.0f)) )
+	{
+		// passthrough
+	}
+	else
 	{
 		pChosen = primaryWeapon;
 	}

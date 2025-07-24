@@ -571,4 +571,8 @@ BEGIN_ENT_SCRIPTDESC( ILocomotion, INextBotComponent, "Next bot locomotion" )
 	DEFINE_SCRIPTFUNC( GetStuckDuration, "Return how long we've been stuck" )
 	DEFINE_SCRIPTFUNC( ClearStuckStatus, "Reset stuck status to un-stuck" )
 	DEFINE_SCRIPTFUNC( IsAttemptingToMove, "Return true if we have tried to Approach() or DriveTo() very recently" )
+#ifdef NEO
+	DEFINE_SCRIPTFUNC( Thermoptic, "Initiate a simple thermoptic toggle" )
+	DEFINE_SCRIPTFUNC( IsThermoptic, "Is thermoptic toggled" )
+#endif
 END_SCRIPTDESC();

@@ -73,6 +73,10 @@ public:
 	}
 	virtual void JumpAcrossGap( const Vector &landingGoal, const Vector &landingForward ) { }	// initiate a jump across an empty volume of space to far side
 	virtual void Jump( void ) { }							// initiate a simple undirected jump in the air
+#ifdef NEO
+	virtual void Thermoptic( void ) { }						// initiate a simple thermoptic toggle
+	virtual bool IsThermoptic( void ) const;				// is thermoptic toggle enabled
+#endif
 	virtual bool IsClimbingOrJumping( void ) const;			// is jumping in any form
 	virtual bool IsClimbingUpToLedge( void ) const;			// is climbing up to a high ledge
 	virtual bool IsJumpingAcrossGap( void ) const;			// is jumping across a gap to the far side
@@ -248,6 +252,13 @@ inline bool ILocomotion::IsScrambling( void ) const
 {
 	return !IsOnGround() || IsClimbingOrJumping() || IsAscendingOrDescendingLadder();
 }
+
+#ifdef NEO
+inline bool ILocomotion::IsThermoptic( void ) const
+{
+	return false;
+}
+#endif
 
 inline bool ILocomotion::IsClimbingOrJumping( void ) const
 {
