@@ -802,6 +802,10 @@ CMP3Player::CMP3Player( VPANEL parent, char const *panelName ) :
 {
 	g_pPlayer = this;
 
+#ifdef NEO // Allows us to capture key_esc in OnKeyCodeTyped, unless in game in main menu when console is open and in focus
+	SetChainKeysToParent(true);
+#endif // NEO
+
 	// Get strings...
 	g_pVGuiLocalize->AddFile( "resource/mp3player_%language%.txt" );
 	SetParent( parent );
@@ -1139,6 +1143,23 @@ void CMP3Player::OnKeyCodePressed(vgui::KeyCode code)
 	else
 	{
 		g_pPlayer->Activate();
+	}
+}
+
+void CMP3Player::OnKeyCodeTyped(vgui::KeyCode code)
+{
+	if (code == KEY_ESCAPE && IsVisible())
+	{
+		const bool closeInstantly = engine->IsInGame() && !engine->IsLevelMainMenuBackground(); // Mimick console behavior where closes instantly if in game
+		if (closeInstantly)
+		{
+			SetFadeEffectDisableOverride(true);
+		}
+		Close();
+		if (closeInstantly)
+		{
+			SetFadeEffectDisableOverride(false);
+		}
 	}
 }
 

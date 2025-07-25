@@ -244,6 +244,7 @@ protected:
 	virtual void			OnCommand( char const *cmd );
 #ifdef NEO
 	void					OnKeyCodePressed(vgui::KeyCode code) override;
+	void					OnKeyCodeTyped(vgui::KeyCode code) override;
 #endif // NEO
 	virtual void			ApplySchemeSettings( vgui::IScheme *pScheme );
 	virtual void			OnTick();
