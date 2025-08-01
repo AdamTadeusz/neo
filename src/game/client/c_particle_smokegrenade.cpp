@@ -69,6 +69,9 @@ private:
 		float				m_FadeAlpha;		// Set as it moves around.
 		unsigned char		m_ColorInterp;		// Amount between min and max colors.
 		unsigned char		m_Color[4];
+#ifdef NEO
+		int					m_iDistanceFromCenter; // Number of parent particles between this particle and center particle.
+#endif // NEO
 	};
 
 
@@ -695,7 +698,7 @@ inline void C_ParticleSmokeGrenade::ApplyDynamicLight( const Vector &vParticlePo
 void C_ParticleSmokeGrenade::RenderParticles( CParticleRenderIterator *pIterator )
 {
 	if (!CanSeeThroughSmokeGrenades())
-	{
+		{
 		const SmokeGrenadeParticle* pParticle = (const SmokeGrenadeParticle*)pIterator->GetFirst();
 		while (pParticle)
 		{
@@ -704,7 +707,11 @@ void C_ParticleSmokeGrenade::RenderParticles( CParticleRenderIterator *pIterator
 			float sortKey;
 
 			// Draw.
+#ifdef NEO
+			float len = pParticle->m_iDistanceFromCenter * ((SMOKEGRENADE_PARTICLERADIUS * 2) - SMOKEPARTICLE_OVERLAP) ;
+#else
 			float len = pParticle->m_Pos.Length();
+#endif // NEO
 			if (len > m_ExpandRadius)
 			{
 				Vector vTemp;
@@ -743,10 +750,10 @@ void C_ParticleSmokeGrenade::RenderParticles( CParticleRenderIterator *pIterator
 				// Fade out globally.
 				alpha *= m_FadeAlpha;
 
-#ifndef NEO
+	#ifndef NEO
 				// Apply the precalculated fade alpha from world geometry.
 				alpha *= pParticle->m_FadeAlpha;
-#endif // NEO
+	#endif // NEO
 
 				// TODO: optimize this whole routine!
 				Vector color = m_MinColor + (m_MaxColor - m_MinColor) * (pParticle->m_ColorInterp / 255.1f);
@@ -760,11 +767,11 @@ void C_ParticleSmokeGrenade::RenderParticles( CParticleRenderIterator *pIterator
 				color = (color + Vector(0.5, 0.5, 0.5)) / 2;   //Desaturate
 
 				Vector tRenderPos;
-#ifdef NEO
+	#ifdef NEO
 				TransformParticle(ParticleMgr()->GetModelView(), vWorldSpacePos, tRenderPos);
-#else
+	#else
 				TransformParticle(ParticleMgr()->GetModelView(), renderPos, tRenderPos);
-#endif // NEO
+	#endif // NEO
 				sortKey = tRenderPos.z;
 
 				//debugoverlay->AddBoxOverlay( renderPos, Vector( -2, -2, -2), Vector( 2, 2, 2), vec3_angle, 255, 255, 255, 255, 1.0f );
@@ -971,85 +978,84 @@ void C_ParticleSmokeGrenade::FillVolume()
 	m_ExpandTimeCounter = m_ExpandRadius = 0;
 	m_bVolumeFilled = true;
 
-	// Spawn all of our particles.
-	float overlap = SMOKEPARTICLE_OVERLAP;
-
-	m_SpacingRadius = (SMOKEGRENADE_PARTICLERADIUS - overlap) * NUM_PARTICLES_PER_DIMENSION * 0.5f;
-	const float searchRadius = 48.f;
+	m_SpacingRadius = (SMOKEGRENADE_PARTICLERADIUS + SMOKEGRENADE_PARTICLERADIUS - SMOKEPARTICLE_OVERLAP) * NUM_PARTICLES_PER_DIMENSION * 0.5f;
+	constexpr float searchRadius = (SMOKEGRENADE_PARTICLERADIUS + SMOKEGRENADE_PARTICLERADIUS) - SMOKEPARTICLE_OVERLAP;
 	m_xCount = m_yCount = m_zCount = NUM_PARTICLES_PER_DIMENSION;
 
 	struct SmokeParticlePath
 	{
-		Vector pos;
-		Vector parentPos;
-		SmokeParticlePath(Vector vpos, Vector vparentPos)
+		Vector vPos;
+		Vector vParentPos;
+		int iDistance;
+		SmokeParticlePath(Vector pos, Vector parentPos, int distance)
 		{
-			pos = vpos;
-			parentPos = vparentPos;
+			vPos = pos;
+			vParentPos = parentPos;
+			iDistance = distance;
 		}
 	};
 
 	CUtlLinkedList<SmokeParticlePath> queue;
-	SmokeParticlePath n = SmokeParticlePath(Vector(m_SmokeBasePos.x, m_SmokeBasePos.y, m_SmokeBasePos.z), Vector(m_SmokeBasePos.x, m_SmokeBasePos.y, m_SmokeBasePos.z));
+	SmokeParticlePath n = SmokeParticlePath(m_SmokeBasePos, m_SmokeBasePos, NUM_PARTICLES_PER_DIMENSION * 0.75f);
 	
 	std::unordered_map<ParticlePosition, bool> visitedLocations;
 
 	queue.AddToHead(n);
 	int numParticles = 0;
-	while (!queue.IsEmpty() && numParticles < (NUM_PARTICLES_PER_DIMENSION * NUM_PARTICLES_PER_DIMENSION * NUM_PARTICLES_PER_DIMENSION))
+	while (!queue.IsEmpty())
 	{
 		n = queue[queue.Head()];
 		queue.Remove(queue.Head());
-		if (visitedLocations.contains({ n.pos }))
-		{
+
+		//constexpr float SMOKE_RADIUS = 128*128;
+		const Vector positionInLocalSpace = n.vPos - m_SmokeBasePos;
+		if (pow((positionInLocalSpace.x / m_SpacingRadius), 2) + pow((positionInLocalSpace.y / m_SpacingRadius), 2) + pow((positionInLocalSpace.z / (m_SpacingRadius * 0.8)), 2) > 1)
+		{ // Point not in ellipsoid
 			continue;
 		}
 
-		int contents = enginetrace->GetPointContents(n.pos);
-		if( contents & CONTENTS_SOLID )
-		{
+		if (visitedLocations.contains({ n.vPos }))
+		{ // If been here before skip
 			continue;
 		}
 
 		Ray_t ray;
 		trace_t trace;
-		ray.Init(n.parentPos, n.pos);
-		enginetrace->TraceRay(ray, MASK_SOLID, nullptr, &trace);
-		if (trace.fraction != 1.0)
+		ray.Init(n.vParentPos, n.vPos);
+		enginetrace->TraceRay(ray, MASK_GASSOLID, nullptr, &trace);
+		if (trace.DidHit())
 		{ // Don't spawn particles on the other side of an obstacle to the "parent particle"
 			continue;
 		}
 
-		const float MAGIC_VALUE = 0.2;
-		const float MAGIC_VALUE_Z = 0.5;
-		//NEO NOTE (Adam) shouled really be doing this per particle
-		float differenceX = abs(abs(n.pos.x) - abs(m_SmokeBasePos.x)) * MAGIC_VALUE;
-		float differenceY = abs(abs(n.pos.y) - abs(m_SmokeBasePos.y)) * MAGIC_VALUE;
-
-		numParticles++; // Regardless of whether particle was created or not increment so we don't get stuck here
-		queue.AddToTail(SmokeParticlePath(Vector(n.pos.x + searchRadius - differenceX, n.pos.y, n.pos.z), n.pos));
-		queue.AddToTail(SmokeParticlePath(Vector(n.pos.x - searchRadius + differenceX, n.pos.y, n.pos.z), n.pos));
-		queue.AddToTail(SmokeParticlePath(Vector(n.pos.x, n.pos.y + searchRadius - differenceY, n.pos.z), n.pos));
-		queue.AddToTail(SmokeParticlePath(Vector(n.pos.x, n.pos.y - searchRadius + differenceY, n.pos.z), n.pos));
-		queue.AddToTail(SmokeParticlePath(Vector(n.pos.x, n.pos.y, n.pos.z + (searchRadius * MAGIC_VALUE_Z)), n.pos));
-		queue.AddToTail(SmokeParticlePath(Vector(n.pos.x, n.pos.y, n.pos.z - searchRadius), n.pos));
+		numParticles++;
+		if (n.iDistance > 0)
+		{
+			queue.AddToTail(SmokeParticlePath(Vector(n.vPos.x + searchRadius, n.vPos.y, n.vPos.z), n.vPos, n.iDistance - 1));
+			queue.AddToTail(SmokeParticlePath(Vector(n.vPos.x - searchRadius, n.vPos.y, n.vPos.z), n.vPos, n.iDistance - 1));
+			queue.AddToTail(SmokeParticlePath(Vector(n.vPos.x, n.vPos.y + searchRadius, n.vPos.z), n.vPos, n.iDistance - 1));
+			queue.AddToTail(SmokeParticlePath(Vector(n.vPos.x, n.vPos.y - searchRadius, n.vPos.z), n.vPos, n.iDistance - 1));
+			queue.AddToTail(SmokeParticlePath(Vector(n.vPos.x, n.vPos.y, n.vPos.z + (searchRadius * 0.8)), n.vPos, n.iDistance - 1));
+			queue.AddToTail(SmokeParticlePath(Vector(n.vPos.x, n.vPos.y, n.vPos.z - (searchRadius * 0.8)), n.vPos, n.iDistance - 1));
+		}
 
 		if (SmokeParticleInfo* pInfo = &m_SmokeParticleInfos[numParticles-1])
 		{
 			SmokeGrenadeParticle* pParticle = (SmokeGrenadeParticle*)m_ParticleEffect.AddParticle(sizeof(SmokeGrenadeParticle), m_MaterialHandles[rand() % NUM_MATERIAL_HANDLES]);
 			if (pParticle)
 			{
-				Vector placeToDraw = n.pos;
+				Vector placeToDraw = n.vPos;
 				//DebugDrawLine(placeToDraw + Vector(2, -2, -2), placeToDraw - Vector(2, -2, -2), 0, 255, 0, 0, 12.f);
 
-				pParticle->m_Pos = n.pos - m_SmokeBasePos; // store its position in local space
+				pParticle->m_Pos = n.vPos - m_SmokeBasePos; // store its position in local space
+				pParticle->m_iDistanceFromCenter = NUM_PARTICLES_PER_DIMENSION * 0.75f - n.iDistance;
 				pParticle->m_ColorInterp = (unsigned char)((rand() * 255) / VALVE_RAND_MAX);
 				pParticle->m_RotationSpeed = FRand(-ROTATION_SPEED, ROTATION_SPEED); // Rotation speed.
 				pParticle->m_CurRotation = FRand(-6, 6);
-				visitedLocations[{ n.pos }] = true;
+				visitedLocations[{ n.vPos }] = true;
 			}
 
-			Vector vColor = EngineGetLightForPoint(n.pos);
+			Vector vColor = EngineGetLightForPoint(n.vPos);
 			pInfo->m_Color[0] = (unsigned char)(vColor.x * 255.9f);
 			pInfo->m_Color[1] = (unsigned char)(vColor.y * 255.9f);
 			pInfo->m_Color[2] = (unsigned char)(vColor.z * 255.9f);

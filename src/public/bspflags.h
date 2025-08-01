@@ -146,4 +146,8 @@
 // UNDONE: Not used yet / may be deleted
 #define	MASK_DEADSOLID				(CONTENTS_SOLID|CONTENTS_PLAYERCLIP|CONTENTS_WINDOW|CONTENTS_GRATE)
 
+#ifdef NEO
+// Everything a gas cannot pass through
+#define MASK_GASSOLID				(CONTENTS_SOLID|CONTENTS_WINDOW)
+#endif // NEO
 #endif // BSPFLAGS_H
