@@ -493,7 +493,11 @@ bool CNEOBaseCombatWeapon::Holster(CBaseCombatWeapon* pSwitchingTo)
 
 	if (pOwner)
 	{
-		pOwner->Weapon_SetZoom(false);
+		auto pNeoSwitchingTo = static_cast<CNEOBaseCombatWeapon*>(pSwitchingTo);
+		if (!pOwner->IsInAim() || !ClientWantsAimHold(pOwner) || !IsAllowedToZoom(pNeoSwitchingTo))
+		{
+			pOwner->Weapon_SetZoom(false);
+		}
 	}
 
 	return BaseClass::Holster(pSwitchingTo);
