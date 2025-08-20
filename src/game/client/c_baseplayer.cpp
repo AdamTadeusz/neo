@@ -2765,6 +2765,22 @@ float C_BasePlayer::GetFOV( void )
 		}
 	}
 
+#ifdef NEO
+	static int previousFOV;
+	C_NEO_Player* pNEOPlayer = ToNEOPlayer(this);
+	if (pNEOPlayer && fFOV < 100 && fFOV > 50)
+	{
+		if (previousFOV && previousFOV != 0 && pNEOPlayer->m_bInAim && previousFOV < (int)fFOV)
+		{
+			Assert(false);
+		}
+		else if (previousFOV && previousFOV != 0 &&!pNEOPlayer->m_bInAim && previousFOV > (int)fFOV)
+		{
+			Assert(false);
+		}
+	}
+	previousFOV = (int)fFOV;
+#endif // NEO
 	return fFOV;
 }
 

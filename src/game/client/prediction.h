@@ -74,6 +74,9 @@ public:
 	virtual void	SetLocalViewAngles( QAngle& ang );
 
 	virtual void	RunCommand( C_BasePlayer *player, CUserCmd *ucmd, IMoveHelper *moveHelper );
+#ifdef NEO
+	void	SetPrediction(bool value) { m_bInPrediction = value; }
+#endif // NEO
 
 // Internal
 protected:

@@ -1688,11 +1688,17 @@ void C_NEO_Player::Weapon_AimToggle(C_NEOBaseCombatWeapon *pNeoWep, const NeoWep
 		if (toggleType != NEO_TOGGLE_FORCE_UN_AIM)
 		{
 			const bool showCrosshair = (m_Local.m_iHideHUD & HIDEHUD_CROSSHAIR) == HIDEHUD_CROSSHAIR;
-			Weapon_SetZoom(showCrosshair);
+			if (IsInAim() != showCrosshair)
+			{
+				Weapon_SetZoom(showCrosshair);
+			}
 		}
 		else if (toggleType != NEO_TOGGLE_FORCE_AIM)
 		{
-			Weapon_SetZoom(false);
+			if (IsInAim())
+			{
+				Weapon_SetZoom(false);
+			}
 		}
 	}
 }

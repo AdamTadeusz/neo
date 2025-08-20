@@ -2081,7 +2081,20 @@ bool CBasePlayer::SetFOV( CBaseEntity *pRequester, int FOV, float zoomRate, int 
 	}
 	else
 	{
+#if defined NEO && defined CLIENT_DLL
+		bool inPrediction = prediction->InPrediction();
+		if (inPrediction)
+		{
+			prediction->SetPrediction(false);
+		}
 		m_iFOVStart = GetFOV();
+		if (inPrediction)
+		{
+			prediction->SetPrediction(true);
+		}
+#else
+		m_iFOVStart = GetFOV();
+#endif // NEO
 	}
 
 	m_flFOVTime = gpGlobals->curtime;

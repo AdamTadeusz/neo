@@ -503,16 +503,33 @@ void CNEOPredictedViewModel::CalcViewModelView(CBasePlayer *pOwner,
 		{
 			const bool playerAiming = neoPlayer->IsInAim();
 			const float currentTime = gpGlobals->curtime;
+			float oldLerpProgress = 0;
 			if (m_bViewAim && !playerAiming)
 			{
 				// From aiming to not aiming
+				if (m_flStartAimingChange > gpGlobals->curtime - NEO_ZOOM_SPEED)
+				{
+					oldLerpProgress = gpGlobals->curtime - m_flStartAimingChange;
+				}
 				m_flStartAimingChange = currentTime;
+				if (oldLerpProgress)
+				{
+					m_flStartAimingChange -= NEO_ZOOM_SPEED - oldLerpProgress;
+				}
 				m_bViewAim = false;
 			}
 			else if (!m_bViewAim && playerAiming)
 			{
 				// From not aiming to aiming
+				if (m_flStartAimingChange > gpGlobals->curtime - NEO_ZOOM_SPEED)
+				{
+					oldLerpProgress = gpGlobals->curtime - m_flStartAimingChange;
+				}
 				m_flStartAimingChange = currentTime;
+				if (oldLerpProgress)
+				{
+					m_flStartAimingChange -= NEO_ZOOM_SPEED - oldLerpProgress;
+				}
 				m_bViewAim = true;
 			}
 			const float endAimingChange = m_flStartAimingChange + NEO_ZOOM_SPEED;
