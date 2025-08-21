@@ -1941,6 +1941,7 @@ void CMP3Player::OnTick()
 		return;
 	}
 
+#ifdef NEO
 	if (!engine->IsActiveApp())
 	{
 		ConVarRef snd_mute_losefocus( "snd_mute_losefocus" );
@@ -1949,6 +1950,7 @@ void CMP3Player::OnTick()
 			return;
 		}
 	}
+#endif // NEO
 
 	// No song playing...
 	m_nSongGuid = 0;
