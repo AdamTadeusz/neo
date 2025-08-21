@@ -1945,7 +1945,7 @@ void CMP3Player::OnTick()
 	if (!engine->IsActiveApp())
 	{
 		ConVarRef snd_mute_losefocus( "snd_mute_losefocus" );
-		if (snd_mute_losefocus.IsValid() && snd_mute_losefocus.GetBool() == true)
+		if (snd_mute_losefocus.IsValid() && snd_mute_losefocus.GetBool())
 		{
 			return;
 		}
