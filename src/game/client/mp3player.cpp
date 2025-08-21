@@ -1941,6 +1941,15 @@ void CMP3Player::OnTick()
 		return;
 	}
 
+	if (!engine->IsActiveApp())
+	{
+		ConVarRef snd_mute_losefocus( "snd_mute_losefocus" );
+		if (snd_mute_losefocus.IsValid() && snd_mute_losefocus.GetBool() == true)
+		{
+			return;
+		}
+	}
+
 	// No song playing...
 	m_nSongGuid = 0;
 	OnNextTrack();
