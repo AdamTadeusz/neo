@@ -246,6 +246,18 @@ void CWeaponGrenade::ThrowGrenade(CNEO_Player *pPlayer, bool isAlive, CBaseEntit
 
 	Vector vForward, vRight, vUp;
 
+#ifdef NEO
+	angThrow.x = -10 + angThrow.x * ((90 + 10) / 90.0);
+	if (angThrow.x < 0)
+	{ // above the horizon, 
+		constexpr float MAXIMUM_ORIGINAL_VALUE = (-10 + -89 * (90 + 10) / 90.0);
+		const float ratioAboveHorizon = (angThrow.x / MAXIMUM_ORIGINAL_VALUE);
+		// decrease the extra angle gained linearly starting from the horizon, so that at the maximum angle of
+		// -89 the extra angle is 0
+		angThrow.x += ratioAboveHorizon * ( -89 - MAXIMUM_ORIGINAL_VALUE);
+	}
+#else
+	// SDK Version
 	if (angThrow.x < 90)
 		angThrow.x = -10 + angThrow.x * ((90 + 10) / 90.0);
 	else
@@ -253,6 +265,7 @@ void CWeaponGrenade::ThrowGrenade(CNEO_Player *pPlayer, bool isAlive, CBaseEntit
 		angThrow.x = 360.0f - angThrow.x;
 		angThrow.x = -10 + angThrow.x * -((90 - 10) / 90.0);
 	}
+#endif // NEO
 
 	float flVel = (90 - angThrow.x) * 6;
 
