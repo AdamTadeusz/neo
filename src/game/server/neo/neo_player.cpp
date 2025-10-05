@@ -2033,19 +2033,19 @@ void CNEO_Player::SetDeadModel(const CTakeDamageInfo& info)
 	{ // Set model based on last hitgroup
 		switch (LastHitGroup())
 		{
-		case 1: // Head
+		case HITGROUP_HEAD:
 			deadModelType = 1;
 			break;
-		case 4: // Left Arm
+		case HITGROUP_LEFTARM:
 			deadModelType = 2;
 			break;
-		case 5: // Right Arm
+		case HITGROUP_RIGHTARM:
 			deadModelType = 4;
 			break;
-		case 6: // Left Leg
+		case HITGROUP_LEFTLEG:
 			deadModelType = 3;
 			break;
-		case 7: // Right Leg
+		case HITGROUP_RIGHTLEG:
 			deadModelType = 5;
 			break;
 		}

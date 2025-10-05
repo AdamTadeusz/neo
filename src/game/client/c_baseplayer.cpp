@@ -2183,6 +2183,9 @@ bool C_BasePlayer::InFirstPersonView()
 //-----------------------------------------------------------------------------
 bool C_BasePlayer::ShouldDrawThisPlayer()
 {
+#ifdef NEO
+	return true;
+#endif // NEO
 	if ( !InFirstPersonView() )
 	{
 		return true;
@@ -3255,7 +3258,7 @@ void C_BasePlayer::BuildFirstPersonMeathookTransformations( CStudioHdr *hdr, Vec
 		vRealPivotPoint = MainViewOrigin() - ( vUp * cl_meathook_neck_pivot_ingame_up.GetFloat() ) - ( vForward * cl_meathook_neck_pivot_ingame_fwd.GetFloat() );		
 	}
 
-	Vector vDeltaToAdd = vRealPivotPoint - vHeadTransformTranslation;
+	Vector vDeltaToAdd = vec3_origin;// vRealPivotPoint - vHeadTransformTranslation;
 
 
 	// Now add this offset to the entire skeleton.
@@ -3294,6 +3297,63 @@ void C_BasePlayer::BuildFirstPersonMeathookTransformations( CStudioHdr *hdr, Vec
 		matrix3x4_t  &transformhelmet = GetBoneForWrite( iHelm );
 		MatrixScaleByZero( transformhelmet );
 	}
+
+#ifdef NEO
+	Vector vForward;
+	AngleVectors( MainViewAngles(), &vForward );
+	vForward.z = 0;
+	/*Vector vBodyForward;
+	auto localPlayer = static_cast<C_HL2MP_Player*>(this);
+	AngleVectors( localPlayer->m_PlayerAnimState->GetRenderAngles(), &vBodyForward);
+	vForward += vBodyForward;*/
+	vForward.NormalizeInPlace();
+	const char* namesBonesToTranslate[] = { "ValveBiped.Bip01_Spine", "ValveBiped.Bip01_Spine1", "ValveBiped.Bip01_Spine2", "ValveBiped.Bip01_Spine4" };
+	int i = 0;
+	for (const char* boneName : namesBonesToTranslate)
+	{
+		int iBone = LookupBone( boneName );
+		if (!iBone)
+		{
+			continue;
+		}
+		matrix3x4_t  &bone = GetBoneForWrite( iBone );
+		Vector vBonePos;
+		MatrixGetTranslation ( bone, vBonePos );
+		vBonePos -= vForward * i;
+		i+=6;
+		MatrixSetTranslation ( vBonePos, bone );
+	}
+
+	int iSpineBone = LookupBone( "ValveBiped.Bip01_Spine4" );
+	if (!iSpineBone)
+	{
+		return;
+	}
+	const matrix3x4_t& transformSpine = GetBone(iSpineBone);
+	Vector iSpinePos;
+	MatrixGetTranslation(transformSpine, iSpinePos);
+	iSpinePos -= vForward * 4;
+	const char* namesBonesToShrink[] = {"ValveBiped.Bip01_Neck1", "ValveBiped.Bip01_Head1", "ValveBiped.Bip01_L_Clavicle", "ValveBiped.Bip01_L_UpperArm", "ValveBiped.Bip01_L_Forearm", "ValveBiped.Bip01_L_Hand",
+				"ValveBiped.Bip01_L_Finger2", "ValveBiped.Bip01_L_Finger21", "ValveBiped.Bip01_L_Finger22", "ValveBiped.Bip01_L_Finger1",
+				"ValveBiped.Bip01_L_Finger11", "ValveBiped.Bip01_L_Finger12", "ValveBiped.Bip01_L_Finger0", "ValveBiped.Bip01_L_Finger01",
+				"ValveBiped.Bip01_L_Finger02", "ValveBiped.Bip01_R_Clavicle", "ValveBiped.Bip01_R_UpperArm", "ValveBiped.Bip01_R_Forearm", "ValveBiped.Bip01_R_Hand",
+				"ValveBiped.Bip01_R_Finger2", "ValveBiped.Bip01_R_Finger21", "ValveBiped.Bip01_R_Finger22", "ValveBiped.Bip01_R_Finger1",
+				"ValveBiped.Bip01_R_Finger11", "ValveBiped.Bip01_R_Finger12", "ValveBiped.Bip01_R_Finger0", "ValveBiped.Bip01_R_Finger01",
+				"ValveBiped.Bip01_R_Finger02"};
+	for (const char* boneName : namesBonesToShrink)
+	{
+		int iBone = LookupBone( boneName );
+		if (!iBone)
+		{
+			continue;
+		}
+		matrix3x4_t  &bone = GetBoneForWrite( iBone );
+		MatrixScaleByZero( bone );
+		
+		// Move the bone to where the top of the spine is
+		MatrixSetTranslation ( iSpinePos, bone );
+	}
+#endif // NEO
 }
 
 

@@ -144,7 +144,9 @@ private:
 	
 	C_HL2MP_Player( const C_HL2MP_Player & );
 #ifdef NEO
+public:
 	CHL2MPPlayerAnimState *m_PlayerAnimState;
+private:
 #else
 	CPlayerAnimState m_PlayerAnimState;
 #endif
