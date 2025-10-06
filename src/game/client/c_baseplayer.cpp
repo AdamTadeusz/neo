@@ -3208,7 +3208,7 @@ void C_BasePlayer::BuildFirstPersonMeathookTransformations( CStudioHdr *hdr, Vec
 	{
 		return;
 	}
-
+	
 	// If we aren't drawing the player anyway, don't mess with the bones. This can happen in Portal.
 	if( !ShouldDrawThisPlayer() )
 	{
@@ -3299,18 +3299,18 @@ void C_BasePlayer::BuildFirstPersonMeathookTransformations( CStudioHdr *hdr, Vec
 	}
 
 #ifdef NEO
-	Vector vForward;
-	AngleVectors( MainViewAngles(), &vForward );
+	Vector vForward, vRight, vUp;
+	AngleVectors( MainViewAngles(), &vForward, &vRight, &vUp );
 	vForward.z = 0;
-	/*Vector vBodyForward;
-	auto localPlayer = static_cast<C_HL2MP_Player*>(this);
-	AngleVectors( localPlayer->m_PlayerAnimState->GetRenderAngles(), &vBodyForward);
-	vForward += vBodyForward;*/
 	vForward.NormalizeInPlace();
+	Vector vBodyForward, vBodyRight, vBodyUp;
+	auto localPlayer = static_cast<C_HL2MP_Player*>(this);
+	AngleVectors( localPlayer->m_PlayerAnimState->GetRenderAngles(), &vBodyForward, &vBodyRight, &vBodyUp);
 	const char* namesBonesToTranslate[] = { "ValveBiped.Bip01_Spine", "ValveBiped.Bip01_Spine1", "ValveBiped.Bip01_Spine2", "ValveBiped.Bip01_Spine4" };
 	int i = 0;
 	for (const char* boneName : namesBonesToTranslate)
 	{
+		// NEO TODO rotate the bones instead, then move the children bones based on the parent rotation
 		int iBone = LookupBone( boneName );
 		if (!iBone)
 		{
@@ -3322,6 +3322,10 @@ void C_BasePlayer::BuildFirstPersonMeathookTransformations( CStudioHdr *hdr, Vec
 		vBonePos -= vForward * i;
 		i+=6;
 		MatrixSetTranslation ( vBonePos, bone );
+
+		auto boneMatrix = VMatrix(bone);
+		MatrixRotate(boneMatrix, Vector( 0, 0, 1 ), -6 + (i * -3));
+		bone = boneMatrix.As3x4();
 	}
 
 	int iSpineBone = LookupBone( "ValveBiped.Bip01_Spine4" );
