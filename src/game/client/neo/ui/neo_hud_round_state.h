@@ -45,6 +45,7 @@ private:
 	void CheckActiveStar();
 	void DrawPlayerList();
 	int DrawPlayerRow(int playerIndex, int yOffset, bool small = false);
+	void DrawPlayerIcons();
 	void DrawPlayer(int playerIndex, int teamIndex, const TeamLogoColor &teamLogoColor,
 					const int xOffset, const bool drawHealthClass);
 	void SetTextureToAvatar(int playerIndex);
@@ -67,9 +68,11 @@ private:
 	wchar_t m_wszRoundUnicode[12] = {};
 	int m_iWszRoundUCSize = 0;
 	wchar_t m_wszTime[6] = {};
-	wchar_t m_wszLeftTeamScore[3] = {};
-	wchar_t m_wszRightTeamScore[3] = {};
-	wchar_t m_wszPlayersAliveUnicode[16] = {};
+	wchar_t m_wszLeftNumber[3] = {};
+	wchar_t m_wszRightNumber[3] = {};
+	wchar_t m_wszLeftTeamRoundsWon[4] = {};
+	wchar_t m_wszRightTeamRoundsWon[4] = {};
+	wchar_t m_wszRoundsDraw[7] = {};
 	const wchar_t *m_pWszStatusUnicode = nullptr;
 	int m_iStatusUnicodeSize = 0;
 
@@ -80,12 +83,12 @@ private:
 	int m_iRightPlayersTotal = 0;
 
 	// Element Positions
-	IntPos m_posLeftTeamScore = {};
-	IntPos m_posRightTeamScore = {};
+	IntPos m_posLeftTeamNumber = {};
+	IntPos m_posRightTeamNumber = {};
 	int m_iLeftOffset = 0;
 	int m_iRightOffset = 0;
-	vgui::IntRect m_rectLeftTeamTotalLogo = {};
-	vgui::IntRect m_rectRightTeamTotalLogo = {};
+	vgui::IntRect m_rectLeftTeamNumberLogo = {};
+	vgui::IntRect m_rectRightTeamNumberLogo = {};
 	int m_ilogoSize = 0;
 
 	vgui::ImagePanel *m_ipStars[STAR__TOTAL] = {};
@@ -100,10 +103,14 @@ private:
 
 	CPanelAnimationVar(Color, box_color, "box_color", "200 200 200 40");
 	CPanelAnimationVarAliasType(bool, health_monochrome, "health_monochrome", "1", "bool");
-	CPanelAnimationVarAliasType(bool, top_left_corner, "top_left_corner", "0", "bool");
-	CPanelAnimationVarAliasType(bool, top_right_corner, "top_right_corner", "0", "bool");
+	CPanelAnimationVarAliasType(int, m_iYPos, "ypos", "3", "proportional_ypos");
+	CPanelAnimationVarAliasType(bool, top_left_corner, "top_left_corner", "1", "bool");
+	CPanelAnimationVarAliasType(bool, top_right_corner, "top_right_corner", "1", "bool");
 	CPanelAnimationVarAliasType(bool, bottom_left_corner, "bottom_left_corner", "1", "bool");
 	CPanelAnimationVarAliasType(bool, bottom_right_corner, "bottom_right_corner", "1", "bool");
+
+public:
+	bool m_bSquadHudTypeMaybeChanged = false;
 
 private:
 	CNEOHud_RoundState(const CNEOHud_RoundState &other);

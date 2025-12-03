@@ -919,6 +919,7 @@
 		"fieldName"		"NRoundState"
 		"box_color"		"200 200 200 40"
 		"health_monochrome"	"1"
+		"ypos"			"3"	
 	}
 	NHudPlayerPing
 	{

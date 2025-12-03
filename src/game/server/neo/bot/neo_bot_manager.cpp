@@ -405,6 +405,7 @@ void CNEOBotManager::MaintainBotQuota()
 			engine->SetFakeClientConVarValue( pBot->edict(), "name", pBot->GetPlayerName() );
 			pBot->RequestSetSkin(RandomInt(0, 2));
 			pBot->HandleCommand_JoinTeam( iTeam );
+			pBot->RequestSetStar(random->RandomInt(0, 7));
 		}
 	}
 	else if ( desiredBotCount < nNEOBotsOnGameTeams )

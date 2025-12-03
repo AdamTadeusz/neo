@@ -3610,7 +3610,7 @@ int C_BaseAnimating::InternalDrawModel( int flags )
 
 #ifdef NEO
 	if (IsViewModel())
-	{ // view models become dark when standing close to and facing a wall, change lighting origin
+	{ // view models become dark when standing close to and facing a wall, move light origin
 		auto pOwner = UTIL_PlayerByIndex(GetLocalPlayerIndex());
 		if (pOwner)
 		{
@@ -3619,8 +3619,8 @@ int C_BaseAnimating::InternalDrawModel( int flags )
 			pInfo->pLightingOrigin = &ownerOrigin;
 		}
 	}
-	else if (IsBaseCombatWeapon())
-	{
+	else if (IsBaseCombatWeapon() && !GetMoveParent())
+	{ // weapons dropped on the floor also become dark depending on their orientation, move light origin
 		static Vector worldSpaceCenter;
 		worldSpaceCenter = WorldSpaceCenter();
 		pInfo->pLightingOrigin = &worldSpaceCenter;
