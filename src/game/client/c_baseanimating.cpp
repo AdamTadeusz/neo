@@ -3606,8 +3606,8 @@ int C_BaseAnimating::InternalDrawModel( int flags )
 			pInfo->pLightingOrigin = &ownerOrigin;
 		}
 	}
-	else if (IsBaseCombatWeapon())
-	{
+	else if (IsBaseCombatWeapon() && !GetMoveParent())
+	{ // weapons dropped on the floor also become dark depending on their orientation, change lighting origin
 		static Vector worldSpaceCenter;
 		worldSpaceCenter = WorldSpaceCenter();
 		pInfo->pLightingOrigin = &worldSpaceCenter;
