@@ -88,7 +88,7 @@ ITexture *GetFullFrameDepthTexture( void )
 {
 	if ( !s_pFullFrameDepthTexture )
 	{
-		s_pFullFrameDepthTexture.Init( materials->FindTexture( "_rt_FullFrameDepth", TEXTURE_GROUP_RENDER_TARGET ) );
+		s_pFullFrameDepthTexture.Init( materials->FindTexture( "_rt_FullFrameDepth_Alt", TEXTURE_GROUP_RENDER_TARGET ) );
 		Assert( !IsErrorTexture( s_pFullFrameDepthTexture ) );
 		AddReleaseFunc();
 	}

@@ -2789,6 +2789,10 @@ void CViewRender::DrawWorldAndEntities( bool bDrawSkybox, const CViewSetup &view
 #endif
 
 #ifdef NEO
+
+	CMatRenderContextPtr pRenderContext( materials );
+	pRenderContext->SetFloatRenderingParameter( FLOAT_RENDERPARM_ZDELTA, (viewIn.zFar - viewIn.zNear) );
+
 	if ( m_waterInfo.m_bCheapWater )
 #else
 	if ( info.m_bCheapWater )

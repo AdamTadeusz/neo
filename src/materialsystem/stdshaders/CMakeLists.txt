@@ -24,8 +24,9 @@ target_include_directories(game_shader_dx9
 target_compile_definitions(game_shader_dx9
     PRIVATE
     FAST_MATERIALVAR_ACCESS
-    GAME_SHADER_DLL
+    #GAME_SHADER_DLL
     STDSHADER_DX9_DLL_EXPORT
+    DEPTH_GET_CUSTOM_RANGE
 )
 
 if(OS_WINDOWS)
@@ -129,4 +130,22 @@ target_sources_grouped(
     Neo_refract.cpp
     Neo_refract_dx9_helper.cpp
     Neo_refract_dx9_helper.h
+    showz.cpp
+
+    unlitgeneric_dx9.cpp
+    vertexlitgeneric_dx9.cpp
+    vertexlitgeneric_dx9_helper.cpp
+    vertexlitgeneric_dx9_helper.h
+    emissive_scroll_blended_pass_helper.cpp
+    emissive_scroll_blended_pass_helper.h
+    cloak_blended_pass_helper.cpp
+    cloak_blended_pass_helper.h
+    flesh_interior_blended_pass_helper.cpp
+    flesh_interior_blended_pass_helper.h
+    weapon_sheen_pass_helper.cpp
+    weapon_sheen_pass_helper.h
+    skin_dx9_helper.cpp
+    skin_dx9_helper.h
+    lightmappedgeneric_dx9_helper.cpp
+    lightmappedgeneric_dx9_helper.h
 )

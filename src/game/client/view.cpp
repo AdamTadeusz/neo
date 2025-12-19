@@ -346,6 +346,18 @@ void CViewRender::Init( void )
 
 	materials->BeginRenderTargetAllocation();
 
+	/*materials->BeginRenderTargetAllocation();
+		ITexture *p = materials->CreateNamedRenderTargetTextureEx(
+				"_rt_FullFrameDepth_Alt",
+				iW, iH, RT_SIZE_NO_CHANGE,
+				IMAGE_FORMAT_A8,
+				MATERIAL_RT_DEPTH_NONE,
+				flags,
+				0);*/
+
+	static int flags2 = TEXTUREFLAGS_CLAMPS | TEXTUREFLAGS_CLAMPT | TEXTUREFLAGS_NOMIP | TEXTUREFLAGS_NOLOD | TEXTUREFLAGS_RENDERTARGET;
+	materials->CreateNamedRenderTargetTextureEx( "_rt_FullFrameDepth_Alt", iW, iH, RT_SIZE_FULL_FRAME_BUFFER, materials->GetBackBufferFormat(), MATERIAL_RT_DEPTH_SHARED, flags2, 0 );
+
 #ifdef DEBUG
 	ITexture *pSSAOTex =
 #endif

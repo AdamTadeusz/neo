@@ -969,14 +969,20 @@ void DrawSkin_DX9_Internal( CBaseVSShader *pShader, IMaterialVar** params, IShad
 //-----------------------------------------------------------------------------
 // Draws the shader
 //-----------------------------------------------------------------------------
+#ifndef NEO
 extern ConVar r_flashlight_version2;
+#endif // NEO
 void DrawSkin_DX9( CBaseVSShader *pShader, IMaterialVar** params, IShaderDynamicAPI *pShaderAPI, IShaderShadow* pShaderShadow,
 				   VertexLitGeneric_DX9_Vars_t &info, VertexCompressionType_t vertexCompression,
 				   CBasePerMaterialContextData **pContextDataPtr )
 
 {
 	bool bHasFlashlight = pShader->UsingFlashlight( params );
+#ifdef NEO
+	if ( bHasFlashlight && ( IsX360() || false ) )
+#else
 	if ( bHasFlashlight && ( IsX360() || r_flashlight_version2.GetInt() ) )
+#endif // NEO
 	{
 		DrawSkin_DX9_Internal( pShader, params, pShaderAPI,
 			pShaderShadow, false, info, vertexCompression, pContextDataPtr++ );

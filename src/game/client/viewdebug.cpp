@@ -83,7 +83,11 @@ public:
 static void RenderMaterial( const char *pMaterialName )
 {
 	// So it's not in the very top left
+#ifdef NEO
+	float x = 0.0f, y = 0.0f;
+#else
 	float x = 100.0f, y = 100.0f;
+#endif // NEO
 	// float x = 0.0f, y = 0.0f;
 
 	IMaterial *pMaterial = materials->FindMaterial( pMaterialName, TEXTURE_GROUP_OTHER, false );

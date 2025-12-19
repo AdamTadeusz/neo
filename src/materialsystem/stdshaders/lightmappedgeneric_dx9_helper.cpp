@@ -23,7 +23,9 @@ ConVar my_mat_fullbright( "mat_fullbright","0", FCVAR_CHEAT );
 
 ConVar r_lightmap_bicubic( "r_lightmap_bicubic", "0", FCVAR_NONE, "Enable bi-cubic (high quality) lightmap sampling." );
 
+#ifndef NEO
 extern ConVar r_flashlight_version2;
+#endif // NEO
 
 class CLightmappedGeneric_DX9_Context : public CBasePerMaterialContextData
 {
@@ -1015,7 +1017,11 @@ void DrawLightmappedGeneric_DX9(CBaseVSShader *pShader, IMaterialVar** params,
 										 CBasePerMaterialContextData **pContextDataPtr )
 {
 	bool hasFlashlight = pShader->UsingFlashlight( params );
+#ifdef NEO
+	if ( !IsX360() && false )
+#else
 	if ( !IsX360() && !r_flashlight_version2.GetInt() )
+#endif // NEO
 	{
 		DrawLightmappedGeneric_DX9_Internal( pShader, params, hasFlashlight, pShaderAPI, pShaderShadow, info, pContextDataPtr );
 		return;

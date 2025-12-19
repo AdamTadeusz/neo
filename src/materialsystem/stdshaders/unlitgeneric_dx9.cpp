@@ -187,7 +187,11 @@ BEGIN_VS_SHADER( UnlitGeneric, "Help for UnlitGeneric" )
 		VertexLitGeneric_DX9_Vars_t vars;
 		SetupVars( vars );
 
+#ifdef NEO
+		bool bNewFlashlightPath = false;
+#else
 		bool bNewFlashlightPath = IsX360() || ( r_flashlight_version2.GetInt() != 0 );
+#endif // NEO
 		if ( ( pShaderShadow == NULL ) && ( pShaderAPI != NULL ) && !bNewFlashlightPath && pShaderAPI->InFlashlightMode() ) // Not snapshotting && flashlight pass
 		{
 			Draw( false );

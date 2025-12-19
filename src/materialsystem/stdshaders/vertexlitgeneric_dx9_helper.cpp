@@ -1475,6 +1475,10 @@ static void DrawVertexLitGeneric_DX9_Internal( CBaseVSShader *pShader, IMaterial
 		float vShaderControls[4] = { fPixelFogType, fWriteDepthToAlpha, fWriteWaterFogToDestAlpha, fVertexAlpha	 };
 		DynamicCmdsOut.SetPixelShaderConstant( 12, vShaderControls, 1 );
 
+		float zDelta = pShaderAPI->GetFloatRenderingParameter( FLOAT_RENDERPARM_ZDELTA );
+		float g_const14[4] = { zDelta, 0.0f, 0.0f, 0.0f };
+		DynamicCmdsOut.SetPixelShaderConstant( 14, g_const14, 1 );
+
 		// flashlightfixme: put this in common code.
 		if ( bHasFlashlight )
 		{

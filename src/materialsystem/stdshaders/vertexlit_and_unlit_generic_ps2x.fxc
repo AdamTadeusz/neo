@@ -88,6 +88,10 @@ const float4 g_SelfIllumTint_and_BlendFactor	: register( c4 );
 
 const float4 g_ShaderControls					: register( c12 );
 const float4 g_DepthFeatheringConstants			: register( c13 );
+#define DEPTH_GET_CUSTOM_RANGE
+const float g_DepthRange			: register( c14 ); //you can also add the float to another existing constant this way, depends on the shader
+#define DEPTHRANGE_CONSTANT g_DepthRange
+#include "common_fxc.h"
 
 const float4 g_EyePos							: register( c20 );
 const float4 g_FogParams						: register( c21 );
