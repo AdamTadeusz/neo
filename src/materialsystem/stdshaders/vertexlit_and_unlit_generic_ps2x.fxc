@@ -77,6 +77,10 @@
 // Debugging luxels only makes sense if we have lightmaps on this geometry.
 // SKIP: ($STATIC_LIGHT_LIGHTMAP == 0) && ($DEBUG_LUXELS == 1)
 
+#define DEPTH_GET_CUSTOM_RANGE
+const float g_DepthRange			: register( c14 ); //you can also add the float to another existing constant this way, depends on the shader
+#define DEPTHRANGE_CONSTANT g_DepthRange
+
 #include "common_flashlight_fxc.h"
 #include "common_vertexlitgeneric_dx9.h"
  
@@ -88,10 +92,6 @@ const float4 g_SelfIllumTint_and_BlendFactor	: register( c4 );
 
 const float4 g_ShaderControls					: register( c12 );
 const float4 g_DepthFeatheringConstants			: register( c13 );
-#define DEPTH_GET_CUSTOM_RANGE
-const float g_DepthRange			: register( c14 ); //you can also add the float to another existing constant this way, depends on the shader
-#define DEPTHRANGE_CONSTANT g_DepthRange
-#include "common_fxc.h"
 
 const float4 g_EyePos							: register( c20 );
 const float4 g_FogParams						: register( c21 );
@@ -505,7 +505,12 @@ float4 main( PS_INPUT i ) : COLOR
 	#if (PIXELFOGTYPE == PIXEL_FOG_TYPE_HEIGHT)
 		alpha = lerp( alpha, fogFactor, g_fWriteWaterFogToDestAlpha );
 	#endif
-	return FinalOutput( float4( result.rgb, alpha ), fogFactor, PIXELFOGTYPE, TONEMAP_SCALE_LINEAR, g_fWriteDepthToAlpha, i.projPos.z );
+	float4 colour = FinalOutput( float4( result.rgb, alpha ), fogFactor, PIXELFOGTYPE, TONEMAP_SCALE_LINEAR, g_fWriteDepthToAlpha, i.projPos.z );
+	if (bDiffuseLighting)
+	{
+		colour.a *= round( alpha );
+	}
+	return colour;
 #endif
 
 #endif

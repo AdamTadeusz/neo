@@ -62,6 +62,11 @@
 // Meaningless combinations
 // SKIP: $NORMALMAPALPHAENVMAPMASK && !$CUBEMAP
 
+#define DEPTH_GET_CUSTOM_RANGE
+const float4 g_EyePos						: register( c20 );
+#define g_DepthRange (g_EyePos.w)
+#define DEPTHRANGE_CONSTANT g_DepthRange
+
 #include "common_flashlight_fxc.h"
 #include "common_vertexlitgeneric_dx9.h"
 
@@ -89,7 +94,6 @@ const float4 g_ShaderControls				: register( c12 );
 // 2 registers each - 6 registers total
 PixelShaderLightInfo cLightInfo[3]			: register( c13 );  // through c18
 
-const float3 g_EyePos						: register( c20 );
 const float4 g_FogParams					: register( c21 );
 
 const float4 g_FlashlightAttenuationFactors	: register( c22 );

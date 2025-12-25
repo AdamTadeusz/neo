@@ -32,13 +32,16 @@ enum RenderParamVector_t
 	MAX_VECTOR_RENDER_PARMS = 20
 };
 
-//#define MAX_FLOAT_RENDER_PARMS 20
+#ifdef NEO
 enum RenderParamFloat_t
 {
 	FLOAT_RENDERPARM_ZDELTA = 0,
 
 	MAX_FLOAT_RENDER_PARMS = 20
 };
+#else
+#define MAX_FLOAT_RENDER_PARMS 20
+#endif // NEO
 
 enum RenderParamInt_t
 {

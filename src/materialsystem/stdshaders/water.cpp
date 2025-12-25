@@ -360,7 +360,12 @@ BEGIN_VS_SHADER( Water_DX90,
 
 			float vEyePos[4];
 			pShaderAPI->GetWorldSpaceCameraPosition( vEyePos );
+#ifdef NEO
+			float zDelta = pShaderAPI->GetFloatRenderingParameter( FLOAT_RENDERPARM_ZDELTA );
+			vEyePos[3] = zDelta;
+#else
 			vEyePos[3] = 0.0f;
+#endif // NEO
 			pShaderAPI->SetPixelShaderConstant( 9, vEyePos );
 
 			DECLARE_DYNAMIC_VERTEX_SHADER( water_vs20 );
@@ -370,7 +375,7 @@ BEGIN_VS_SHADER( Water_DX90,
 			{
 				DECLARE_DYNAMIC_PIXEL_SHADER( water_ps20b );
 				SET_DYNAMIC_PIXEL_SHADER_COMBO( PIXELFOGTYPE, pShaderAPI->GetPixelFogCombo1( true ) );
-				SET_DYNAMIC_PIXEL_SHADER_COMBO( WRITE_DEPTH_TO_DESTALPHA, pShaderAPI->ShouldWriteDepthToDestAlpha() );
+				SET_DYNAMIC_PIXEL_SHADER_COMBO(WRITE_DEPTH_TO_DESTALPHA, pShaderAPI->ShouldWriteDepthToDestAlpha() );
 				SET_DYNAMIC_PIXEL_SHADER( water_ps20b );
 			}
 			else
@@ -389,6 +394,8 @@ BEGIN_VS_SHADER( Water_DX90,
 		SHADOW_STATE
 		{
 			SetInitialShadowState( );
+		
+			pShaderShadow->EnableDepthWrites( false );
 
 			// In edit mode, use nocull
 			if ( UsingEditor( params ) )

@@ -18,17 +18,26 @@
 #include "tier0/memdbgon.h"
 
 static ConVar r_showz_power( "r_showz_power", "1.0f", FCVAR_CHEAT );
+static ConVar r_showz_alpha( "r_showz_alpha", "1.0f", FCVAR_CHEAT );
 
 BEGIN_VS_SHADER_FLAGS( showz, "Help for ShowZ", SHADER_NOT_EDITABLE )
 	BEGIN_SHADER_PARAMS
+#ifdef NEO
+		SHADER_PARAM( ALPHADEPTH, SHADER_PARAM_TYPE_INTEGER, "1", "Depth is stored in alpha channel" )
+#else
 		SHADER_PARAM( ALPHADEPTH, SHADER_PARAM_TYPE_INTEGER, "0", "Depth is stored in alpha channel" )
+#endif // NEO
 	END_SHADER_PARAMS
 
 	SHADER_INIT_PARAMS()
 	{
 		if ( !params[ALPHADEPTH]->IsDefined() )
 		{
+#ifdef NEO
+			params[ALPHADEPTH]->SetIntValue( 1 );
+#else
 			params[ALPHADEPTH]->SetIntValue( 0 );
+#endif // NEO
 		}
 	}
 
@@ -89,6 +98,7 @@ BEGIN_VS_SHADER_FLAGS( showz, "Help for ShowZ", SHADER_NOT_EDITABLE )
 
 			Vector4D C0;
 			C0.x = r_showz_power.GetFloat();
+			C0.y = r_showz_alpha.GetFloat();
 
 			pShaderAPI->SetPixelShaderConstant( 0, C0.Base(), 1 );
 		}

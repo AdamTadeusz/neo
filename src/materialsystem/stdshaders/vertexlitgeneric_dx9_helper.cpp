@@ -455,6 +455,9 @@ static void DrawVertexLitGeneric_DX9_Internal( CBaseVSShader *pShader, IMaterial
 	bool bHasVertexAlpha = bVertexLitGeneric ? false : IS_FLAG_SET( MATERIAL_VAR_VERTEXALPHA );
 /*^*/ // 	printf("\t\t[%d] bHasVertexColor\n",(int)bHasVertexColor);
 /*^*/ // 	printf("\t\t[%d] bHasVertexAlpha\n",(int)bHasVertexAlpha);
+#ifdef NEO
+	bool bIgnoreZ = IS_FLAG_SET(MATERIAL_VAR_IGNOREZ);
+#endif // NEO
 	
 	if ( pShader->IsSnapshotting() || (! pContextData ) || ( pContextData->m_bMaterialVarsChanged ) )
 	{
@@ -504,11 +507,17 @@ static void DrawVertexLitGeneric_DX9_Internal( CBaseVSShader *pShader, IMaterial
 			bool bHalfLambert = IS_FLAG_SET( MATERIAL_VAR_HALFLAMBERT );
 			// Alpha test: FIXME: shouldn't this be handled in CBaseVSShader::SetInitialShadowState
 			pShaderShadow->EnableAlphaTest( bIsAlphaTested );
-
+#ifdef NEO
+			if (bIsAlphaTested)
+			{
+				pShaderShadow->AlphaFunc( SHADER_ALPHAFUNC_GREATER, 0 );
+			}
+#else
 			if ( info.m_nAlphaTestReference != -1 && params[info.m_nAlphaTestReference]->GetFloatValue() > 0.0f )
 			{
 				pShaderShadow->AlphaFunc( SHADER_ALPHAFUNC_GEQUAL, params[info.m_nAlphaTestReference]->GetFloatValue() );
 			}
+#endif // NEO
 
 			int nShadowFilterMode = 0;
 			if ( bHasFlashlight )
@@ -915,7 +924,7 @@ static void DrawVertexLitGeneric_DX9_Internal( CBaseVSShader *pShader, IMaterial
 
 			// HACK HACK HACK - enable alpha writes all the time so that we have them for
 			// underwater stuff and the loadout and character select screens.
-			pShaderShadow->EnableAlphaWrites( bFullyOpaque );
+			pShaderShadow->EnableAlphaWrites( bFullyOpaque || (bIsAlphaTested && !bIgnoreZ) );
 		}
 
 		if ( pShaderAPI && ( (! pContextData ) || ( pContextData->m_bMaterialVarsChanged ) ) )
@@ -1280,7 +1289,7 @@ static void DrawVertexLitGeneric_DX9_Internal( CBaseVSShader *pShader, IMaterial
 
 		bool bWriteDepthToAlpha;
 		bool bWriteWaterFogToAlpha;
-		if( bFullyOpaque ) 
+		if( bFullyOpaque || (bIsAlphaTested && !bIgnoreZ) ) 
 		{
 			bWriteDepthToAlpha = pShaderAPI->ShouldWriteDepthToDestAlpha();
 			bWriteWaterFogToAlpha = (fogType == MATERIAL_FOG_LINEAR_BELOW_FOG_Z);
@@ -1457,6 +1466,13 @@ static void DrawVertexLitGeneric_DX9_Internal( CBaseVSShader *pShader, IMaterial
 		}
 
 		float eyePos[4];
+#ifdef NEO
+		float zDelta = pShaderAPI->GetFloatRenderingParameter( FLOAT_RENDERPARM_ZDELTA );
+		if (bHasBump)
+		{
+			eyePos[3] = zDelta;
+		}
+#endif //NEO
 		pShaderAPI->GetWorldSpaceCameraPosition( eyePos );
 		DynamicCmdsOut.SetPixelShaderConstant( 20, eyePos );
 		
@@ -1475,9 +1491,13 @@ static void DrawVertexLitGeneric_DX9_Internal( CBaseVSShader *pShader, IMaterial
 		float vShaderControls[4] = { fPixelFogType, fWriteDepthToAlpha, fWriteWaterFogToDestAlpha, fVertexAlpha	 };
 		DynamicCmdsOut.SetPixelShaderConstant( 12, vShaderControls, 1 );
 
-		float zDelta = pShaderAPI->GetFloatRenderingParameter( FLOAT_RENDERPARM_ZDELTA );
-		float g_const14[4] = { zDelta, 0.0f, 0.0f, 0.0f };
-		DynamicCmdsOut.SetPixelShaderConstant( 14, g_const14, 1 );
+#ifdef NEO
+		if (!bHasBump)
+		{
+			float g_const14[4] = { zDelta, 0.0f, 0.0f, 0.0f };
+			DynamicCmdsOut.SetPixelShaderConstant( 14, g_const14, 1 );
+		}
+#endif // NEO
 
 		// flashlightfixme: put this in common code.
 		if ( bHasFlashlight )

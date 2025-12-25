@@ -29,6 +29,6 @@ float4 main( float2 baseTexCoord : TEXCOORD0 ) : COLOR
 
 	fDepth = pow( fDepth, g_Parameters.x );
 
-	return FinalOutput( float4( fDepth, fDepth, fDepth, 1.0f ), 0, PIXEL_FOG_TYPE_NONE, TONEMAP_SCALE_NONE );
+	return FinalOutput( float4( fDepth, fDepth, fDepth, g_Parameters.y ), 0, PIXEL_FOG_TYPE_NONE, TONEMAP_SCALE_NONE );
 }
 

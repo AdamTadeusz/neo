@@ -22,6 +22,11 @@
 #	define WRITE_DEPTH_TO_DESTALPHA 0
 #endif
 
+#define DEPTH_GET_CUSTOM_RANGE
+const float4 g_EyePos				: register( c9 );
+#define g_DepthRange g_EyePos[3]
+#define DEPTHRANGE_CONSTANT g_DepthRange
+
 #include "water_ps2x_helper.h"
 
 
@@ -42,8 +47,6 @@ const HALF4 g_WaterFogColor			: register( c6 );
 const HALF4 g_WaterFogParams		: register( c7 );
 
 const float4 g_PixelFogParams		: register( c8 );
-
-const float3 g_EyePos				: register( c9 );
 
 #define g_WaterFogStart			g_WaterFogParams.x
 #define g_WaterFogEndMinusStart	g_WaterFogParams.y

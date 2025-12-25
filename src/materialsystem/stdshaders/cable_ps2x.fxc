@@ -9,6 +9,10 @@
 #	define WRITE_DEPTH_TO_DESTALPHA 0
 #endif
 
+#define DEPTH_GET_CUSTOM_RANGE
+const float g_DepthRange			: register( c27 );
+#define DEPTHRANGE_CONSTANT g_DepthRange
+
 #include "common_ps_fxc.h"
 #include "shader_constant_register_map.h"
 

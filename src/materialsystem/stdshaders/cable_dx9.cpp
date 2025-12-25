@@ -117,6 +117,12 @@ BEGIN_VS_SHADER( Cable_DX9,
 			pShaderAPI->GetWorldSpaceCameraPosition( vEyePos_SpecExponent );
 			vEyePos_SpecExponent[3] = 0.0f;
 			pShaderAPI->SetPixelShaderConstant( PSREG_EYEPOS_SPEC_EXPONENT, vEyePos_SpecExponent, 1 );
+			
+#ifdef NEO
+			float zDelta = pShaderAPI->GetFloatRenderingParameter( FLOAT_RENDERPARM_ZDELTA );
+			float v_zDelta[4] = { zDelta, 0.0f, 0.0f, 0.0f };
+			pShaderAPI->SetPixelShaderConstant( 27, v_zDelta, 1 );
+#endif // NEO
 
 			DECLARE_DYNAMIC_VERTEX_SHADER( cable_vs20 );
 			SET_DYNAMIC_VERTEX_SHADER_COMBO( DOWATERFOG, pShaderAPI->GetSceneFogMode() == MATERIAL_FOG_LINEAR_BELOW_FOG_Z );

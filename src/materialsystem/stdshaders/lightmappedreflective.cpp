@@ -243,6 +243,12 @@ BEGIN_VS_SHADER( LightmappedReflective_DX90, "Help for Lightmapped Reflective" )
 				params[REFRACTAMOUNT]->GetFloatValue(), params[REFRACTAMOUNT]->GetFloatValue() };
 			pShaderAPI->SetPixelShaderConstant( 5, c5, 1 );
 
+#ifdef NEO
+			float zDelta = pShaderAPI->GetFloatRenderingParameter( FLOAT_RENDERPARM_ZDELTA );
+			float f_zDelta[4] = { zDelta, 0.0f, 0.0f, 0.0f };
+			pShaderAPI->SetPixelShaderConstant( 6, f_zDelta, 1 );
+#endif // NEO
+
 			pShaderAPI->SetPixelShaderFogParams( 8 );
 
 			DECLARE_DYNAMIC_VERTEX_SHADER( lightmappedreflective_vs20 );

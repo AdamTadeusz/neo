@@ -934,6 +934,9 @@ bool IsCurrentViewAccessAllowed()
 	return s_bCanAccessCurrentView;
 }
 
+#ifdef NEO
+ConVar mat_dest_alpha_range("mat_dest_alpha_range", "2048", FCVAR_ARCHIVE, "max distance of debug/showz material");
+#endif // NEO
 void SetupCurrentView( const Vector &vecOrigin, const QAngle &angles, view_id_t viewID )
 {
 	tmZone( TELEMETRY_LEVEL0, TMZF_NONE, "%s", __FUNCTION__ );
@@ -963,6 +966,9 @@ void SetupCurrentView( const Vector &vecOrigin, const QAngle &angles, view_id_t 
 #else
 	pRenderContext->SetIntRenderingParameter( INT_RENDERPARM_WRITE_DEPTH_TO_DESTALPHA, ((viewID == VIEW_MAIN) || (viewID == VIEW_3DSKY)) ? 1 : 0 );
 #endif
+#ifdef NEO
+	pRenderContext->SetFloatRenderingParameter(FLOAT_RENDERPARM_ZDELTA, /*(viewID == VIEW_MAIN) ?*/ 1 / mat_dest_alpha_range.GetFloat() /* : 1 / (mat_dest_alpha_range.GetFloat() / 16)*/);
+#endif // NEO
 }
 
 view_id_t CurrentViewID()
@@ -2789,9 +2795,6 @@ void CViewRender::DrawWorldAndEntities( bool bDrawSkybox, const CViewSetup &view
 #endif
 
 #ifdef NEO
-
-	CMatRenderContextPtr pRenderContext( materials );
-	pRenderContext->SetFloatRenderingParameter( FLOAT_RENDERPARM_ZDELTA, (viewIn.zFar - viewIn.zNear) );
 
 	if ( m_waterInfo.m_bCheapWater )
 #else
@@ -4687,7 +4690,9 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 		case VIEW_INTRO_CAMERA:
 		case VIEW_INTRO_PLAYER:
 #endif
+#ifndef NEO
 			UpdateFullScreenDepthTexture();
+#endif // NEO
 			break;
 
 		default:
@@ -4846,6 +4851,13 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 
 	// Draw the rest of the surfaces in world leaves
 	DrawTranslucentWorldAndDetailPropsInLeaves( iPrevLeaf, 0, nEngineDrawFlags, nDetailLeafCount, pDetailLeafList, bShadowDepth );
+	
+#ifdef NEO
+	if (g_CurrentViewID == VIEW_MAIN)
+	{
+		UpdateFullScreenDepthTexture();
+	}
+#endif // NEO
 
 	// Draw any queued-up detail props from previously visited leaves
 	DetailObjectSystem()->RenderTranslucentDetailObjects( CurrentViewOrigin(), CurrentViewForward(), CurrentViewRight(), CurrentViewUp(), nDetailLeafCount, pDetailLeafList );

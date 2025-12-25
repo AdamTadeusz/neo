@@ -132,6 +132,7 @@ target_sources_grouped(
     Neo_refract_dx9_helper.h
     showz.cpp
 
+    cable_dx9.cpp
     unlitgeneric_dx9.cpp
     vertexlitgeneric_dx9.cpp
     vertexlitgeneric_dx9_helper.cpp
@@ -146,6 +147,10 @@ target_sources_grouped(
     weapon_sheen_pass_helper.h
     skin_dx9_helper.cpp
     skin_dx9_helper.h
+    water.cpp
+    water_ps2x_helper.h
+    lightmappedgeneric_dx9.cpp
     lightmappedgeneric_dx9_helper.cpp
     lightmappedgeneric_dx9_helper.h
+    lightmappedreflective.cpp
 )

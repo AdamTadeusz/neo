@@ -37,6 +37,10 @@
 
 #define USE_32BIT_LIGHTMAPS_ON_360 //uncomment to use 32bit lightmaps, be sure to keep this in sync with the same #define in materialsystem/cmatlightmaps.cpp
 
+#define DEPTH_GET_CUSTOM_RANGE
+const float g_DepthRange			: register( c20 );
+#define DEPTHRANGE_CONSTANT g_DepthRange
+
 #include "common_ps_fxc.h"
 #include "common_flashlight_fxc.h"
 #include "common_lightmappedgeneric_fxc.h"

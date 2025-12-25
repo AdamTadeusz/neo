@@ -737,6 +737,10 @@ void DrawSkin_DX9_Internal( CBaseVSShader *pShader, IMaterialVar** params, IShad
 		float fHasBaseAlphaPhongMask = bHasBaseAlphaPhongMask ? 1 : 0;
 		// Controls for lerp-style paths through shader code
 		float vShaderControls[4] = { fHasBaseAlphaPhongMask, 0.0f/*unused*/, flTintReplacementAmount, fInvertPhongMask };
+#ifdef NEO
+		float zDelta = pShaderAPI->GetFloatRenderingParameter( FLOAT_RENDERPARM_ZDELTA );
+		vShaderControls[1] = zDelta;
+#endif // NEO
 		pShaderAPI->SetPixelShaderConstant( PSREG_CONSTANT_27, vShaderControls, 1 );
 
 		if ( hasDetailTexture )

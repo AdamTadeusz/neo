@@ -39,7 +39,7 @@ REM PC SHADERS
 REM ****************
 
 set SOURCE_DIR="..\..\"
-set GAME_DIR="..\..\..\game\hl2"
+set GAME_DIR="..\..\..\game\neo"
 
 %BUILD_SHADER% misylshaders_dx9_20b -game %GAME_DIR% -source %SOURCE_DIR%
 %BUILD_SHADER% misylshaders_dx9_30 -game %GAME_DIR% -source %SOURCE_DIR% -force30

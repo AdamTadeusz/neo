@@ -61,7 +61,12 @@
 
 // SKIP: $FASTPATH_NOBUMP && ( $RIMLIGHT || $DETAILTEXTURE || $PHONGWARPTEXTURE || $SELFILLUM || $BLENDTINTBYBASEALPHA )
 
+// TODO: give this a better name.  For now, I don't want to touch shader_constant_register_map.h since I don't want to trigger a recompile of everything...
+const float4 g_ShaderControls						: register( c27 );					// x is basemap alpgha phong mask, y is depth texture range, z is tint overlay amount, w controls "INVERTPHONGMASK"
 
+#define DEPTH_GET_CUSTOM_RANGE
+#define g_DepthRange (g_ShaderControls.y)
+#define DEPTHRANGE_CONSTANT g_DepthRange
 
 #include "common_flashlight_fxc.h"
 #include "shader_constant_register_map.h"
@@ -85,8 +90,6 @@ const float4 g_FresnelSpecParams					: register( PSREG_FRESNEL_SPEC_PARAMS );			
 const float4 g_SpecularRimParams					: register( PSREG_SPEC_RIM_PARAMS );				// xyz are specular tint color, w is rim power
 PixelShaderLightInfo cLightInfo[3]					: register( PSREG_LIGHT_INFO_ARRAY );				// 2 registers each - 6 registers total (4th light spread across w's)
 
-// TODO: give this a better name.  For now, I don't want to touch shader_constant_register_map.h since I don't want to trigger a recompile of everything...
-const float4 g_ShaderControls						: register( PSREG_CONSTANT_27 );					// x is basemap alpgha phong mask, y is 1 - blendtintbybasealpha, z is tint overlay amount, w controls "INVERTPHONGMASK"
 #define g_FlashlightPos					g_FlashlightPos_RimBoost.xyz
 #define	g_fRimBoost						g_FlashlightPos_RimBoost.w
 #define g_FresnelRanges					g_FresnelSpecParams.xyz

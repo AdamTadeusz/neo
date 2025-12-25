@@ -995,6 +995,10 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 			}
 		}
 
+		float zDelta = pShaderAPI->GetFloatRenderingParameter( FLOAT_RENDERPARM_ZDELTA );
+		float g_const20[4] = { zDelta, 0.0f, 0.0f, 0.0f };
+		DynamicCmdsOut.SetPixelShaderConstant( 20, g_const20, 1 );
+
 		DynamicCmdsOut.End();
 		pShaderAPI->ExecuteCommandBuffer( DynamicCmdsOut.Base() );
 	}
