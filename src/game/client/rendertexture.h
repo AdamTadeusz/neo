@@ -40,6 +40,7 @@ ITexture *GetMVIntermediate2(void);
 ITexture *GetTV(void);
 
 ITexture *GetCBBuffer(void);
+ITexture *GetCS(void);
 #endif
 
 void ReleaseRenderTargets( void );

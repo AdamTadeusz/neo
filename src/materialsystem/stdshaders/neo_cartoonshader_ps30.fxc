@@ -1,0 +1,67 @@
+#include "common_ps_fxc.h"
+
+sampler FrameBuffer				: register(s0);
+sampler DepthTexture			: register(s1);
+
+const float4 g_colour : register(c0);
+#define g_colourPosterizeSteps (g_colour.r)
+const float4 g_outline : register(c1);
+#define g_outlineDepthDifference (g_outline.r)
+#define g_outlineWidth (g_outline.g)
+#define g_pixelSize (g_outline.ba)
+
+struct PS_INPUT
+{
+	float2 texCoord	: TEXCOORD0;
+};
+
+float4 main( const PS_INPUT i ) : COLOR
+{
+	float4 result = tex2D(FrameBuffer, i.texCoord.xy);
+	result.rgb = ceil(result.rgb / (1 / g_colourPosterizeSteps)) * (1 / g_colourPosterizeSteps);
+	
+	float depth = tex2D( DepthTexture, i.texCoord.xy).a;
+	float4 previousDepth = (depth, depth, depth, depth);
+	float4 previousDepth2 = (depth, depth, depth, depth);
+	
+	bool drawOutline = false;
+	[unroll(3)]
+	for(int j = 1; j <= g_outlineWidth; j++)
+	{
+		float2 vOffset = j * g_pixelSize;
+		float4 currentDepth = float4(tex2D( DepthTexture, i.texCoord.xy + float2( vOffset.x, vOffset.y )).a,
+										tex2D( DepthTexture, i.texCoord.xy + float2( vOffset.x, -vOffset.y )).a,
+										tex2D( DepthTexture, i.texCoord.xy + float2( -vOffset.x, vOffset.y )).a,
+										tex2D( DepthTexture, i.texCoord.xy + float2( -vOffset.x, -vOffset.y )).a);
+		float4 currentDepth2 = float4(tex2D( DepthTexture, i.texCoord.xy + float2( vOffset.x, 0 )).a,
+										tex2D( DepthTexture, i.texCoord.xy + float2( -vOffset.x, 0 )).a,
+										tex2D( DepthTexture, i.texCoord.xy + float2( 0, vOffset.y )).a,
+										tex2D( DepthTexture, i.texCoord.xy + float2( 0, -vOffset.y )).a);
+										
+		float4 difference = previousDepth - currentDepth;
+		float4 difference2 = previousDepth2 - currentDepth2;
+		if (difference.r > g_outlineDepthDifference || difference.g > g_outlineDepthDifference || difference.b > g_outlineDepthDifference || difference.a > g_outlineDepthDifference
+			|| difference2.r > g_outlineDepthDifference || difference2.g > g_outlineDepthDifference || difference2.b > g_outlineDepthDifference || difference2.a > g_outlineDepthDifference )
+		{
+			drawOutline = true;
+			break;
+		}
+		previousDepth = currentDepth;
+		previousDepth2 = currentDepth2;
+	}
+	
+	if (drawOutline)
+	{
+		result.rgb = (0, 0, 0);
+	}
+	//float minSurroundingDepth = tex2D( DepthTexture, i.baseTexCoord.xy + float2( 1, 1 ) );
+	//minSurroundingDepth = min( minSurroundingDepth, tex2D( DepthTexture, i.baseTexCoord.xy + float2( 1, -1 ) ));
+	//minSurroundingDepth = min( minSurroundingDepth, tex2D( DepthTexture, i.baseTexCoord.xy + float2( -1, 1 ) ));
+	//minSurroundingDepth = min( minSurroundingDepth, tex2D( DepthTexture, i.baseTexCoord.xy + float2( -1, -1 ) ));
+	//minSurroundingDepth = min( minSurroundingDepth, tex2D( DepthTexture, i.baseTexCoord.xy + float2( 0, 1 ) ));
+	//minSurroundingDepth = min( minSurroundingDepth, tex2D( DepthTexture, i.baseTexCoord.xy + float2( 0, -1 ) ));
+	//minSurroundingDepth = min( minSurroundingDepth, tex2D( DepthTexture, i.baseTexCoord.xy + float2( 1, 0 ) ));
+	//minSurroundingDepth = min( minSurroundingDepth, tex2D( DepthTexture, i.baseTexCoord.xy + float2( -1, 0 ) ));
+	
+    return result;
+}

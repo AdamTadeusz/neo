@@ -95,6 +95,7 @@ ConVar mat_neo_ssao_enable("mat_neo_ssao_enable", "0", FCVAR_USERINFO, "Whether 
 ConVar mat_neo_mv_enable("mat_neo_mv_enable", "0", FCVAR_CHEAT, "", true, 0.0f, true, 1.0f);
 ConVar mat_neo_mv_noise_enable("mat_neo_noise_enable", "1", FCVAR_CHEAT, "", true, 0.0f, true, 1.0f);
 ConVar mat_neo_colorblind_enable("mat_neo_colorblind_enable", "0", FCVAR_USERINFO, "Main switch to toggle color vision deficiency adjustments.", true, 0.0f, true, 1.0f);
+ConVar mat_neo_cartoon_enable("mat_neo_cartoon_enable", "0", FCVAR_USERINFO, "Main switch to toggle cartoon shader.", true, 0.0f, true, 1.0f);
 #endif
 
 extern ConVar localplayer_visionflags;
@@ -2480,6 +2481,36 @@ void DoColorblindnessPostProcessing(const int x, const int y, const int w, const
 		0, 0, nSrcWidth - 1, nSrcHeight - 1,
 		nSrcWidth, nSrcHeight, GetClientWorldEntity()->GetClientRenderable());
 }
+
+void DoCartoonShader(const int x, const int y, const int w, const int h)
+{
+	IMaterial* pCSMat = materials->FindMaterial("dev/neo_cartoon", TEXTURE_GROUP_OTHER, true);
+	if (!pCSMat || pCSMat->IsErrorMaterial())
+	{
+		Assert(false);
+		return;
+	}
+
+	CMatRenderContextPtr pRenderContext(materials);
+	
+	ITexture *pFbTex = materials->FindTexture("_rt_FullFrameFB", TEXTURE_GROUP_RENDER_TARGET);
+	const int nSrcWidth = pFbTex->GetActualWidth();
+	const int nSrcHeight = pFbTex->GetActualHeight();
+
+	Rect_t DestRect{ 0, 0, nSrcWidth, nSrcHeight };
+	const int renderTargetId = 0;
+	
+	pRenderContext->CopyRenderTargetToTextureEx(pFbTex, renderTargetId, &DestRect, NULL);
+	
+	ITexture* pDbTex = GetFullFrameDepthTexture();
+	IMaterialVar *BaseTextureVar = pCSMat->FindVar( "dbtexture", NULL, false );
+	BaseTextureVar->SetTextureValue( pDbTex );
+
+	pRenderContext->DrawScreenSpaceRectangle(pCSMat,
+		0, 0, w, h,
+		0, 0, nSrcWidth - 1, nSrcHeight - 1,
+		nSrcWidth, nSrcHeight, GetClientWorldEntity()->GetClientRenderable());
+}
 #endif
 
 #ifdef NEO
@@ -2981,6 +3012,11 @@ void DoEnginePostProcessing( int x, int y, int w, int h, bool bFlashlightIsOn, b
 	if (mat_neo_colorblind_enable.GetBool())
 	{
 		DoColorblindnessPostProcessing(x, y, w, h);
+	}
+
+	if (mat_neo_cartoon_enable.GetBool())
+	{
+		DoCartoonShader(x, y, w, h);
 	}
 #endif
 }

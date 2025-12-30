@@ -345,8 +345,11 @@ void CViewRender::Init( void )
 #endif
 
 	materials->BeginRenderTargetAllocation();
-
-	materials->CreateNamedRenderTargetTextureEx( "_rt_FullFrameDepth_Alt", iW, iH, RT_SIZE_FULL_FRAME_BUFFER, materials->GetBackBufferFormat(), MATERIAL_RT_DEPTH_NONE, flags, 0 );
+	
+#ifdef DEBUG
+	ITexture *pFFDATex =
+#endif
+		materials->CreateNamedRenderTargetTextureEx( "_rt_FullFrameDepth_Alt", iW, iH, RT_SIZE_FULL_FRAME_BUFFER, materials->GetBackBufferFormat(), MATERIAL_RT_DEPTH_NONE, flags, 0 );
 
 #ifdef DEBUG
 	ITexture *pSSAOTex =
@@ -358,12 +361,6 @@ void CViewRender::Init( void )
 	ITexture *pSSAO_ImTex =
 #endif
 		materials->CreateNamedRenderTargetTextureEx("_rt_SSAO_Intermediate", iW, iH, RT_SIZE_FULL_FRAME_BUFFER,
-			materials->GetBackBufferFormat(), MATERIAL_RT_DEPTH_SHARED, flags, 0);
-
-#ifdef DEBUG
-	ITexture *pNVTex =
-#endif
-		materials->CreateNamedRenderTargetTextureEx("_rt_NightVision", iW, iH, RT_SIZE_FULL_FRAME_BUFFER,
 			materials->GetBackBufferFormat(), MATERIAL_RT_DEPTH_SHARED, flags, 0);
 
 #ifdef DEBUG
@@ -404,7 +401,7 @@ void CViewRender::Init( void )
 		materials->CreateNamedRenderTargetTextureEx("_rt_ThermalVision", iW, iH,
 			RT_SIZE_FULL_FRAME_BUFFER, materials->GetBackBufferFormat(), MATERIAL_RT_DEPTH_SHARED,
 			flags, 0);
-
+	
 #ifdef DEBUG
 	ITexture* pCbTex =
 #endif
@@ -413,9 +410,9 @@ void CViewRender::Init( void )
 		flags, 0);
 
 #ifdef DEBUG
+	Assert(pFFDATex != NULL && !pFFDATex->IsError());
 	Assert(pSSAOTex != NULL && !pSSAOTex->IsError());
 	Assert(pSSAO_ImTex != NULL && !pSSAO_ImTex->IsError());
-	Assert(pNVTex != NULL && !pNVTex->IsError());
 	Assert(pMVTex != NULL && !pMVTex->IsError());
 	Assert(pMvImTex != NULL && !pMvImTex->IsError());
 	Assert(pMvIm2Tex != NULL && !pMvIm2Tex->IsError());
