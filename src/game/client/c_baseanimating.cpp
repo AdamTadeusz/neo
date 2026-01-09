@@ -208,6 +208,13 @@ IMPLEMENT_CLIENTCLASS_DT(C_BaseAnimating, DT_BaseAnimating, CBaseAnimating)
 	RecvPropFloat( RECVINFO( m_flFadeScale ) ),
 #ifdef NEO
 	RecvPropBool( RECVINFO( m_bIsGib ) ),
+#ifdef GLOWS_ENABLE
+
+	RecvPropBool( RECVINFO( m_bGlowEnabled ) ),
+	RecvPropFloat( RECVINFO( m_flGlowR ) ),
+	RecvPropFloat( RECVINFO( m_flGlowG ) ),
+	RecvPropFloat( RECVINFO( m_flGlowB ) ),
+#endif // GLOWS_ENABLE
 #endif // NEO
 
 END_RECV_TABLE()
@@ -778,6 +785,16 @@ C_BaseAnimating::C_BaseAnimating() :
 	m_flOldCycle = 0;
 #ifdef NEO
 	m_flNeoCreateTime = gpGlobals->curtime;
+#ifdef GLOWS_ENABLE
+
+	m_pGlowEffect = NULL;
+	m_bGlowEnabled = false;
+	m_bOldGlowEnabled = false;
+	m_bClientSideGlowEnabled = false;
+	m_flGlowR = 0.76f;
+	m_flGlowG = 0.76f;
+	m_flGlowB = 0.76f;
+#endif // GLOWS_ENABLE
 #endif // NEO
 }
 
@@ -819,6 +836,10 @@ C_BaseAnimating::~C_BaseAnimating()
 		m_pAttachedTo->RemoveBoneAttachment( this );
 		m_pAttachedTo = NULL;
 	}
+#if defined NEO && defined GLOWS_ENABLE
+
+	DestroyGlowEffect();
+#endif // NEO && GLOWS_ENABLE
 }
 
 bool C_BaseAnimating::UsesPowerOfTwoFrameBufferTexture( void )
@@ -4940,6 +4961,10 @@ void C_BaseAnimating::OnPreDataChanged( DataUpdateType_t updateType )
 	BaseClass::OnPreDataChanged( updateType );
 
 	m_bLastClientSideFrameReset = m_bClientSideFrameReset;
+	
+#if defined NEO && defined GLOWS_ENABLE
+	m_bOldGlowEnabled = m_bGlowEnabled;
+#endif // NEO && GLOWS_ENABLE
 }
 
 bool C_BaseAnimating::ForceSetupBonesAtTime( matrix3x4_t *pBonesOut, float flTime )
@@ -5238,6 +5263,13 @@ void C_BaseAnimating::OnDataChanged( DataUpdateType_t updateType )
 		delete m_pRagdollInfo;
 		m_pRagdollInfo = NULL;
 	}
+#if defined NEO && defined GLOWS_ENABLE
+
+	if ( m_bOldGlowEnabled != m_bGlowEnabled )
+	{
+		UpdateGlowEffect();
+	}
+#endif // NEO && GLOWS_ENABLE
 }
 
 //-----------------------------------------------------------------------------
@@ -6376,6 +6408,76 @@ void C_BaseAnimating::RefreshCollisionBounds( void )
 {
 	CollisionProp()->RefreshScaledCollisionBounds();
 }
+
+#if defined NEO && defined GLOWS_ENABLE
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void C_BaseAnimating::GetGlowEffectColor( float *r, float *g, float *b )
+{
+	*r = m_flGlowR;
+	*g = m_flGlowG;
+	*b = m_flGlowB;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Change the colour of the glow outline of a combat character
+//-----------------------------------------------------------------------------
+void C_BaseAnimating::SetGlowEffectColor(float r, float g, float b)
+{
+	m_flGlowR.Set(r);
+	m_flGlowG.Set(g);
+	m_flGlowB.Set(b);
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+/*
+void C_BaseAnimating::EnableGlowEffect( float r, float g, float b )
+{
+	// destroy the existing effect
+	if ( m_pGlowEffect )
+	{
+		DestroyGlowEffect();
+	}
+
+	m_pGlowEffect = new CGlowObject( this, Vector( r, g, b ), 1.0, true );
+}
+*/
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void C_BaseAnimating::UpdateGlowEffect( void )
+{
+	// destroy the existing effect
+	if ( m_pGlowEffect )
+	{
+		DestroyGlowEffect();
+	}
+
+	// create a new effect
+	if ( m_bGlowEnabled || m_bClientSideGlowEnabled )
+	{
+		float r, g, b;
+		GetGlowEffectColor( &r, &g, &b );
+		m_pGlowEffect = new CGlowObject( this, Vector( r, g, b ), 1.0, true );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void C_BaseAnimating::DestroyGlowEffect( void )
+{
+	if ( m_pGlowEffect )
+	{
+		delete m_pGlowEffect;
+		m_pGlowEffect = NULL;
+	}
+}
+#endif // NEO && GLOWS_ENABLE
 
 //-----------------------------------------------------------------------------
 // Purpose: Clientside bone follower class. Used just to visualize them.

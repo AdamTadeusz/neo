@@ -43,6 +43,7 @@ public:
 #ifdef NEO
 	virtual void ClientThink() override;
 	float m_flTemperature;
+	float m_flDetonateTime;
 #endif // NEO
 	float m_flSpawnTime;
 #else
@@ -72,6 +73,8 @@ public:
 	void SetDetonateTimerLength( float timer );
 #ifdef NEO
 	inline float GetDetonateTimerLength() { return m_flDetonateTime; }
+	
+	int	ShouldTransmit( const CCheckTransmitInfo *pInfo ) override;
 #endif // NEO
 
 private:	

@@ -13,11 +13,6 @@
 #include "cbase.h"
 #include "c_basecombatcharacter.h"
 
-#ifdef GLOWS_ENABLE
-#ifdef NEO
-#include "neo_gamerules.h"
-#endif // NEO
-#endif // GLOWS_ENABLE
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -35,15 +30,14 @@ C_BaseCombatCharacter::C_BaseCombatCharacter()
 		m_iAmmo.Set( i, 0 );
 	}
 
+#ifndef NEO
 #ifdef GLOWS_ENABLE
 	m_pGlowEffect = NULL;
 	m_bGlowEnabled = false;
 	m_bOldGlowEnabled = false;
 	m_bClientSideGlowEnabled = false;
-	m_flGlowR = 0.76f;
-	m_flGlowG = 0.76f;
-	m_flGlowB = 0.76f;
 #endif // GLOWS_ENABLE
+#endif // NEO
 }
 
 //-----------------------------------------------------------------------------
@@ -51,9 +45,11 @@ C_BaseCombatCharacter::C_BaseCombatCharacter()
 //-----------------------------------------------------------------------------
 C_BaseCombatCharacter::~C_BaseCombatCharacter()
 {
+#ifndef NEO
 #ifdef GLOWS_ENABLE
 	DestroyGlowEffect();
 #endif // GLOWS_ENABLE
+#endif // NEO
 }
 
 /*
@@ -73,9 +69,11 @@ void C_BaseCombatCharacter::OnPreDataChanged( DataUpdateType_t updateType )
 {
 	BaseClass::OnPreDataChanged( updateType );
 
+#ifndef NEO
 #ifdef GLOWS_ENABLE
 	m_bOldGlowEnabled = m_bGlowEnabled;
 #endif // GLOWS_ENABLE
+#endif // NEO
 }
 
 //-----------------------------------------------------------------------------
@@ -85,12 +83,14 @@ void C_BaseCombatCharacter::OnDataChanged( DataUpdateType_t updateType )
 {
 	BaseClass::OnDataChanged( updateType );
 
+#ifndef NEO
 #ifdef GLOWS_ENABLE
 	if ( m_bOldGlowEnabled != m_bGlowEnabled )
 	{
 		UpdateGlowEffect();
 	}
 #endif // GLOWS_ENABLE
+#endif // NEO
 }
 
 //-----------------------------------------------------------------------------
@@ -111,6 +111,7 @@ void C_BaseCombatCharacter::DoMuzzleFlash()
 	}
 }
 
+#ifndef NEO
 #ifdef GLOWS_ENABLE
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -120,16 +121,6 @@ void C_BaseCombatCharacter::GetGlowEffectColor( float *r, float *g, float *b )
 	*r = m_flGlowR;
 	*g = m_flGlowG;
 	*b = m_flGlowB;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Change the colour of the glow outline of a combat character
-//-----------------------------------------------------------------------------
-void C_BaseCombatCharacter::SetGlowEffectColor(float r, float g, float b)
-{
-	m_flGlowR.Set(r);
-	m_flGlowG.Set(g);
-	m_flGlowB.Set(b);
 }
 
 //-----------------------------------------------------------------------------
@@ -180,6 +171,7 @@ void C_BaseCombatCharacter::DestroyGlowEffect( void )
 	}
 }
 #endif // GLOWS_ENABLE
+#endif // NEO
 
 IMPLEMENT_CLIENTCLASS(C_BaseCombatCharacter, DT_BaseCombatCharacter, CBaseCombatCharacter);
 
@@ -193,12 +185,11 @@ BEGIN_RECV_TABLE(C_BaseCombatCharacter, DT_BaseCombatCharacter)
 	RecvPropDataTable( "bcc_localdata", 0, 0, &REFERENCE_RECV_TABLE(DT_BCCLocalPlayerExclusive) ),
 	RecvPropEHandle( RECVINFO( m_hActiveWeapon ) ),
 	RecvPropArray3( RECVINFO_ARRAY(m_hMyWeapons), RecvPropEHandle( RECVINFO( m_hMyWeapons[0] ) ) ),
+#ifndef NEO
 #ifdef GLOWS_ENABLE
-	RecvPropBool( RECVINFO( m_bGlowEnabled ) ), // NEOTODO (Adam) Should the declaration of this variable in c_basecombatcharacter.h be a CNetworkVar?
-	RecvPropFloat( RECVINFO( m_flGlowR ) ),
-	RecvPropFloat( RECVINFO( m_flGlowG ) ),
-	RecvPropFloat( RECVINFO( m_flGlowB ) ),
+	RecvPropBool( RECVINFO( m_bGlowEnabled ) ),
 #endif // GLOWS_ENABLE
+#endif // NEO
 
 #ifdef INVASION_CLIENT_DLL
 	RecvPropInt( RECVINFO( m_iPowerups ) ),

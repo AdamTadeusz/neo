@@ -838,10 +838,6 @@ void C_NEO_Player::NotifyShouldTransmit( ShouldTransmitState_t state )
 	if (state == ShouldTransmitState_t::SHOULDTRANSMIT_START && glow_outline_effect_enable.GetBool()) {
 		UpdateGlowEffects(GetTeamNumber());
 	}
-	else {
-		SetClientSideGlowEnabled(false);
-		DestroyGlowEffect();
-	}
 #endif // GLOWS_ENABLE
 	BaseClass::NotifyShouldTransmit(state);
 }
@@ -864,6 +860,23 @@ void C_NEO_Player::PostDataUpdate( DataUpdateType_t updateType )
 	if (vm)
 	{
 		SetNextThink(CLIENT_THINK_ALWAYS);
+	}
+
+	if (updateType == DataUpdateType_t::DATA_UPDATE_CREATED)
+	{
+		SetClientSideGlowEnabled(true);
+		/*if (auto pGlowObject = GetGlowObject();
+			pGlowObject)
+		{
+			if (GetLocalPlayerTeam() == TEAM_SPECTATOR && glow_outline_effect_enable.GetBool())
+			{
+				pGlowObject->SetPauseClientSideGlowEffect(false);
+			}
+			else
+			{
+				pGlowObject->SetPauseClientSideGlowEffect(true);
+			}
+		}*/
 	}
 }
 
@@ -1459,6 +1472,7 @@ void C_NEO_Player::TeamChange(int iNewTeam)
 }
 
 #ifdef GLOWS_ENABLE
+extern CGlowObjectManager g_GlowObjectManager;
 void C_NEO_Player::UpdateGlowEffects(int iNewTeam)
 {
 	if (!glow_outline_effect_enable.GetBool() || NEORules()->GetHiddenHudElements() & NEO_HUD_ELEMENT_FRIENDLY_MARKER)
@@ -1466,48 +1480,83 @@ void C_NEO_Player::UpdateGlowEffects(int iNewTeam)
 		return;
 	}
 
-	auto updateGlowColour = [](C_BasePlayer* pPlayer, int iTeam = 0) {
+	auto updateGlowColour = [](C_BaseAnimating* pGlowEntity, int iTeam = 0) {
 		float r, g, b;
-		NEORules()->GetTeamGlowColor(iTeam ? iTeam : pPlayer->GetTeamNumber(), r, g, b);
-		pPlayer->SetGlowEffectColor(r, g, b);
+		NEORules()->GetTeamGlowColor(iTeam ? iTeam : pGlowEntity->GetTeamNumber(), r, g, b);
+		pGlowEntity->SetGlowEffectColor(r, g, b);
+		pGlowEntity->GetGlowObject()->SetColor(Vector(r, g, b));
 	};
 
 	if (IsLocalPlayer()) {
-		for (int i = 1; i < gpGlobals->maxClients; i++) {
-			CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
-			if (!pPlayer || pPlayer == this) {
+		for (int i = 0; i < g_GlowObjectManager.GetNumGlowObjects(); i++)
+		{
+			if (!g_GlowObjectManager.GetGlowObjectDefinition(i)->m_hEntity)
+			{
 				continue;
 			}
 
-			if (pPlayer->GetTeamNumber() == TEAM_SPECTATOR || pPlayer->GetTeamNumber() == TEAM_UNASSIGNED)
+			if (!g_GlowObjectManager.GetGlowObjectDefinition(i)->m_hEntity.Get())
 			{
-				pPlayer->SetClientSideGlowEnabled(false);
 				continue;
 			}
 			
-			updateGlowColour(pPlayer);
-			if (iNewTeam == TEAM_SPECTATOR || iNewTeam == pPlayer->GetTeamNumber()) {
-				pPlayer->SetClientSideGlowEnabled(true);
+			if (!g_GlowObjectManager.GetGlowObjectDefinition(i)->m_hEntity.Get()->GetBaseAnimating())
+			{
+				continue;
 			}
-			else { // ditto wrt mp_forcecamera check
-				pPlayer->SetClientSideGlowEnabled(false);
+
+			C_BaseAnimating* pGlowEntity = g_GlowObjectManager.GetGlowObjectDefinition(i)->m_hEntity.Get()->GetBaseAnimating();
+			if (!pGlowEntity || pGlowEntity == this)
+			{
+				continue;
+			}
+
+			if (!pGlowEntity->IsPlayer())
+			{
+				if (iNewTeam == TEAM_SPECTATOR)
+				{
+					g_GlowObjectManager.SetPauseClientSideGlowEffect(i, false);
+				}
+				else
+				{
+					g_GlowObjectManager.SetPauseClientSideGlowEffect(i, true);
+				}
+			}
+			else
+			{
+				if (pGlowEntity->GetTeamNumber() == TEAM_SPECTATOR || pGlowEntity->GetTeamNumber() == TEAM_UNASSIGNED)
+				{
+					g_GlowObjectManager.SetPauseClientSideGlowEffect(i, true);
+					continue;
+				}
+				
+				updateGlowColour(pGlowEntity);
+				if (iNewTeam == TEAM_SPECTATOR || iNewTeam == pGlowEntity->GetTeamNumber()) {
+					g_GlowObjectManager.SetPauseClientSideGlowEffect(i, false);
+				}
+				else { // ditto wrt mp_forcecamera check
+					g_GlowObjectManager.SetPauseClientSideGlowEffect(i, true);
+				}
 			}
 		}
 	}
-	else {
+	else if (auto pGlowObject = GetGlowObject();
+		pGlowObject)
+	{
 		if (iNewTeam == TEAM_SPECTATOR || iNewTeam == TEAM_UNASSIGNED)
 		{
-			SetClientSideGlowEnabled(false);
+			pGlowObject->SetPauseClientSideGlowEffect(true);
 			return;
 		}
 		
 		updateGlowColour(this, iNewTeam);
 		int localPlayerTeam = GetLocalPlayerTeam();
 		if (localPlayerTeam == TEAM_SPECTATOR || localPlayerTeam == iNewTeam) {
-			SetClientSideGlowEnabled(true);
+			pGlowObject->SetPauseClientSideGlowEffect(false);
 		}
 		else { // ditto wrt mp_forcecamera check
-			SetClientSideGlowEnabled(false);
+			
+			pGlowObject->SetPauseClientSideGlowEffect(true);
 		}
 	}
 }

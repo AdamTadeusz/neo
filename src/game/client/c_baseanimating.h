@@ -26,6 +26,9 @@
 #include "ragdoll_shared.h"
 #include "tier0/threadtools.h"
 #include "datacache/idatacache.h"
+#if defined NEO && defined GLOWS_ENABLE
+#include "glow_outline_effect.h"
+#endif // NEO && GLOWS_ENABLE
 
 #define LIPSYNC_POSEPARAM_NAME "mouth"
 #define NUM_HITBOX_FIRES	10
@@ -141,6 +144,16 @@ public:
 	virtual void BuildTransformations( CStudioHdr *pStudioHdr, Vector *pos, Quaternion q[], const matrix3x4_t& cameraTransform, int boneMask, CBoneBitList &boneComputed );
 	virtual void ApplyBoneMatrixTransform( matrix3x4_t& transform );
  	virtual int	VPhysicsGetObjectList( IPhysicsObject **pList, int listMax );
+
+#if defined NEO && defined GLOWS_ENABLE
+	CGlowObject			*GetGlowObject( void ){ return m_pGlowEffect; }
+	virtual void		GetGlowEffectColor( float *r, float *g, float *b );
+	void				SetGlowEffectColor(float r, float g, float b);
+//	void				EnableGlowEffect( float r, float g, float b );
+
+	void				SetClientSideGlowEnabled( bool bEnabled ){ m_bClientSideGlowEnabled = bEnabled; UpdateGlowEffect(); }
+	bool				IsClientSideGlowEnabled( void ){ return m_bClientSideGlowEnabled; }
+#endif // NEO && GLOWS_ENABLE
 
 	// model specific
 	virtual bool SetupBones( matrix3x4_t *pBoneToWorldOut, int nMaxBones, int boneMask, float currentTime );
@@ -475,6 +488,11 @@ protected:
 	virtual bool					CalcAttachments();
 
 	virtual bool					ShouldFlipViewModel();
+	
+#if defined NEO && defined GLOWS_ENABLE
+	virtual void		UpdateGlowEffect( void );
+	virtual void		DestroyGlowEffect( void );
+#endif // NEO
 
 private:
 	// This method should return true if the bones have changed + SetupBones needs to be called
@@ -654,6 +672,16 @@ private:
 	mutable MDLHandle_t				m_hStudioHdr;
 	CThreadFastMutex				m_StudioHdrInitLock;
 	bool							m_bHasAttachedParticles;
+
+#if defined NEO && defined GLOWS_ENABLE
+	bool							m_bClientSideGlowEnabled;	// client-side only value used for spectator
+	bool							m_bGlowEnabled;				// networked value
+	bool							m_bOldGlowEnabled;
+	CNetworkVar(float, m_flGlowR);
+	CNetworkVar(float, m_flGlowG);
+	CNetworkVar(float, m_flGlowB);
+	CGlowObject						*m_pGlowEffect;
+#endif // NEO && GLOWS_ENABLE
 };
 
 enum 

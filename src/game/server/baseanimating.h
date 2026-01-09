@@ -52,6 +52,12 @@ public:
 	virtual void Spawn();
 	virtual void Precache();
 	virtual void SetTransmit( CCheckTransmitInfo *pInfo, bool bAlways );
+#if defined NEO && defined GLOWS_ENABLE
+
+	void				AddGlowEffect( void );
+	void				RemoveGlowEffect( void );
+	bool				IsGlowEffectActive( void );
+#endif // NEO && GLOWS_ENABLE
 
 	virtual int	 Restore( IRestore &restore );
 	virtual void OnRestore();
@@ -176,7 +182,13 @@ protected:
 	// in general code -- it causes many many string comparisons, which is slower than you think. Better is to 
 	// save off your pose parameters in member variables in your derivation of this function:
 	virtual void	PopulatePoseParameters( void );
+#if defined NEO && defined GLOWS_ENABLE
 
+	CNetworkVar( bool, m_bGlowEnabled );
+	CNetworkVar( float, m_flGlowR );
+	CNetworkVar( float, m_flGlowG );
+	CNetworkVar( float, m_flGlowB );
+#endif // NEO && GLOWS_ENABLE
 
 public:
 
@@ -368,6 +380,11 @@ private:
 	void InputSetPlaybackRate( inputdata_t &inputdata );
 
 	bool CanSkipAnimation( void );
+#ifdef NEO
+
+	void				UpdateGlowEffect( void );
+	void				DestroyGlowEffect( void );
+#endif // NEO
 
 public:
 	void ScriptSetModel( const char *pszModel );

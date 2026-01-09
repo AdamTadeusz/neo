@@ -268,6 +268,12 @@ IMPLEMENT_SERVERCLASS_ST(CBaseAnimating, DT_BaseAnimating)
 	SendPropFloat( SENDINFO( m_flFadeScale ), 0, SPROP_NOSCALE ),
 #ifdef NEO
 	SendPropBool( SENDINFO( m_bIsGib ) ),
+#ifdef GLOWS_ENABLE
+	SendPropBool( SENDINFO( m_bGlowEnabled ) ),
+	SendPropFloat( SENDINFO( m_flGlowR ) ),
+	SendPropFloat( SENDINFO( m_flGlowG ) ),
+	SendPropFloat( SENDINFO( m_flGlowB ) ),
+#endif // GLOWS_ENABLE
 #endif // NEO
 
 END_SEND_TABLE()
@@ -341,6 +347,9 @@ CBaseAnimating::CBaseAnimating()
 	m_fBoneCacheFlags = 0;
 #ifdef NEO
 	m_bIsGib = false;
+#ifdef GLOWS_ENABLE
+	m_bGlowEnabled.Set( false );
+#endif // GLOWS_ENABLE
 #endif // NEO
 }
 
@@ -3775,3 +3784,30 @@ CStudioHdr *CBaseAnimating::OnNewModel()
 
 	return hdr;
 }
+
+#if defined NEO && defined GLOWS_ENABLE
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CBaseAnimating::AddGlowEffect( void )
+{
+	SetTransmitState( FL_EDICT_ALWAYS );
+	m_bGlowEnabled.Set( true );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CBaseAnimating::RemoveGlowEffect( void )
+{
+	m_bGlowEnabled.Set( false );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CBaseAnimating::IsGlowEffectActive( void )
+{
+	return m_bGlowEnabled;
+}
+#endif // NEO && GLOWS_ENABLE

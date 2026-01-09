@@ -6,6 +6,9 @@
 
 #include "cbase.h"
 #include "sdk_basegrenade_projectile.h"
+#ifdef NEO && GLOWS_ENABLE
+#include "neo_gamerules.h"
+#endif // NEO && GLOWS_ENABLE
 
 float GetCurrentGravity( void );
 
@@ -44,7 +47,10 @@ END_NETWORK_TABLE()
 
 #ifdef CLIENT_DLL
 
-
+#ifdef NEO
+ConVar cl_neo_non_lethal_grenade_glow_duration("cl_neo_non_lethal_grenade_glow_duration", "25", FCVAR_CHEAT, "How long to glow non-lethal grenades", true, 0.0, true, 60.0);
+extern ConVar glow_outline_effect_enable;
+#endif // NEO
 	void CBaseGrenadeProjectile::PostDataUpdate( DataUpdateType_t type )
 	{
 		BaseClass::PostDataUpdate( type );
@@ -64,6 +70,29 @@ END_NETWORK_TABLE()
 			// Add the current sample.
 			vCurOrigin = GetLocalOrigin();
 			interpolator.AddToHead( changeTime, &vCurOrigin, false );
+#ifdef NEO
+			if (int teamNum = GetTeamNumber();
+				teamNum && GetDamage() <= 0.f)
+			{
+				float r, g, b;
+				NEORules()->GetTeamGlowColor(teamNum, r, g, b);
+				SetGlowEffectColor(r, g, b);
+			}
+			else
+			{
+				SetGlowEffectColor(1.f, 0.f, 0.f);
+			}
+
+			SetClientSideGlowEnabled(true);
+			if (GetLocalPlayerTeam() != TEAM_SPECTATOR || !glow_outline_effect_enable.GetBool())
+			{
+				if (auto pGlowObject = GetGlowObject();
+					pGlowObject)
+				{
+					GetGlowObject()->SetPauseClientSideGlowEffect(true);
+				}
+			}
+#endif // NEO
 		}
 	}
 
@@ -71,6 +100,7 @@ END_NETWORK_TABLE()
 #include "c_neo_player.h"
 #ifdef GLOWS_ENABLE
 	extern ConVar glow_outline_effect_enable;
+	extern ConVar sv_neo_smoke_bloom_duration;
 #endif // GLOWS_ENABLE
 #endif // NEO
 	int CBaseGrenadeProjectile::DrawModel( int flags )
@@ -124,10 +154,29 @@ END_NETWORK_TABLE()
 	{
 		constexpr int DESIRED_TEMPERATURE_WITHOUT_OWNER = 1;
 		m_flTemperature = min(DESIRED_TEMPERATURE_WITHOUT_OWNER, m_flTemperature + (TICK_INTERVAL / THERMALS_OBJECT_COOL_TIME));
-		if (m_flTemperature > 0)
+		
+		if (!m_bIsLive && m_flDetonateTime <= 0.f)
+		{
+			m_flDetonateTime = gpGlobals->curtime;
+		}
+		else if (m_flDamage <= 0.f && m_flDetonateTime > 0.f && gpGlobals->curtime >= m_flDetonateTime + cl_neo_non_lethal_grenade_glow_duration.GetFloat())
+		{
+			SetClientSideGlowEnabled(false);
+		}
+
+		if (m_flTemperature < 1)
 		{
 			SetNextClientThink(gpGlobals->curtime + TICK_INTERVAL);
 		}
+		else if (m_bIsLive)
+		{
+			SetNextClientThink(gpGlobals->curtime + TICK_INTERVAL);
+		}
+		else if (m_flDetonateTime + cl_neo_non_lethal_grenade_glow_duration.GetFloat() > gpGlobals->curtime)
+		{
+			SetNextClientThink(m_flDetonateTime + cl_neo_non_lethal_grenade_glow_duration.GetFloat() + TICK_INTERVAL);
+		}
+
 	}
 #endif // NEO
 
@@ -143,6 +192,10 @@ END_NETWORK_TABLE()
 
 		// smaller, cube bounding box so we rest on the ground
 		SetSize( Vector ( -2, -2, -2 ), Vector ( 2, 2, 2 ) );
+
+#ifdef NEO
+		SetTransmitState(FL_EDICT_FULLCHECK);
+#endif // NEO
 	}
 
 	void CBaseGrenadeProjectile::DangerSoundThink( void )
@@ -298,5 +351,28 @@ END_NETWORK_TABLE()
 	{
 		m_vInitialVelocity = velocity;
 	}
+
+#ifdef NEO
+	int CBaseGrenadeProjectile::ShouldTransmit( const CCheckTransmitInfo *pInfo )
+	{
+		if (!pInfo)
+		{
+			return BaseClass::ShouldTransmit(pInfo);
+		}
+		
+		const auto* otherNeoPlayer = assert_cast<CNEO_Player*>(Instance(pInfo->m_pClientEnt));
+		if (!otherNeoPlayer)
+		{
+			return BaseClass::ShouldTransmit(pInfo);
+		}
+
+		if (otherNeoPlayer->GetTeamNumber() == TEAM_SPECTATOR)
+		{
+			return FL_EDICT_ALWAYS;
+		}
+
+		return BaseClass::ShouldTransmit(pInfo);
+	}
+#endif // NEO
 
 #endif

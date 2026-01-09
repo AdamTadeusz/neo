@@ -422,12 +422,14 @@ public:
 	virtual HalloweenBossType GetBossType() const { return HALLOWEEN_BOSS_INVALID; }
 #endif // TF_DLL
 
+#ifndef NEO
 #ifdef GLOWS_ENABLE
 	// Glows
 	void				AddGlowEffect( void );
 	void				RemoveGlowEffect( void );
 	bool				IsGlowEffectActive( void );
 #endif // GLOWS_ENABLE
+#endif // NEO
 
 #ifdef INVASION_DLL
 public:
@@ -466,19 +468,20 @@ protected:
 public:
 	CNetworkVar( float, m_flNextAttack );			// cannot attack again until this time
 
+#ifndef NEO
 #ifdef GLOWS_ENABLE
 protected:
 	CNetworkVar( bool, m_bGlowEnabled );
-	CNetworkVar( float, m_flGlowR );
-	CNetworkVar( float, m_flGlowG );
-	CNetworkVar( float, m_flGlowB );
 #endif // GLOWS_ENABLE
+#endif // NEO
 
 private:
 	Hull_t		m_eHull;
 
+#ifndef NEO
 	void				UpdateGlowEffect( void );
 	void				DestroyGlowEffect( void );
+#endif // NEO
 
 protected:
 	int			m_bloodColor;			// color of blood particless

@@ -48,6 +48,7 @@ void CNEOGrenadeSmoke::Spawn(void)
 	m_punted = false;
 	m_hasSettled = false;
 	m_hasBeenMadeNonSolid = false;
+	m_bIsLive = true;
 	m_lastPos = GetAbsOrigin();
 
 	SetElasticity(sv_neo_grenade_cor.GetFloat());
@@ -118,6 +119,7 @@ void CNEOGrenadeSmoke::Detonate(void)
 	if (!m_hasBeenMadeNonSolid)
 	{
 		m_hasBeenMadeNonSolid = true;
+		m_bIsLive = false;
 
 		SetupParticles(sv_neo_smoke_bloom_layers.GetInt());
 		m_flSmokeBloomTime = gpGlobals->curtime;

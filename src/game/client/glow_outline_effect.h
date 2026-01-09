@@ -121,6 +121,17 @@ public:
 		Assert( !m_GlowObjectDefinitions[nGlowObjectHandle].IsUnused() );
 		m_GlowObjectDefinitions[nGlowObjectHandle].m_bUseTexturedHighlight = useTexturedHighlight;
 	}
+
+	void SetPauseClientSideGlowEffect(int nGlowObjectHandle, const bool pauseClientSideGlowEffect)
+	{
+		Assert( !m_GlowObjectDefinitions[nGlowObjectHandle].IsUnused() );
+		m_GlowObjectDefinitions[nGlowObjectHandle].m_bPauseClientSideGlowEffect = pauseClientSideGlowEffect;
+	}
+
+	int GetNumGlowObjects()
+	{
+		return m_GlowObjectDefinitions.Count();
+	}
 #endif // NEO
 private:
 
@@ -135,6 +146,9 @@ private:
 				   ( m_nSplitScreenSlot == GLOW_FOR_ALL_SPLIT_SCREEN_SLOTS || m_nSplitScreenSlot == nSlot ) && 
 				   ( m_bRenderWhenOccluded || m_bRenderWhenUnoccluded ) && 
 				   m_hEntity->ShouldDraw() && 
+#ifdef NEO
+				   !m_bPauseClientSideGlowEffect &&
+#endif // NEO
 				   !m_hEntity->IsDormant();
 		}
 		
@@ -145,7 +159,8 @@ private:
 		Vector m_vGlowColor;
 		float m_flGlowAlpha;
 #ifdef NEO
-		bool m_bUseTexturedHighlight;
+		bool m_bUseTexturedHighlight = false;
+		bool m_bPauseClientSideGlowEffect = false;
 #endif // NEO
 
 		bool m_bRenderWhenOccluded;
@@ -162,6 +177,14 @@ private:
 
 	CUtlVector< GlowObjectDefinition_t > m_GlowObjectDefinitions;
 	int m_nFirstFreeSlot;
+
+#ifdef NEO
+public:
+	const GlowObjectDefinition_t* GetGlowObjectDefinition(int index)
+	{
+		return &m_GlowObjectDefinitions[index];
+	}
+#endif // NEO
 };
 
 extern CGlowObjectManager g_GlowObjectManager;
@@ -220,6 +243,11 @@ public:
 	void SetUseTexturedHighlight(bool value)
 	{
 		g_GlowObjectManager.SetUseTexturedHighlight( m_nGlowObjectHandle, value );
+	}
+
+	void SetPauseClientSideGlowEffect(bool value)
+	{
+		g_GlowObjectManager.SetPauseClientSideGlowEffect( m_nGlowObjectHandle, value );
 	}
 #endif // NEO
 
