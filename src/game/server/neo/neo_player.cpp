@@ -2010,13 +2010,13 @@ void CNEO_Player::Event_Killed( const CTakeDamageInfo &info )
 
 	BaseClass::Event_Killed(info);
 
+	// Handle Corpse and Gibs
+	SetDeadModel(info);
+
 	if (!m_bForceServerRagdoll && GetClass() != NEO_CLASS_JUGGERNAUT)
 	{
 		CreateRagdollEntity();
 	}
-
-	// Handle Corpse and Gibs
-	SetDeadModel(info);
 
 	StopWaterDeathSounds();
 
@@ -2154,7 +2154,7 @@ void CNEO_Player::SetDeadModel(const CTakeDamageInfo& info)
 		UTIL_BloodSpray(info.GetDamagePosition(), info.GetDamageForce(), BLOOD_COLOR_RED, 10, FX_BLOODSPRAY_GORE | FX_BLOODSPRAY_DROPS);
 	}
 
-	SetRagdollModel(modelinfo->GetModelIndex(CNEOModelManager::GetCorpseModel((NeoSkin)GetSkin(), (NeoClass)GetClass(), GetTeamNumber(), NeoGib(deadModelType))));
+	SetModel(CNEOModelManager::GetCorpseModel((NeoSkin)GetSkin(), (NeoClass)GetClass(), GetTeamNumber(), NeoGib(deadModelType)));
 }
 
 void CNEO_Player::SpawnSpecificGibs(float vMinVelocity, float vMaxVelocity, const char* cModelName)
