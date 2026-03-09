@@ -20,6 +20,7 @@ extern ConVar weaponstay;
 #include "model_types.h"
 #include "c_neo_player.h"
 #include "in_main.h"
+#include "c_neo_thermhandler.h"
 #else
 #include "items.h"
 #include "neo_gamerules.h"
@@ -1277,11 +1278,13 @@ int CNEOBaseCombatWeapon::DrawModel(int flags)
 
 	if ((pOwner && pOwner->IsCloaked()) && !inThermalVision)
 	{
-		mat_neo_toc_test.SetValue(pOwner->GetCloakFactor());
-		IMaterial* pass = materials->FindMaterial("models/player/toc", TEXTURE_GROUP_CLIENT_EFFECTS);
-		modelrender->ForcedMaterialOverride(pass);
-		ret |= BaseClass::DrawModel(flags);
-		modelrender->ForcedMaterialOverride(nullptr);
+		if (g_ThermopticHandler)
+		{
+			IMaterial* pass = g_ThermopticHandler->GetThermopticMaterial(pOwner->GetCloakFactor());
+			modelrender->ForcedMaterialOverride(pass);
+			ret |= BaseClass::DrawModel(flags);
+			modelrender->ForcedMaterialOverride(nullptr);
+		}
 		return ret;
 	}
 	else

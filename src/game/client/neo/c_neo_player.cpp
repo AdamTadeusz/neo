@@ -59,6 +59,8 @@
 
 #include "c_playerresource.h"
 
+#include "c_neo_thermhandler.h"
+
 // Don't alias here
 #if defined( CNEO_Player )
 #undef CNEO_Player	
@@ -695,11 +697,13 @@ int C_NEO_Player::DrawModel(int flags)
 
 	if (IsCloaked() && !inThermalVision)
 	{
-		mat_neo_toc_test.SetValue(m_flTocFactor);
-		IMaterial* pass = materials->FindMaterial("models/player/toc", TEXTURE_GROUP_CLIENT_EFFECTS);
-		modelrender->ForcedMaterialOverride(pass);
-		ret |= BaseClass::DrawModel(flags);
-		modelrender->ForcedMaterialOverride(nullptr);
+		if (g_ThermopticHandler)
+		{
+			IMaterial* pass = g_ThermopticHandler->GetThermopticMaterial(m_flTocFactor);
+			modelrender->ForcedMaterialOverride(pass);
+			ret |= BaseClass::DrawModel(flags);
+			modelrender->ForcedMaterialOverride(nullptr);
+		}
 	}
 
 	else if (inThermalVision && !IsCloaked())
@@ -1254,22 +1258,7 @@ void C_NEO_Player::ClientThink(void)
 	BaseClass::ClientThink();
 
 	if (IsCloaked())
-	{ // PreThink and PostThink are only ran for local player, update every in pvs player's cloak strength here
-		auto pLocalPlayer = C_NEO_Player::GetLocalNEOPlayer();
-		if (pLocalPlayer)
-		{
-			auto vel = GetAbsVelocity().Length();
-			if (this == pLocalPlayer)
-			{
-				if (vel > 0.5) { m_flTocFactor = Min(0.3f, m_flTocFactor + 0.01f); } // NEO TODO (Adam) base on time rather than think rate
-				else { m_flTocFactor = Max(0.1f, m_flTocFactor - 0.01f); }
-			}
-			else
-			{
-				if (vel > 0.5) { m_flTocFactor = 0.3f; } // 0.345f
-				else { m_flTocFactor = 0.2f; } // 0.255f
-			}
-		}
+	{
 #ifdef GLOWS_ENABLE
 		if (auto glowObject = GetGlowObject()) {
 			glowObject->SetUseTexturedHighlight(true);
@@ -1282,6 +1271,23 @@ void C_NEO_Player::ClientThink(void)
 		}
 #endif // GLOWS_ENABLE
 	}
+
+	Vector velocity;
+	EstimateAbsVelocity(velocity);
+	float speed = velocity.Length2D();
+
+	if (speed <= 20.f)
+		m_flTocFactor -= (gpGlobals->interval_per_tick) * 1.1f;
+	else
+		m_flTocFactor += speed * 0.004 * gpGlobals->interval_per_tick;
+
+	m_flTocFactor = Max(0.f, Min(1.f, m_flTocFactor));
+	//m_flTocFactor = 1 - m_flTocFactor;
+	
+	// It looks like original tries to apply kRenderFxDistort here when cloak is enabled unless its been at least a second since something happened, but with 
+	// with cl_pdump, I can't find what that something is, or m_nRenderFX ever change from 0. If a cloaked player has a primary weapon and its on their back,
+	// the weapon does seem to flash for a frame maybe every second, but the weapon's m_nRenderFX value doesn't change
+
 }
 
 static ConVar neo_this_client_speed("neo_this_client_speed", "0", FCVAR_SPONLY);
