@@ -69,6 +69,8 @@ END_NETWORK_TABLE()
 
 #ifdef NEO
 #include "c_neo_player.h"
+#include "engine/ivdebugoverlay.h"
+#include "debugoverlay_shared.h"
 #ifdef GLOWS_ENABLE
 	extern ConVar glow_outline_effect_enable;
 #endif // GLOWS_ENABLE
@@ -119,13 +121,31 @@ END_NETWORK_TABLE()
 	}
 
 #ifdef NEO
-
+	ConVar cl_neo_grenade_path_show("cl_neo_grenade_path_show", "0", FCVAR_CHEAT, "Whether to show the grenade path, and how long to show it for", true, 0, false, 0);
 	void CBaseGrenadeProjectile::ClientThink()
 	{
 		m_flTemperature = Max(THERMALS_OBJECT_MIN_TEMPERATURE, m_flTemperature - (TICK_INTERVAL * THERMALS_OBJECT_COOL_RATE));
 		if (m_flTemperature > THERMALS_OBJECT_MIN_TEMPERATURE)
 		{
 			SetNextClientThink(gpGlobals->curtime + TICK_INTERVAL);
+		}
+
+		if (cl_neo_grenade_path_show.GetBool())
+		{
+			const Vector origin = GetAbsOrigin();
+			if (m_vOldDebugOrigin.IsValid())
+			{
+				if (m_vOldDebugOrigin.DistToSqr(origin) > 0.1f)
+				{
+					DebugDrawLine(m_vOldDebugOrigin, origin, GetDamage() ? 255 : 0, 0, GetDamage() ? 0 : 255, true, cl_neo_grenade_path_show.GetFloat());
+					m_vOldDebugOrigin = origin;
+				}
+			}
+			else
+			{
+				m_vOldDebugOrigin = origin;
+			}
+			SetNextClientThink(CLIENT_THINK_ALWAYS);
 		}
 	}
 #endif // NEO

@@ -190,3 +190,53 @@ void DebugDrawLine( const Vector& vecAbsStart, const Vector& vecAbsEnd, int r, i
 		debugoverlay->AddLineOverlay( vecAbsStart + Vector( 0,0,0.1), vecAbsEnd + Vector( 0,0,0.1), r,g,b, test, duration );
 	}
 }
+
+// Appropriated from NDebugOverlay::Circle
+void DebugDrawCollisionCircle( const Vector &position, const Vector &xAxis, const Vector &yAxis, float radius, int r, int g, int b, int a, bool bNoDepthTest, float flDuration )
+{
+	if (!debugoverlay)
+		return;
+
+	const unsigned int nSegments = 72;
+	const float flRadStep = (M_PI*2.0f) / (float) nSegments;
+
+	Vector vecLastPosition;
+	
+	// Find our first position
+	Vector vecStart = position + xAxis * radius;
+	trace_t	tr;
+	UTIL_TraceLine( position, vecStart, MASK_SOLID, nullptr, COLLISION_GROUP_NONE, &tr );
+	if (tr.fraction != 1.0)
+	{
+		vecStart = position + ((-position + vecStart) * tr.fraction);
+	}
+	Vector vecPosition = vecStart;
+
+	// Draw out each segment
+	for ( int i = 1; i <= nSegments; i++ )
+	{
+		// Store off our last position
+		vecLastPosition = vecPosition;
+
+		// Calculate the new one
+		float flSin, flCos;
+		SinCos( flRadStep*i, &flSin, &flCos );
+		vecPosition = position + (xAxis * flCos * radius) + (yAxis * flSin * radius);
+		UTIL_TraceLine( position, vecPosition, MASK_SOLID, nullptr, COLLISION_GROUP_NONE, &tr );
+		if (tr.fraction != 1.0)
+		{
+			vecPosition = position + ((-position + vecPosition) * tr.fraction);
+		}
+
+		const Vector direction = (vecPosition - vecLastPosition).Normalized();
+		const Vector positionDirection = (position - vecLastPosition).Normalized();
+		
+		if ((abs(DotProduct(direction, yAxis)) > 0.99 && abs(DotProduct(positionDirection, direction)) > 0.99) || (vecPosition.DistToSqr(position) < (32 * 32) && vecLastPosition.DistToSqr(position) < (32 * 32)))
+		{
+			continue;
+		}
+
+		// Draw the line
+		debugoverlay->AddLineOverlay( vecLastPosition, vecPosition, r, g, b, bNoDepthTest, flDuration + (i * 0.01) );
+	}
+}

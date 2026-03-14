@@ -43,6 +43,7 @@ public:
 #ifdef NEO
 	virtual void ClientThink() override;
 	float m_flTemperature;
+	Vector m_vOldDebugOrigin = vec3_invalid;
 #endif // NEO
 	float m_flSpawnTime;
 #else

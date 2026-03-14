@@ -243,6 +243,9 @@ private:
 
 // helper
 void DebugDrawLine( const Vector& vecAbsStart, const Vector& vecAbsEnd, int r, int g, int b, bool test, float duration );
+#ifdef NEO
+void DebugDrawCollisionCircle(const Vector& position, const Vector& xAxis, const Vector& yAxis, float radius, int r, int g, int b, int a, bool bNoDepthTest, float flDuration);
+#endif // NEO
 
 extern ConVar r_visualizetraces;
 

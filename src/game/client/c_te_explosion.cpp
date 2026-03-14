@@ -243,6 +243,10 @@ void C_TEExplosion::RecordExplosion( )
 }
 
 
+#ifdef NEO
+#include "debugoverlay_shared.h"
+extern ConVar cl_neo_grenade_path_show;
+#endif // NEO
 //-----------------------------------------------------------------------------
 // Purpose: 
 // Input  : bool - 
@@ -276,6 +280,20 @@ void C_TEExplosion::PostDataUpdate( DataUpdateType_t updateType )
 			pOverlay->Activate();
 		}
 	}
+#ifdef NEO
+
+	if (cl_neo_grenade_path_show.GetBool() && m_nRadius)
+	{
+		const int numCircles = 24;
+		for (int i = 0; i < numCircles; i++)
+		{
+			const float radians = ((2 * M_PI) / numCircles) * i;
+			Vector xAxis = Vector(cos(radians), 0, -sin(radians));
+			Vector yAxis = Vector(0, 1, 0);
+			DebugDrawCollisionCircle(m_vecOrigin, xAxis, yAxis, m_nRadius, 255, 255, 0, 0, false, cl_neo_grenade_path_show.GetFloat());
+		}
+	}
+#endif // NEO
 
 	BaseExplosionEffect().Create( m_vecOrigin, m_nMagnitude, m_fScale, m_nFlags );
 }
