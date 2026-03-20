@@ -753,7 +753,19 @@ void CHL2MPPlayerAnimState::ComputePoseParam_AimYaw( CStudioHdr *pStudioHdr )
 	bool bMoving = ( vecVelocity.Length() > 1.0f ) ? true : false;
 
 	// If we are moving or are prone and undeployed.
+#ifdef NEO
+#ifdef CLIENT_DLL
+	
+	float boneControllerValue[MAXSTUDIOBONECTRLS];
+	GetBasePlayer()->GetBaseAnimating()->GetBoneControllers(boneControllerValue);
+	if ( bMoving || m_bForceAimYaw || boneControllerValue[0] != 0.5f)
+#else
+	auto boneControllerValue = GetBasePlayer()->GetBoneController(0);
+	if ( bMoving || m_bForceAimYaw || boneControllerValue != 0)
+#endif // CLIENT_DLL
+#else
 	if ( bMoving || m_bForceAimYaw )
+#endif // NEO
 	{
 		// The feet match the eye direction when moving - the move yaw takes care of the rest.
 		m_flGoalFeetYaw = m_flEyeYaw;
