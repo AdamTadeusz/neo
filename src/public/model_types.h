@@ -25,6 +25,8 @@
 #define STUDIO_NO_OVERRIDE_FOR_ATTACH	0x00000200
 #ifdef NEO
 #define STUDIO_IGNORE_NEO_EFFECTS		0x00000400
+#define STUDIO_USING_THERMALS			0x00000800 // Indicates we are using thermals
+#define STUDIO_HIGHLIGHT_IN_THERMALS	0x00001000 // Set by models that want to be highlighted in thermals
 #endif
 
 // Not a studio flag, but used to flag when we want studio stats

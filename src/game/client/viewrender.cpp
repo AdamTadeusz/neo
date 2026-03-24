@@ -68,6 +68,7 @@
 #ifdef NEO
 #include "neo_player_shared.h"
 #include <type_traits>
+#include "c_neo_player.h"
 #endif // NEO
 #include "rendertexture.h"
 #include "viewpostprocess.h"
@@ -1090,6 +1091,13 @@ bool CViewRender::UpdateRefractIfNeededByList( CUtlVector< IClientRenderable * >
 //-----------------------------------------------------------------------------
 void CViewRender::DrawRenderablesInList( CUtlVector< IClientRenderable * > &list, int flags )
 {
+#ifdef NEO
+	auto pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
+	if (pTargetPlayer && pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT)
+	{
+		flags |= STUDIO_USING_THERMALS;
+	}
+#endif // NEO
 	Assert( m_pCurrentlyDrawingEntity == NULL );
 	int nCount = list.Count();
 	for( int i=0; i < nCount; ++i )
@@ -4152,6 +4160,24 @@ static inline void DrawOpaqueRenderable( IClientRenderable *pEnt, bool bTwoPass,
 	{
 		flags |= STUDIO_SSAODEPTHTEXTURE;
 	}
+	
+	auto pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
+	if (pTargetPlayer && pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT)
+	{
+		flags |= STUDIO_USING_THERMALS;
+
+		// By default every opaque renderable clears the highlight in thermals bit. Every object that should be highlighted in thermals will change these stencil settings to write instead.
+		// this way no matter what order objects are drawn in we don't see thermal highlights through objects
+		CMatRenderContextPtr pRenderContext( materials );
+		pRenderContext->SetStencilEnable(true);
+		pRenderContext->SetStencilReferenceValue(NEO_HIGHLIGHT_THERMALS);
+		pRenderContext->SetStencilTestMask(0x0);
+		pRenderContext->SetStencilWriteMask(NEO_HIGHLIGHT_THERMALS);
+		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+		pRenderContext->SetStencilPassOperation(STENCILOPERATION_ZERO);
+		pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+		pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+	}
 
 	float *pRenderClipPlane = NULL;
 	if( r_entityclips.GetBool() )
@@ -4245,8 +4271,20 @@ static void DrawOpaqueRenderables_DrawStaticProps( CClientRenderablesList::CEntr
 		numAvailable = MAX_STATICS_PER_BATCH;
 	}
 	
+#ifdef NEO
+	CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
+	pRenderContext->SetStencilEnable(true);
+	pRenderContext->SetStencilWriteMask(NEO_HIGHLIGHT_THERMALS);
+	pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+	pRenderContext->SetStencilPassOperation(STENCILOPERATION_ZERO);
+	pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+	pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+#endif // NEO
 	if ( numScheduled )
 		staticpropmgr->DrawStaticProps( pStatics, numScheduled, DepthMode, vcollide_wireframe.GetBool() );
+#ifdef NEO
+	pRenderContext->SetStencilEnable(false);
+#endif // NEO
 }
 
 static void DrawOpaqueRenderables_Range( CClientRenderablesList::CEntry *pEntitiesBegin, CClientRenderablesList::CEntry *pEntitiesEnd, ERenderDepthMode DepthMode )
@@ -4580,6 +4618,12 @@ static inline void DrawTranslucentRenderable( IClientRenderable *pEnt, bool twoP
 		pEnt->DrawModel( flags );
 		view->SetCurrentlyDrawingEntity( NULL );
 	}
+#ifdef NEO // If The translucent renderable was a smoke grenade particle, reset stencil to clear the smoke particle stencil bit
+	IMatRenderContext* pRenderContext = materials->GetRenderContext();
+	pRenderContext->SetStencilReferenceValue(0x0);
+	pRenderContext->SetStencilWriteMask(NEO_HIGHLIGHT_THERMALS);
+	pRenderContext->SetStencilPassOperation(STENCILOPERATION_ZERO);
+#endif // NEO
 }
 
 
@@ -4770,6 +4814,16 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 		MDLCACHE_CRITICAL_SECTION();
 		// Draw the particle singletons.
 		DrawParticleSingletons( bInSkybox );
+		
+#ifdef NEO
+		CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
+		pRenderContext->SetStencilEnable(true);
+		pRenderContext->SetStencilWriteMask(NEO_HIGHLIGHT_THERMALS);
+		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+		pRenderContext->SetStencilPassOperation(STENCILOPERATION_ZERO);
+		pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+		pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+#endif // NEO
 
 		CClientRenderablesList::CEntry *pEntities = m_pRenderablesList->m_RenderGroups[RENDER_GROUP_TRANSLUCENT_ENTITY];
 		int iCurTranslucentEntity = m_pRenderablesList->m_RenderGroupCounts[RENDER_GROUP_TRANSLUCENT_ENTITY] - 1;
@@ -4892,13 +4946,25 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 			nDetailLeafCount = 0;
 		}
 	}
-
+	
+#ifdef NEO
+	CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
+	pRenderContext->SetStencilEnable(true);
+	pRenderContext->SetStencilWriteMask(NEO_HIGHLIGHT_THERMALS);
+	pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+	pRenderContext->SetStencilPassOperation(STENCILOPERATION_ZERO);
+	pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+	pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+#endif // NEO
 	// Draw the rest of the surfaces in world leaves
 	DrawTranslucentWorldAndDetailPropsInLeaves( iPrevLeaf, 0, nEngineDrawFlags, nDetailLeafCount, pDetailLeafList, bShadowDepth );
 
 	// Draw any queued-up detail props from previously visited leaves
 	DetailObjectSystem()->RenderTranslucentDetailObjects( CurrentViewOrigin(), CurrentViewForward(), CurrentViewRight(), CurrentViewUp(), nDetailLeafCount, pDetailLeafList );
-
+	
+#ifdef NEO
+	pRenderContext->SetStencilEnable(false);
+#endif // NEO
 	// Reset the blend state.
 	render->SetBlend( 1 );
 }

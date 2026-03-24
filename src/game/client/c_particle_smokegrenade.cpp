@@ -101,6 +101,9 @@ public:
 	virtual void	GetParticlePosition( Particle *pParticle, Vector& worldpos );
 	virtual void	ClientThink();
 
+#ifdef NEO
+	virtual const char *GetEffectName() override { return "smokegrenade"; } 
+#endif // NEO
 
 // Proxies.
 public:
@@ -736,12 +739,6 @@ void C_ParticleSmokeGrenade::RenderParticles( CParticleRenderIterator *pIterator
 
 			// Apply the precalculated fade alpha from world geometry.
 			alpha *= pParticle->m_FadeAlpha;
-
-			if (CanSeeThroughSmokeGrenades())
-			{
-				constexpr float THERMAL_VISION_ALPHA_MULTIPLIER = 0.1f;
-				alpha *= THERMAL_VISION_ALPHA_MULTIPLIER;
-			}
 
 			// TODO: optimize this whole routine!
 			Vector color = m_MinColor + (m_MaxColor - m_MinColor) * (pParticle->m_ColorInterp / 255.1f);

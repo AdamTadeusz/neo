@@ -390,22 +390,8 @@ void C_ClientRagdoll::OnRestore( void )
 #ifdef NEO
 int C_ClientRagdoll::DrawModel(int flags)
 {
-	auto pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
-	if (!pTargetPlayer)
-	{
-		Assert(false);
-		return BaseClass::DrawModel(flags);
-	}
-
-	const bool inThermalVision = pTargetPlayer ? (pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT) : false;
-	if (inThermalVision)
-	{
-		IMaterial* pass = materials->FindMaterial(NEO_THERMAL_MODEL_MATERIAL, TEXTURE_GROUP_MODEL);
-		modelrender->ForcedMaterialOverride(pass);
-		const int ret = BaseClass::DrawModel(flags);
-		modelrender->ForcedMaterialOverride(nullptr);
-		return ret;
-	}
+	if (flags & STUDIO_USING_THERMALS)
+		flags |= STUDIO_HIGHLIGHT_IN_THERMALS;
 
 	return BaseClass::DrawModel(flags);
 }
@@ -3306,7 +3292,6 @@ int C_BaseAnimating::DrawModel( int flags )
 			}
 		}
 		bool isMoving = false;
-		bool isHot = false;
 		if (inMotionVision && vel.LengthSqr() > 0.25 && !IsViewModel() && !(extraFlags & STUDIO_IGNORE_NEO_EFFECTS) && flags & STUDIO_RENDER) // MOVING_SPEED_MINIMUM ^2
 		{
 			isMoving = true;
@@ -3319,13 +3304,18 @@ int C_BaseAnimating::DrawModel( int flags )
 			}
 		}
 
-		const bool inThermalVision = pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT;
-		if (m_bIsGib && inThermalVision)
+		CMatRenderContextPtr pRenderContext(materials);
+		bool isHot = false;
+		if (flags & STUDIO_HIGHLIGHT_IN_THERMALS)
 		{
-			IMaterial* pass = materials->FindMaterial(NEO_THERMAL_MODEL_MATERIAL, TEXTURE_GROUP_MODEL);
-			Assert(!IsErrorMaterial(pass));
-			modelrender->ForcedMaterialOverride(pass);
 			isHot = true;
+			pRenderContext->SetStencilEnable(true);
+			pRenderContext->SetStencilReferenceValue(NEO_HIGHLIGHT_THERMALS);
+			pRenderContext->SetStencilWriteMask(NEO_HIGHLIGHT_THERMALS);
+			pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+			pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+			pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+			pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
 		}
 
 #endif // NEO
@@ -3371,9 +3361,13 @@ int C_BaseAnimating::DrawModel( int flags )
 			}
 		}
 #ifdef NEO
-		if (isMoving || isHot)
+		if (isMoving)
 		{
 			modelrender->ForcedMaterialOverride(nullptr);
+		}
+		if (flags & STUDIO_HIGHLIGHT_IN_THERMALS)
+		{
+			pRenderContext->SetStencilEnable(false);
 		}
 #endif // NEO
 	}

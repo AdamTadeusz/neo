@@ -196,28 +196,9 @@ int C_AI_BaseNPC::DrawModel( int flags )
         return BaseClass::DrawModel(flags);
     }
 
-    auto pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
-    if (!pTargetPlayer)
-    {
-        Assert(false);
-        return BaseClass::DrawModel(flags);
-    }
+	else if (flags & STUDIO_USING_THERMALS)
+		flags |= STUDIO_HIGHLIGHT_IN_THERMALS;
 
-    bool inThermalVision = pTargetPlayer ? (pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT) : false;
-
-    int ret = 0;
-    if (inThermalVision)
-    {
-        IMaterial* pass = materials->FindMaterial(NEO_THERMAL_MODEL_MATERIAL, TEXTURE_GROUP_MODEL);
-        modelrender->ForcedMaterialOverride(pass);
-        ret = BaseClass::DrawModel(flags);
-        modelrender->ForcedMaterialOverride(nullptr);
-    }
-    else
-    {
-        ret = BaseClass::DrawModel(flags);
-    }
-
-    return ret;
+	return BaseClass::DrawModel(flags);
 }
 #endif

@@ -225,51 +225,38 @@ void CNEOPredictedViewModel::ClientThink()
 	BaseClass::ClientThink();
 }
 
-extern ConVar glow_outline_effect_enable;
 int CNEOPredictedViewModel::DrawModel(int flags)
 {
 	auto pPlayer = static_cast<C_NEO_Player*>(GetOwner());
-
-	if (pPlayer)
+	if (!pPlayer)
 	{
-		if (pPlayer->IsCloaked())
-		{
-			IMaterial *pass = materials->FindMaterial("models/player/toc", TEXTURE_GROUP_VIEW_MODEL);
-			Assert(pass && !pass->IsErrorMaterial());
-
-			if (pass && !pass->IsErrorMaterial())
-			{
-				if (!pass->IsPrecached())
-				{
-					PrecacheMaterial(pass->GetName());
-					Assert(pass->IsPrecached());
-				}
-
-				modelrender->ForcedMaterialOverride(pass);
-				int ret = BaseClass::DrawModel(flags);
-				modelrender->ForcedMaterialOverride(NULL);
-				return ret;
-			}
-
-			return 0;
-		}
-		if (pPlayer->GetClass() == NEO_CLASS_SUPPORT && pPlayer->IsInVision())
-		{
-			IMaterial* pass = materials->FindMaterial("dev/thermal_weapon_model", TEXTURE_GROUP_MODEL);
-			Assert(pass && !pass->IsErrorMaterial());
-
-			if (pass && !pass->IsErrorMaterial())
-			{
-				// Render
-				modelrender->ForcedMaterialOverride(pass);
-				int ret = BaseClass::DrawModel(flags);
-				modelrender->ForcedMaterialOverride(NULL);
-
-				return ret;
-			}
-		}
+		Assert(false);
+		return 0;
 	}
 
+	if (pPlayer->IsCloaked())
+	{
+		IMaterial *pass = materials->FindMaterial("models/player/toc", TEXTURE_GROUP_VIEW_MODEL);
+		Assert(pass && !pass->IsErrorMaterial());
+
+		if (pass && !pass->IsErrorMaterial())
+		{
+			if (!pass->IsPrecached())
+			{
+				PrecacheMaterial(pass->GetName());
+				Assert(pass->IsPrecached());
+			}
+
+			modelrender->ForcedMaterialOverride(pass);
+			int ret = BaseClass::DrawModel(flags);
+			modelrender->ForcedMaterialOverride(NULL);
+			return ret;
+		}
+
+		return 0;
+	}
+	else if (flags & STUDIO_USING_THERMALS)
+		flags |= STUDIO_HIGHLIGHT_IN_THERMALS;
 	return BaseClass::DrawModel(flags);
 }
 #endif

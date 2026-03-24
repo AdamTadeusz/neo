@@ -163,9 +163,6 @@ void FX_BloodSpray( const Vector &origin, const Vector &normal, float scale, uns
 			tParticle->m_flDieTime		= random->RandomFloat( 0.5f, 1.0f );
 
 			FloatToColor32( tParticle->m_color, color[0], color[1], color[2], 1.0f );
-#ifdef NEO
-			tParticle->m_bHighlightInThermals = true;
-#endif // NEO
 		}
 
 		//
@@ -196,9 +193,6 @@ void FX_BloodSpray( const Vector &origin, const Vector &normal, float scale, uns
 			tParticle->m_flDieTime		= random->RandomFloat( 0.5f, 1.0f );
 
 			FloatToColor32( tParticle->m_color, color[0], color[1], color[2], 1.0f );
-#ifdef NEO
-			tParticle->m_bHighlightInThermals = true;
-#endif // NEO
 		}
 	}
 
@@ -255,9 +249,6 @@ void FX_BloodSpray( const Vector &origin, const Vector &normal, float scale, uns
 					
 					pParticle->m_flRoll			= random->RandomInt( 0, 360 );
 					pParticle->m_flRollDelta	= 0.0f;
-#ifdef NEO
-					pParticle->m_bHighlightInThermals = true;
-#endif // NEO
 				}
 			}
 		}
@@ -303,9 +294,6 @@ void FX_BloodSpray( const Vector &origin, const Vector &normal, float scale, uns
 					
 					pParticle->m_flRoll			= random->RandomInt( 0, 360 );
 					pParticle->m_flRollDelta	= 0.0f;
-#ifdef NEO
-					pParticle->m_bHighlightInThermals = true;
-#endif // NEO
 				}
 			}
 		}
@@ -391,9 +379,6 @@ void FX_BloodBulletImpact( const Vector &origin, const Vector &normal, float sca
 		
 		pParticle->m_flRoll			= random->RandomInt( 0, 360 );
 		pParticle->m_flRollDelta	= 0.0f;
-#ifdef NEO
-		pParticle->m_bHighlightInThermals = true;
-#endif // NEO
 	}
 
 	// Cache the material if we haven't already
@@ -430,9 +415,6 @@ void FX_BloodBulletImpact( const Vector &origin, const Vector &normal, float sca
 			
 			pParticle->m_flRoll			= random->RandomInt( 0, 360 );
 			pParticle->m_flRollDelta	= 0.0f;
-#ifdef NEO
-			pParticle->m_bHighlightInThermals = true;
-#endif // NEO
 		}
 	}
 
@@ -482,9 +464,6 @@ void FX_BloodBulletImpact( const Vector &origin, const Vector &normal, float sca
 		tParticle->m_flDieTime		= random->RandomFloat( 0.25f, 0.5f );
 
 		FloatToColor32( tParticle->m_color, color[0], color[1], color[2], 1.0f );
-#ifdef NEO
-		tParticle->m_bHighlightInThermals = true;
-#endif // NEO
 	}
 
 	// TODO: Play a sound?

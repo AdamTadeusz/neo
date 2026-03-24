@@ -312,9 +312,6 @@ void C_BaseExplosionEffect::CreateCore( void )
 				
 				pParticle->m_flRoll			= random->RandomInt( 0, 360 );
 				pParticle->m_flRollDelta	= random->RandomFloat( -2.0f, 2.0f );
-#ifdef NEO
-				pParticle->m_bHighlightInThermals = true;
-#endif // NEO
 			}
 		}
 
@@ -374,9 +371,6 @@ void C_BaseExplosionEffect::CreateCore( void )
 				
 				pParticle->m_flRoll			= random->RandomInt( 0, 360 );
 				pParticle->m_flRollDelta	= random->RandomFloat( -8.0f, 8.0f );
-#ifdef NEO
-				pParticle->m_bHighlightInThermals = true;
-#endif // NEO
 			}
 		}
 #endif // !_XBOX
@@ -445,9 +439,6 @@ void C_BaseExplosionEffect::CreateCore( void )
 				
 				pParticle->m_flRoll			= random->RandomInt( 0, 360 );
 				pParticle->m_flRollDelta	= random->RandomFloat( -8.0f, 8.0f );
-#ifdef NEO
-				pParticle->m_bHighlightInThermals = true;
-#endif // NEO
 			}
 		}
 #endif
@@ -514,9 +505,6 @@ void C_BaseExplosionEffect::CreateCore( void )
 			
 			pParticle->m_flRoll			= random->RandomInt( 0, 360 );
 			pParticle->m_flRollDelta	= random->RandomFloat( -8.0f, 8.0f );
-#ifdef NEO
-			pParticle->m_bHighlightInThermals = true;
-#endif // NEO
 		}
 	}
 #endif // !_XBOX
@@ -581,9 +569,6 @@ void C_BaseExplosionEffect::CreateCore( void )
 			
 			pParticle->m_flRoll			= random->RandomInt( 0, 360 );
 			pParticle->m_flRollDelta	= random->RandomFloat( -16.0f, 16.0f );
-#ifdef NEO
-			pParticle->m_bHighlightInThermals = true;
-#endif // NEO
 		}
 	}
 }
@@ -1450,9 +1435,6 @@ void C_MegaBombExplosionEffect::CreateCore( void )
 			
 			pParticle->m_flRoll			= random->RandomInt( 0, 360 );
 			pParticle->m_flRollDelta	= random->RandomFloat( -16.0f, 16.0f );
-#ifdef NEO
-			pParticle->m_bHighlightInThermals = true;
-#endif // NEO
 		}
 	}
 }

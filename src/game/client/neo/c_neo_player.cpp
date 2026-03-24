@@ -667,9 +667,6 @@ int C_NEO_Player::GetMaxHealth() const
 	return g_PR ? g_PR->GetMaxHealth(entindex()) : 1;
 }
 
-#ifdef GLOWS_ENABLE
-extern ConVar glow_outline_effect_enable;
-#endif // GLOWS_ENABLE
 int C_NEO_Player::DrawModel(int flags)
 {
 	if (flags & STUDIO_IGNORE_NEO_EFFECTS || !(flags & STUDIO_RENDER))
@@ -677,38 +674,18 @@ int C_NEO_Player::DrawModel(int flags)
 		return BaseClass::DrawModel(flags);
 	}
 
-	auto pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
-	if (!pTargetPlayer)
-	{
-		Assert(false);
-		return BaseClass::DrawModel(flags);
-	}
-	
-	bool inThermalVision = pTargetPlayer ? (pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT) : false;
-
-	int ret = 0;
-	if (!IsCloaked() || inThermalVision)
-	{
-		ret |= BaseClass::DrawModel(flags);
-	}
-
-	if (IsCloaked() && !inThermalVision)
+	if (IsCloaked())
 	{
 		IMaterial* pass = materials->FindMaterial("models/player/toc", TEXTURE_GROUP_CLIENT_EFFECTS);
 		modelrender->ForcedMaterialOverride(pass);
-		ret |= BaseClass::DrawModel(flags);
+		int ret = BaseClass::DrawModel(flags);
 		modelrender->ForcedMaterialOverride(nullptr);
+		return ret;
 	}
+	else if (flags & STUDIO_USING_THERMALS)
+		flags |= STUDIO_HIGHLIGHT_IN_THERMALS;
 
-	else if (inThermalVision && !IsCloaked())
-	{
-		IMaterial* pass = materials->FindMaterial(NEO_THERMAL_MODEL_MATERIAL, TEXTURE_GROUP_MODEL);
-		modelrender->ForcedMaterialOverride(pass);
-		ret |= BaseClass::DrawModel(flags);
-		modelrender->ForcedMaterialOverride(nullptr);
-	}
-
-	return ret;
+	return BaseClass::DrawModel(flags);
 }
 
 void C_NEO_Player::AddEntity( void )
@@ -839,6 +816,9 @@ Vector C_NEO_Player::GetAutoaimVector( float flDelta )
 	return BaseClass::GetAutoaimVector(flDelta);
 }
 
+#ifdef GLOWS_ENABLE
+extern ConVar glow_outline_effect_enable;
+#endif // GLOWS_ENABLE
 void C_NEO_Player::NotifyShouldTransmit( ShouldTransmitState_t state )
 {
 #ifdef GLOWS_ENABLE

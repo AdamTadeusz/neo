@@ -62,7 +62,11 @@ void TermSmokeFogOverlay()
 
 void DrawSmokeFogOverlay()
 {
+#ifdef NEO
+	if (g_SmokeFogOverlayThermalOverride || g_SmokeFogOverlayAlpha == 0 || !g_pSmokeFogMaterial || !materials)
+#else
 	if (g_SmokeFogOverlayAlpha == 0 || !g_pSmokeFogMaterial || !materials)
+#endif // NEO
 	{
 		return;
 	}
@@ -129,7 +133,7 @@ void DrawSmokeFogOverlay()
 	meshBuilder.End();
 	pMesh->Draw();
 	
-#ifdef NEO
+#ifdef NEO // glows which are now rendered after, among other things, the smoke fog overlay is drawn, break if we don't do this
 	pRenderContext->LoadMatrix(matrixModel);
 	pRenderContext->MatrixMode( MATERIAL_PROJECTION );
 	pRenderContext->LoadMatrix(matrixProjection);
@@ -151,7 +155,6 @@ void UpdateThermalOverride()
 		if (localPlayer->GetClass() == NEO_CLASS_SUPPORT && localPlayer->IsInVision())
 		{
 			g_SmokeFogOverlayThermalOverride = true;
-			g_SmokeFogOverlayAlpha = 0;
 			return;
 		}
 	}
@@ -163,7 +166,6 @@ void UpdateThermalOverride()
 			if (targetPlayer->GetClass() == NEO_CLASS_SUPPORT && targetPlayer->IsInVision())
 			{
 				g_SmokeFogOverlayThermalOverride = true;
-				g_SmokeFogOverlayAlpha = 0;
 				return;
 			}
 		}
@@ -172,7 +174,6 @@ void UpdateThermalOverride()
 	else if (localPlayer->IsObserver() && (localPlayer->GetTeamNumber() == TEAM_SPECTATOR || mp_forcecamera.GetInt() == OBS_ALLOW_ALL))
 	{
 		g_SmokeFogOverlayThermalOverride = false;
-		g_SmokeFogOverlayAlpha = 0;
 		return;
 	}
 #endif // GLOWS_ENABLE

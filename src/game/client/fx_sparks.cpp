@@ -228,27 +228,10 @@ void CTrailParticles::RenderParticles( CParticleRenderIterator *pIterator )
 			ramp = ( 1.0f - ( pParticle->m_flLifetime / pParticle->m_flDieTime  ) );
 		}
 
-#ifdef NEO
-		if (pIterator->m_bInThermalVision && pParticle->m_bHighlightInThermals)
-		{
-			color[0] = 255 * ramp * (1.0f / 255.0f);
-			color[1] = 255 * ramp * (1.0f / 255.0f);
-			color[2] = 255 * ramp * (1.0f / 255.0f);
-			color[3] = 255 * ramp * (1.0f / 255.0f);
-		}
-		else
-		{
-			color[0] = pParticle->m_color.r * ramp * (1.0f / 255.0f);
-			color[1] = pParticle->m_color.g * ramp * (1.0f / 255.0f);
-			color[2] = pParticle->m_color.b * ramp * (1.0f / 255.0f);
-			color[3] = pParticle->m_color.a * ramp * (1.0f / 255.0f);
-		}
-#else
 		color[0] = pParticle->m_color.r * ramp * (1.0f / 255.0f);
 		color[1] = pParticle->m_color.g * ramp * (1.0f / 255.0f);
 		color[2] = pParticle->m_color.b * ramp * (1.0f / 255.0f);
 		color[3] = pParticle->m_color.a * ramp * (1.0f / 255.0f);
-#endif // NEO
 
 		float	flLength = (pParticle->m_vecVelocity * scale).Length();//( delta - pos ).Length();
 		float	flWidth	 = ( flLength < pParticle->m_flWidth ) ? flLength : pParticle->m_flWidth;
@@ -375,9 +358,6 @@ void FX_ElectricSpark( const Vector &pos, int nMagnitude, int nTrailLength, cons
 		pParticle->m_vecVelocity	= dir * random->RandomFloat( SPARK_ELECTRIC_MINSPEED, SPARK_ELECTRIC_MAXSPEED );
 
 		Color32Init( pParticle->m_color, 255, 255, 255, 255 );
-#ifdef NEO
-		pParticle->m_bHighlightInThermals = true;
-#endif // NEO
 	}
 
 #ifdef _XBOX
@@ -451,9 +431,6 @@ void FX_ElectricSpark( const Vector &pos, int nMagnitude, int nTrailLength, cons
 		pParticle->m_vecVelocity	= dir * random->RandomFloat( 128, 256 );
 
 		Color32Init( pParticle->m_color, 255, 255, 255, 255 );
-#ifdef NEO
-		pParticle->m_bHighlightInThermals = true;
-#endif // NEO
 	}
 
 	//
@@ -486,9 +463,6 @@ void FX_ElectricSpark( const Vector &pos, int nMagnitude, int nTrailLength, cons
 	sParticle->m_uchEndSize		= 0;
 	sParticle->m_flRoll			= random->RandomInt( 0, 360 );
 	sParticle->m_flRollDelta	= 0.0f;
-#ifdef NEO
-	sParticle->m_bHighlightInThermals = true;
-#endif // NEO
 	
 	sParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), pSimple->GetPMaterial( "effects/yellowflare_noz" ), pos );
 		
@@ -510,9 +484,6 @@ void FX_ElectricSpark( const Vector &pos, int nMagnitude, int nTrailLength, cons
 	sParticle->m_uchEndSize		= 0;
 	sParticle->m_flRoll			= random->RandomInt( 0, 360 );
 	sParticle->m_flRollDelta	= random->RandomFloat( -1.0f, 1.0f );
-#ifdef NEO
-	sParticle->m_bHighlightInThermals = true;
-#endif // NEO
 
 	//
 	// Smoke
@@ -632,9 +603,6 @@ void FX_MetalScrape( Vector &position, Vector &normal )
 		pParticle->m_vecVelocity	= dir * random->RandomFloat( (METAL_SCRAPE_MINSPEED*(2.0f-spreadOfs)), (METAL_SCRAPE_MAXSPEED*(2.0f-spreadOfs)) );
 		
 		Color32Init( pParticle->m_color, 255, 255, 255, 255 );
-#ifdef NEO
-		pParticle->m_bHighlightInThermals = true;
-#endif // NEO
 	}
 }
 
@@ -721,9 +689,6 @@ void FX_MetalSpark( const Vector &position, const Vector &direction, const Vecto
 		pParticle->m_vecVelocity	= dir * random->RandomFloat( (METAL_SPARK_MINSPEED*(2.0f-spreadOfs)), (METAL_SPARK_MAXSPEED*(2.0f-spreadOfs)) );
 		
 		Color32Init( pParticle->m_color, 255, 255, 255, 255 );
-#ifdef NEO
-		pParticle->m_bHighlightInThermals = true;
-#endif // NEO
 	}
 
 	//
@@ -819,9 +784,6 @@ void FX_Sparks( const Vector &pos, int nMagnitude, int nTrailLength, const Vecto
 		pParticle->m_flWidth		= flWidth + random->RandomFloat( 0.0f, 0.5f );
 		pParticle->m_flLength		= nTrailLength * random->RandomFloat( 0.02, 0.05f );
 		Color32Init( pParticle->m_color, 255, 255, 255, 255 );
-#ifdef NEO
-		pParticle->m_bHighlightInThermals = true;
-#endif // NEO
 	}
 
 	//
@@ -877,9 +839,6 @@ void FX_Sparks( const Vector &pos, int nMagnitude, int nTrailLength, const Vecto
 		pParticle->m_vecVelocity	= dir * random->RandomFloat( flMinSpeed, flMaxSpeed );
 		
 		Color32Init( pParticle->m_color, 255, 255, 255, 255 );
-#ifdef NEO
-		pParticle->m_bHighlightInThermals = true;
-#endif // NEO
 	}
 }
 
@@ -1566,9 +1525,6 @@ void FX_SparkFan( Vector &position, Vector &normal )
 		pParticle->m_vecVelocity	= dir * random->RandomFloat( (METAL_SCRAPE_MINSPEED*(2.0f-spreadOfs)), (METAL_SCRAPE_MAXSPEED*(2.0f-spreadOfs)) );
 		
 		Color32Init( pParticle->m_color, 255, 255, 255, 255 );
-#ifdef NEO
-		pParticle->m_bHighlightInThermals = true;
-#endif // NEO
 	}
 }
 

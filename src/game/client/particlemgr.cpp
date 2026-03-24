@@ -812,9 +812,6 @@ int CParticleEffectBinding::DrawMaterialParticles(
 	renderIterator.m_pMeshBuilder = &builder;
 	renderIterator.m_pMesh = pMesh;
 	renderIterator.m_bBucketSort = bBucketSort;
-#ifdef NEO
-	renderIterator.m_bInThermalVision = bInThermalVision;
-#endif // NEO
 
 	m_pSim->RenderParticles( &renderIterator );
 	g_nParticlesDrawn += m_nActiveParticles;
@@ -824,9 +821,20 @@ int CParticleEffectBinding::DrawMaterialParticles(
 		DoBucketSort( pMaterial, renderIterator.m_zCoords, renderIterator.m_nZCoords, renderIterator.m_MinZ, renderIterator.m_MaxZ );
 	}
 
+#ifdef NEO
+	if (bInThermalVision)// && !Q_strcmp("smokegrenade", m_pSim->GetEffectName()))
+	{
+		IMatRenderContext* pRenderContext = materials->GetRenderContext();
+		pRenderContext->SetStencilReferenceValue(NEO_HIGHLIGHT_THERMALS);
+		pRenderContext->SetStencilWriteMask(NEO_HIGHLIGHT_THERMALS);
+		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+		pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+	}
+#endif // NEO
+
 	// Flush out any remaining particles.
 	builder.End( false, true );
-	
+
 	return m_nActiveParticles;
 }
 

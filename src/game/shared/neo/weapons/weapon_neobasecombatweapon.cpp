@@ -1262,30 +1262,19 @@ int CNEOBaseCombatWeapon::DrawModel(int flags)
 	}
 
 	auto pOwner = static_cast<C_NEO_Player *>(GetOwner());
-	bool inThermalVision = pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT;
-	int ret = 0;
-
-	if (inThermalVision && (!pOwner || (pOwner && !pOwner->IsCloaked())))
+	if (flags & STUDIO_USING_THERMALS && (!pOwner || (pOwner && !pOwner->IsCloaked())))
 	{
-		IMaterial* pass = materials->FindMaterial("dev/thermal_weapon_model", TEXTURE_GROUP_MODEL);
-		modelrender->ForcedMaterialOverride(pass);
-		ret |= BaseClass::DrawModel(flags);
-		modelrender->ForcedMaterialOverride(nullptr);
-		return ret;
+		flags |= STUDIO_HIGHLIGHT_IN_THERMALS;
 	}
-
-	if ((pOwner && pOwner->IsCloaked()) && !inThermalVision)
+	else if (pOwner && pOwner->IsCloaked())
 	{
 		IMaterial* pass = materials->FindMaterial("models/player/toc", TEXTURE_GROUP_CLIENT_EFFECTS);
 		modelrender->ForcedMaterialOverride(pass);
-		ret |= BaseClass::DrawModel(flags);
+		int ret = BaseClass::DrawModel(flags);
 		modelrender->ForcedMaterialOverride(nullptr);
 		return ret;
 	}
-	else
-	{
-		return BaseClass::DrawModel(flags);
-	}
+	return BaseClass::DrawModel(flags);
 }
 
 RenderGroup_t CNEOBaseCombatWeapon::GetRenderGroup()

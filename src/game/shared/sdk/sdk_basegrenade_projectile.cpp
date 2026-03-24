@@ -78,9 +78,7 @@ ConVar cl_neo_grenade_show_path("cl_neo_grenade_show_path", "0", FCVAR_ARCHIVE |
 
 #ifdef NEO
 #include "c_neo_player.h"
-#ifdef GLOWS_ENABLE
-	extern ConVar glow_outline_effect_enable;
-#endif // GLOWS_ENABLE
+#include "model_types.h"
 #endif // NEO
 	int CBaseGrenadeProjectile::DrawModel( int flags )
 	{
@@ -101,17 +99,8 @@ ConVar cl_neo_grenade_show_path("cl_neo_grenade_show_path", "0", FCVAR_ARCHIVE |
 		}
 #endif // NEO
 #ifdef NEO
-		auto pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
-		bool inThermalVision = pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT;
-		if (inThermalVision)
-		{
-			int ret = 0;
-			IMaterial* pass = materials->FindMaterial("dev/thermal_grenade_projectile_model", TEXTURE_GROUP_MODEL);
-			modelrender->ForcedMaterialOverride(pass);
-			ret |= BaseClass::DrawModel(flags);
-			modelrender->ForcedMaterialOverride(nullptr);
-			return ret;
-		}
+		if (flags & STUDIO_USING_THERMALS)
+			flags |= STUDIO_HIGHLIGHT_IN_THERMALS;
 #endif // NEO
 		return BaseClass::DrawModel( flags );
 	}

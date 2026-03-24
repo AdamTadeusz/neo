@@ -20,6 +20,7 @@
 
 #ifdef NEO
 #include "c_neo_player.h"
+#include "smoke_fog_overlay.h"
 #endif
 
 #include "tier0/vprof.h"
@@ -2342,6 +2343,8 @@ void DoNEOVision(const int neoClass, const int x, const int y, const int w, cons
 	const int nSrcWidth = pFbTex->GetActualWidth();
 	const int nSrcHeight = pFbTex->GetActualHeight();
 
+	constexpr float SMOKE_FOG_OVERLAY_THRESHOLD_TO_FILL_SCREEN = 1.4f;
+	bool bDoStencil = false;
 	IMaterial* pVMat;
 	switch (neoClass)
 	{
@@ -2353,6 +2356,19 @@ void DoNEOVision(const int neoClass, const int x, const int y, const int w, cons
 		pVMat = materials->FindMaterial("dev/neo_motionvision", TEXTURE_GROUP_OTHER, true);
 		break;
 	case NEO_CLASS_SUPPORT:
+		// We only want to draw thermal vision where NEO_HIGHLIGHT_THERMALS stencil bit is set, or everywhere if inside the smoke
+		if (g_SmokeFogOverlayAlpha < SMOKE_FOG_OVERLAY_THRESHOLD_TO_FILL_SCREEN)
+		{
+			bDoStencil = true;
+			pRenderContext->SetStencilEnable(true);
+			pRenderContext->SetStencilReferenceValue(NEO_HIGHLIGHT_THERMALS);
+			pRenderContext->SetStencilTestMask(NEO_HIGHLIGHT_THERMALS);
+			pRenderContext->SetStencilWriteMask(0x0);
+			pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_EQUAL);
+			pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+			pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+			pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+		}
 		pVMat = materials->FindMaterial("dev/neo_thermalvision", TEXTURE_GROUP_OTHER, true);
 		break;
 	default:
@@ -2374,6 +2390,11 @@ void DoNEOVision(const int neoClass, const int x, const int y, const int w, cons
 		0, 0, w, h,
 		0, 0, nSrcWidth - 1, nSrcHeight - 1,
 		nSrcWidth, nSrcHeight, GetClientWorldEntity()->GetClientRenderable());
+	
+	if (bDoStencil)
+	{
+		pRenderContext->SetStencilEnable(false);
+	}
 }
 
 void DoColorblindnessPostProcessing(const int x, const int y, const int w, const int h)
@@ -2404,11 +2425,6 @@ void DoColorblindnessPostProcessing(const int x, const int y, const int w, const
 }
 #endif
 
-#ifdef NEO
-#ifdef GLOWS_ENABLE
-extern ConVar glow_outline_effect_enable;
-#endif // GLOWS_ENABLE
-#endif // NEO
 void DoEnginePostProcessing( int x, int y, int w, int h, bool bFlashlightIsOn, bool bPostVGui )
 {
 	tmZone( TELEMETRY_LEVEL0, TMZF_NONE, "%s", __FUNCTION__ );
@@ -2446,26 +2462,6 @@ void DoEnginePostProcessing( int x, int y, int w, int h, bool bFlashlightIsOn, b
 	float flBloomScale = GetBloomAmount();
 
 	HDRType_t hdrType = g_pMaterialSystemHardwareConfig->GetHDRType();
-#ifdef NEO
-	auto target = C_NEO_Player::GetLocalNEOPlayer();
-	if (target)
-	{
-		if (target->GetObserverMode() == OBS_MODE_IN_EYE)
-		{
-			AssertMsg(!target->GetObserverTarget() || dynamic_cast<C_NEO_Player*>(target->GetObserverTarget()), "can't cast obs target into neo player");
-			target = static_cast<C_NEO_Player*>(target->GetObserverTarget());
-		}
-		if (target && target->IsInVision()) // don't want HDR to interfere with vision effects
-		{
-			if (hdrType == HDR_TYPE_INTEGER || hdrType == HDR_TYPE_FLOAT)
-			{
-				SetToneMapScale(pRenderContext, 1.f, 0.5f, 2.f);
-			}
-			hdrType = HDR_TYPE_NONE;
-			flBloomScale = 0.f;
-		}
-	}
-#endif
 
 	g_bFlashlightIsOn = bFlashlightIsOn;
 
@@ -2548,9 +2544,6 @@ void DoEnginePostProcessing( int x, int y, int w, int h, bool bFlashlightIsOn, b
 										  ( g_pMaterialSystemHardwareConfig->GetDXSupportLevel() >= 90) &&
 										  ( g_pMaterialSystemHardwareConfig->GetHDRType() != HDR_TYPE_FLOAT ) &&
 										  g_pColorCorrectionMgr->HasNonZeroColorCorrectionWeights() &&
-#ifdef NEO
-										  (!target || (target && !target->IsInVision())) &&
-#endif // NEO
 										  mat_colorcorrection.GetInt();
 			bool  bSplitScreenHDR		= mat_show_ab_hdr.GetInt();
 			pRenderContext->EnableColorCorrection( bPerformColCorrect );

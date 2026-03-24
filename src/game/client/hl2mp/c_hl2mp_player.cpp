@@ -22,6 +22,7 @@
 #include "c_neo_player.h"
 #include "neo_player_shared.h"
 #include "in_main.h"
+#include "model_types.h"
 #endif
 
 // Don't alias here
@@ -1479,27 +1480,10 @@ void C_HL2MPRagdoll::SetupWeights( const matrix3x4_t *pBoneToWorld, int nFlexWei
 	}
 }
 #ifdef NEO
-#ifdef GLOWS_ENABLE
-extern ConVar glow_outline_effect_enable;
-#endif // GLOWS_ENABLE
 int C_HL2MPRagdoll::DrawModel(int flags)
 {
-	auto pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
-	if (!pTargetPlayer)
-	{
-		Assert(false);
-		return BaseClass::DrawModel(flags);
-	}
-
-	bool inThermalVision = pTargetPlayer ? (pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT) : false;
-	if (inThermalVision)
-	{
-		IMaterial* pass = materials->FindMaterial(NEO_THERMAL_MODEL_MATERIAL, TEXTURE_GROUP_MODEL);
-		modelrender->ForcedMaterialOverride(pass);
-		int ret = BaseClass::DrawModel(flags);
-		modelrender->ForcedMaterialOverride(nullptr);
-		return ret;
-	}
+	if (flags & STUDIO_USING_THERMALS)
+		flags |= STUDIO_HIGHLIGHT_IN_THERMALS;
 
 	return BaseClass::DrawModel(flags);
 }
