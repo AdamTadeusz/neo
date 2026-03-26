@@ -2409,7 +2409,7 @@ void DoNEOVision(const int neoClass, const int x, const int y, const int w, cons
 		
 		pRenderContext->SetStencilEnable(true);
 		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_HIGHLIGHT);
-		pRenderContext->SetStencilTestMask(NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_TRANSLUCENT | NEO_GLOW_VIEWMODEL);
+		pRenderContext->SetStencilTestMask(NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_TRANSLUCENT );
 		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_EQUAL);
 		pRenderContext->DrawScreenSpaceRectangle(pVMat,
 			0, 0, w, h,

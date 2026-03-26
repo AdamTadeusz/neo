@@ -1229,13 +1229,25 @@ void CViewRender::DrawViewModels( const CViewSetup &viewRender, bool drawViewmod
 #if defined NEO && defined GLOWS_ENABLE
 		// Toggles the viewmodel bit in the stencil layer for all pixels where an opaque viewmodel is drawn
 		pRenderContext->SetStencilEnable(true);
-		pRenderContext->SetStencilReferenceValue(NEO_GLOW_VIEWMODEL);
-		pRenderContext->SetStencilWriteMask(NEO_GLOW_VIEWMODEL);
+		pRenderContext->SetStencilReferenceValue(NEO_GLOW_VIEWMODEL | NEO_THERMALS_HIGHLIGHT);
+		pRenderContext->SetStencilWriteMask(NEO_GLOW_VIEWMODEL | NEO_THERMALS_HIGHLIGHT);
 		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
 #endif // NEO && GLOWS_ENABLE
 		DrawRenderablesInList( opaqueViewModelList );
 #if defined NEO && defined GLOWS_ENABLE
-		pRenderContext->SetStencilEnable(false);
+		pRenderContext->PushRenderTargetAndViewport();
+		ITexture* neoTexture = GetNEOVisionTexture();
+		pRenderContext->SetRenderTarget(neoTexture);
+		pRenderContext->Viewport(0,0,neoTexture->GetActualWidth(),neoTexture->GetActualHeight());
+		IMaterial *pMatGlowColor = NULL;
+		pMatGlowColor = materials->FindMaterial( "dev/glow_color", TEXTURE_GROUP_OTHER, true );
+		g_pStudioRender->ForcedMaterialOverride(pMatGlowColor);
+		//Vector vGlowColor = Vector(1, 1, 1);
+		//render->SetColorModulation( &vGlowColor[0] ); // This only sets rgb, not alpha
+		//render->SetBlend( 1 );
+		DrawRenderablesInList( opaqueViewModelList );
+		g_pStudioRender->ForcedMaterialOverride(nullptr);
+		pRenderContext->PopRenderTargetAndViewport();
 #endif // NEO && GLOWS_ENABLE
 		DrawRenderablesInList( translucentViewModelList, STUDIO_TRANSPARENCY );
 	}
@@ -4620,8 +4632,8 @@ static inline void DrawTranslucentRenderable( IClientRenderable *pEnt, bool twoP
 		pEnt->DrawModel( flags );
 		view->SetCurrentlyDrawingEntity( NULL );
 	}
-
-	if (dynamic_cast<CParticleEffectBinding *>(pEnt))
+	
+	if (g_CurrentViewID == VIEW_MAIN && dynamic_cast<CParticleEffectBinding *>(pEnt))
 	{
 		IMatRenderContext* pRenderContext = materials->GetRenderContext();
 		pRenderContext->SetStencilEnable(true);
@@ -4825,14 +4837,17 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 		DrawParticleSingletons( bInSkybox );
 		
 #ifdef NEO
-		CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
-		pRenderContext->SetStencilEnable(true);
-		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
-		pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
-		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-		pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
-		pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
-		pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+		if (g_CurrentViewID == VIEW_MAIN)
+		{
+			CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
+			pRenderContext->SetStencilEnable(true);
+			pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
+			pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
+			pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+			pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+			pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+			pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+		}
 #endif // NEO
 
 		CClientRenderablesList::CEntry *pEntities = m_pRenderablesList->m_RenderGroups[RENDER_GROUP_TRANSLUCENT_ENTITY];
@@ -4959,13 +4974,16 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 	
 #ifdef NEO
 	CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
-	pRenderContext->SetStencilEnable(true);
-	pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
-	pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
-	pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-	pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
-	pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
-	pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+	if (g_CurrentViewID == VIEW_MAIN)
+	{
+		pRenderContext->SetStencilEnable(true);
+		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
+		pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
+		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+		pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+		pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+		pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+	}
 #endif // NEO
 	// Draw the rest of the surfaces in world leaves
 	DrawTranslucentWorldAndDetailPropsInLeaves( iPrevLeaf, 0, nEngineDrawFlags, nDetailLeafCount, pDetailLeafList, bShadowDepth );
@@ -4974,7 +4992,10 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 	DetailObjectSystem()->RenderTranslucentDetailObjects( CurrentViewOrigin(), CurrentViewForward(), CurrentViewRight(), CurrentViewUp(), nDetailLeafCount, pDetailLeafList );
 	
 #ifdef NEO
-	pRenderContext->SetStencilEnable(false);
+	if (g_CurrentViewID == VIEW_MAIN)
+	{
+		pRenderContext->SetStencilEnable(false);
+	}
 #endif // NEO
 	// Reset the blend state.
 	render->SetBlend( 1 );
