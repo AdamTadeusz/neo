@@ -3228,6 +3228,7 @@ void C_BaseAnimating::UpdateVisibility()
 
 ConVar r_drawothermodels( "r_drawothermodels", "1", FCVAR_CHEAT, "0=Off, 1=Normal, 2=Wireframe" );
 
+ConVar cl_neo_thermals_overwrite_lighting("cl_neo_thermals_overwrite_lighting", "1", FCVAR_NONE);
 //-----------------------------------------------------------------------------
 // Purpose: Draws the object
 // Input  : flags - 
@@ -3305,10 +3306,8 @@ int C_BaseAnimating::DrawModel( int flags )
 		}
 
 		CMatRenderContextPtr pRenderContext(materials);
-		bool isHot = false;
-		if (flags & STUDIO_HIGHLIGHT_IN_THERMALS)
+		if (flags & STUDIO_HIGHLIGHT_IN_THERMALS && !IsViewModel())
 		{
-			isHot = true;
 			pRenderContext->SetStencilEnable(true);
 			pRenderContext->SetStencilReferenceValue(IsViewModel() ? NEO_THERMALS_HIGHLIGHT | NEO_GLOW_VIEWMODEL : NEO_THERMALS_HIGHLIGHT);
 			pRenderContext->SetStencilWriteMask(IsViewModel() ? NEO_THERMALS_HIGHLIGHT | NEO_GLOW_VIEWMODEL : NEO_THERMALS_HIGHLIGHT);
@@ -3317,6 +3316,45 @@ int C_BaseAnimating::DrawModel( int flags )
 			pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
 			pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
 			pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+			
+			Vector origin = GetAbsOrigin();
+			Vector vecColor;
+			Vector boxColors[6];
+			engine->ComputeLighting( origin, nullptr, true, vecColor, boxColors );
+			const float lightLevelSquared = vecColor.Length2D();
+			const float currentLightLevelSquared = LerpFloat(m_flPreviousLightLevelSquared, lightLevelSquared, gpGlobals->frametime);
+			m_flPreviousLightLevelSquared = currentLightLevelSquared;
+			if (currentLightLevelSquared < cl_neo_thermals_overwrite_lighting.GetFloat()) // We cannot account for local lights when suppressing engine lighting, only make the object glow if it's fairly dark
+			{
+				const float glowStrength = 0.2f * ((cl_neo_thermals_overwrite_lighting.GetFloat() - (float)currentLightLevelSquared) / cl_neo_thermals_overwrite_lighting.GetFloat());
+				const Vector4D orange = { 1 * glowStrength, 0.4f * glowStrength, 0 * glowStrength, 1.f };
+				static Vector4D orange6[6] = 
+				{
+					orange,
+					orange,
+					orange,
+					orange,
+					orange,
+					orange,
+				};
+				vecColor += orange.AsVector3D(); // A slight orange glow
+				boxColors[0] += orange.AsVector3D();
+				boxColors[1] += orange.AsVector3D();
+				boxColors[2] += orange.AsVector3D();
+				boxColors[3] += orange.AsVector3D();
+				boxColors[4] += orange.AsVector3D();
+				boxColors[5] += orange.AsVector3D();
+			
+				pRenderContext->SetLightingOrigin( vec3_origin );
+				pRenderContext->SetAmbientLightCube(orange6);
+				g_pStudioRender->SetAmbientLightColors( boxColors );
+				g_pStudioRender->SetLocalLights(0, nullptr);
+			
+
+				//pRenderContext->SetAmbientLight( vecColor.x, vecColor.y, vecColor.z );
+				//g_pStudioRender->SetAmbientLightColors( &vecColor );
+				modelrender->SuppressEngineLighting( true );
+			}
 		}
 
 #endif // NEO
@@ -3369,6 +3407,7 @@ int C_BaseAnimating::DrawModel( int flags )
 		if (flags & STUDIO_HIGHLIGHT_IN_THERMALS)
 		{
 			pRenderContext->SetStencilEnable(false);
+			modelrender->SuppressEngineLighting( false );
 		}
 #endif // NEO
 	}
@@ -3625,12 +3664,12 @@ int C_BaseAnimating::InternalDrawModel( int flags )
 			}
 		}
 	}
-	else if (IsBaseCombatWeapon() && !GetMoveParent())
-	{ // dropped weapons can become dark when they rotate such that their origin falls through the floor
-		static Vector worldSpaceCenter;
-		worldSpaceCenter = WorldSpaceCenter();
-		pInfo->pLightingOrigin = &worldSpaceCenter;
-	}
+	//else if (IsBaseCombatWeapon() && !GetMoveParent())
+	//{ // dropped weapons can become dark when they rotate such that their origin falls through the floor
+	//	static Vector worldSpaceCenter;
+	//	worldSpaceCenter = WorldSpaceCenter();
+	//	pInfo->pLightingOrigin = &worldSpaceCenter;
+	//}
 #endif // NEO
 
 	DrawModelState_t state;

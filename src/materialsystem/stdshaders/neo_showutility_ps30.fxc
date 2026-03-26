@@ -54,6 +54,7 @@ float4 main( const PS_INPUT i ) : COLOR
 	{ // Lower the strength of the effect as the background becomes more similar to the occluded image. Allows lines in smokes to blend into the edge of the smoke nicely
 		alpha *= sqrt(pow(fbTextureColor.rgb - utilTextureColor.rgb, 2));
 	}
+	
 	alpha *= g_vStrength;
 	
 	sobel.rgb = 1.0f - sobel.rgb;

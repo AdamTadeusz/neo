@@ -608,6 +608,7 @@ protected:
 	bool							m_bIsGib;
 public:
 	float							m_flNeoCreateTime;
+	float							m_flPreviousLightLevelSquared = 0.f;
 #endif // NEO
 
 private:
