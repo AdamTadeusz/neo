@@ -122,6 +122,22 @@ ITexture *GetFullFrameFrameBufferTexture( int textureIndex )
 }
 
 
+#ifdef NEO
+// Intermediate utility fullscreen texture for neovisions
+static CTextureReference s_pNEOVisionTexture;
+ITexture *GetNEOVisionTexture( void )
+{
+	if ( !s_pNEOVisionTexture )
+	{
+		s_pNEOVisionTexture.Init( materials->FindTexture( "_rt_NEOVision", TEXTURE_GROUP_RENDER_TARGET ) );
+		Assert( !IsErrorTexture( s_pNEOVisionTexture ) );
+		AddReleaseFunc();
+	}
+	
+	return s_pNEOVisionTexture;
+}
+#endif // NEO
+
 //=============================================================================
 // Water reflection
 //=============================================================================

@@ -868,6 +868,7 @@ CLIENTEFFECT_REGISTER_BEGIN( PrecachePostProcessingEffects )
 	CLIENTEFFECT_MATERIAL("dev/neo_nightvision")
 	CLIENTEFFECT_MATERIAL("dev/neo_motionvision")
 	CLIENTEFFECT_MATERIAL("dev/neo_thermalvision")
+	CLIENTEFFECT_MATERIAL("dev/neo_utility")
 
 	CLIENTEFFECT_MATERIAL("dev/neo_colorblind_adjust")
 
@@ -1093,7 +1094,11 @@ void CViewRender::DrawRenderablesInList( CUtlVector< IClientRenderable * > &list
 {
 #ifdef NEO
 	auto pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
-	if (pTargetPlayer && pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT)
+	if (flags & STUDIO_USING_THERMALS)
+	{
+		flags &= !STUDIO_USING_THERMALS;
+	}
+	else if (pTargetPlayer && pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT)
 	{
 		flags |= STUDIO_USING_THERMALS;
 	}
@@ -1222,14 +1227,11 @@ void CViewRender::DrawViewModels( const CViewSetup &viewRender, bool drawViewmod
 		}
 		
 #if defined NEO && defined GLOWS_ENABLE
-		// toggles the viewmodel bit in the stencil layer for all pixels where an opaque viewmodel is drawn
+		// Toggles the viewmodel bit in the stencil layer for all pixels where an opaque viewmodel is drawn
 		pRenderContext->SetStencilEnable(true);
 		pRenderContext->SetStencilReferenceValue(NEO_GLOW_VIEWMODEL);
 		pRenderContext->SetStencilWriteMask(NEO_GLOW_VIEWMODEL);
 		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-		pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
-		pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
-		pRenderContext->SetStencilZFailOperation(STENCILOPERATION_REPLACE);
 #endif // NEO && GLOWS_ENABLE
 		DrawRenderablesInList( opaqueViewModelList );
 #if defined NEO && defined GLOWS_ENABLE
@@ -4170,9 +4172,9 @@ static inline void DrawOpaqueRenderable( IClientRenderable *pEnt, bool bTwoPass,
 		// this way no matter what order objects are drawn in we don't see thermal highlights through objects
 		CMatRenderContextPtr pRenderContext( materials );
 		pRenderContext->SetStencilEnable(true);
-		pRenderContext->SetStencilReferenceValue(NEO_HIGHLIGHT_THERMALS);
+		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_HIGHLIGHT);
 		pRenderContext->SetStencilTestMask(0x0);
-		pRenderContext->SetStencilWriteMask(NEO_HIGHLIGHT_THERMALS);
+		pRenderContext->SetStencilWriteMask(NEO_THERMALS_HIGHLIGHT); // opaques are drawn before translucents, no need to clear NEO_THERMALS_TRANSLUCENT or ..PARTICLE here
 		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
 		pRenderContext->SetStencilPassOperation(STENCILOPERATION_ZERO);
 		pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
@@ -4274,7 +4276,7 @@ static void DrawOpaqueRenderables_DrawStaticProps( CClientRenderablesList::CEntr
 #ifdef NEO
 	CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
 	pRenderContext->SetStencilEnable(true);
-	pRenderContext->SetStencilWriteMask(NEO_HIGHLIGHT_THERMALS);
+	pRenderContext->SetStencilWriteMask(NEO_THERMALS_HIGHLIGHT);
 	pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
 	pRenderContext->SetStencilPassOperation(STENCILOPERATION_ZERO);
 	pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
@@ -4618,12 +4620,19 @@ static inline void DrawTranslucentRenderable( IClientRenderable *pEnt, bool twoP
 		pEnt->DrawModel( flags );
 		view->SetCurrentlyDrawingEntity( NULL );
 	}
-#ifdef NEO // If The translucent renderable was a smoke grenade particle, reset stencil to clear the smoke particle stencil bit
-	IMatRenderContext* pRenderContext = materials->GetRenderContext();
-	pRenderContext->SetStencilReferenceValue(0x0);
-	pRenderContext->SetStencilWriteMask(NEO_HIGHLIGHT_THERMALS);
-	pRenderContext->SetStencilPassOperation(STENCILOPERATION_ZERO);
-#endif // NEO
+
+	if (dynamic_cast<CParticleEffectBinding *>(pEnt))
+	{
+		IMatRenderContext* pRenderContext = materials->GetRenderContext();
+		pRenderContext->SetStencilEnable(true);
+		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
+		pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
+		pRenderContext->SetStencilTestMask(0x0);
+		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+		pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+		pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+		pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+	}
 }
 
 
@@ -4818,9 +4827,10 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 #ifdef NEO
 		CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
 		pRenderContext->SetStencilEnable(true);
-		pRenderContext->SetStencilWriteMask(NEO_HIGHLIGHT_THERMALS);
+		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
+		pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
 		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-		pRenderContext->SetStencilPassOperation(STENCILOPERATION_ZERO);
+		pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
 		pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
 		pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
 #endif // NEO
@@ -4950,9 +4960,10 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 #ifdef NEO
 	CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
 	pRenderContext->SetStencilEnable(true);
-	pRenderContext->SetStencilWriteMask(NEO_HIGHLIGHT_THERMALS);
+	pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
+	pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
 	pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-	pRenderContext->SetStencilPassOperation(STENCILOPERATION_ZERO);
+	pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
 	pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
 	pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
 #endif // NEO
@@ -5926,6 +5937,10 @@ void CBaseWorldView::DrawExecute( float waterHeight, view_id_t viewID, float wat
 
 		DrawWorld( waterZAdjust );
 		DrawOpaqueRenderables( DepthMode );
+		
+#ifdef NEO
+		UpdateNEOVisionTexture();
+#endif // NEO
 
 #ifdef TF_CLIENT_DLL
 		bool bVisionOverride = ( localplayer_visionflags.GetInt() & ( 0x01 ) ); // Pyro-vision Goggles

@@ -62,11 +62,7 @@ void TermSmokeFogOverlay()
 
 void DrawSmokeFogOverlay()
 {
-#ifdef NEO
-	if (g_SmokeFogOverlayThermalOverride || g_SmokeFogOverlayAlpha == 0 || !g_pSmokeFogMaterial || !materials)
-#else
 	if (g_SmokeFogOverlayAlpha == 0 || !g_pSmokeFogMaterial || !materials)
-#endif // NEO
 	{
 		return;
 	}
@@ -106,7 +102,7 @@ void DrawSmokeFogOverlay()
 	vColor.x = MIN(MAX(vColor.x, 0), 1);
 	vColor.y = MIN(MAX(vColor.y, 0), 1);
 	vColor.z = MIN(MAX(vColor.z, 0), 1);
-	float alpha = MIN(MAX(g_SmokeFogOverlayAlpha, 0), 1);
+	float alpha = MIN(MAX(g_SmokeFogOverlayThermalOverride ? g_SmokeFogOverlayAlpha * 0.5 : g_SmokeFogOverlayAlpha, 0), 1);
 
 	meshBuilder.Begin( pMesh, MATERIAL_QUADS, 1 );
 

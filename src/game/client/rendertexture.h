@@ -29,12 +29,9 @@ ITexture *GetSmallBuffer1( void );							// quarter-sized texture, same fmt as s
 ITexture *GetTeenyTexture(int which);						// tiny 32x32 texture, always 8888
 
 #ifdef NEO
+ITexture *GetNEOVisionTexture(void);
 ITexture *GetSSAO(void);
 ITexture *GetSSAOIntermediate(void);
-
-ITexture *GetMV(void);
-ITexture *GetTV(void);
-
 ITexture *GetCBBuffer(void);
 #endif
 

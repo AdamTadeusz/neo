@@ -162,5 +162,9 @@ inline void UpdateScreenEffectTexture( void )
 void ResetToneMapping(float value);
 
 void UpdateFullScreenDepthTexture( void );
+#ifdef NEO
+
+void UpdateNEOVisionTexture();
+#endif // NEO
 
 #endif // VIEW_SCENE_H

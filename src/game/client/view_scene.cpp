@@ -153,3 +153,16 @@ void UpdateFullScreenDepthTexture( void )
 		pMaterial->DecrementReferenceCount();
 	}
 }
+
+#ifdef NEO
+void UpdateNEOVisionTexture()
+{
+	if( !g_pMaterialSystemHardwareConfig->SupportsPixelShaders_2_b() )
+		return;
+
+	ITexture* pNEOVisionTex = GetNEOVisionTexture();
+	CMatRenderContextPtr pRenderContext( materials );
+	
+	pRenderContext->CopyRenderTargetToTextureEx( pNEOVisionTex, 0, nullptr, nullptr );
+}
+#endif // NEO

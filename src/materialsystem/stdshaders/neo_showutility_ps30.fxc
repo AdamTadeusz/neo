@@ -1,0 +1,69 @@
+// Sobel Edge Detection Filter
+// GLSL Fragment Shader
+// Implementation by Patrick Hebron
+
+#include "common_ps_fxc.h"
+
+sampler FrameBuffer				: register(s0);
+sampler UtilTexture             : register(s1);
+
+float4 g_vPixelSizeModifyColourStrength	: 	register(c0);
+#define g_vPixelSize 						g_vPixelSizeModifyColourStrength.xy
+#define g_vHighlightColour 					g_vPixelSizeModifyColourStrength.z
+#define g_vStrength 						g_vPixelSizeModifyColourStrength.w
+
+void make_kernel(inout float4 n[9], sampler2D tex, float2 coord)
+{
+	float w = 1.0 / g_vPixelSize.x;
+	float h = 1.0 / g_vPixelSize.y;
+
+	n[0] = tex2D(tex, coord + float2( -w, -h));
+	n[1] = tex2D(tex, coord + float2(0.0, -h));
+	n[2] = tex2D(tex, coord + float2(  w, -h));
+	n[3] = tex2D(tex, coord + float2( -w, 0.0));
+	n[4] = tex2D(tex, coord);
+	n[5] = tex2D(tex, coord + float2(  w, 0.0));
+	n[6] = tex2D(tex, coord + float2( -w, h));
+	n[7] = tex2D(tex, coord + float2(0.0, h));
+	n[8] = tex2D(tex, coord + float2(  w, h));
+}
+
+struct PS_INPUT
+{
+	float2 texCoord	: TEXCOORD0;
+};
+
+float4 main( const PS_INPUT i ) : COLOR
+{
+	float4 fbTextureColor = tex2D(FrameBuffer, i.texCoord);
+	float4 utilTextureColor = tex2D(UtilTexture, i.texCoord);
+	
+	float4 n[9];
+	make_kernel( n, UtilTexture, i.texCoord );
+
+	float4 sobel_edge_h = n[2] + (2.0*n[5]) + n[8] - (n[0] + (2.0*n[3]) + n[6]);
+  	float4 sobel_edge_v = n[0] + (2.0*n[1]) + n[2] - (n[6] + (2.0*n[7]) + n[8]);
+	float4 sobel = sqrt((sobel_edge_h * sobel_edge_h) + (sobel_edge_v * sobel_edge_v));
+	
+	const float3 luminanceWeights = float3(0.3, 0.59, 0.11);
+	sobel.rgb = dot(sobel.rgb, luminanceWeights);
+	sobel = min(0.99, sobel.r);
+	float alpha = sobel.r;
+	
+	if (!g_vHighlightColour)
+	{ // Lower the strength of the effect as the background becomes more similar to the occluded image. Allows lines in smokes to blend into the edge of the smoke nicely
+		alpha *= sqrt(pow(fbTextureColor.rgb - utilTextureColor.rgb, 2));
+	}
+	alpha *= g_vStrength;
+	
+	sobel.rgb = 1.0f - sobel.rgb;
+	
+	// Change colour of highlighted pixels
+	const float3 highlightColour = float3(1, 0.4, 0);
+	if (g_vHighlightColour)
+	{
+		sobel.rgb *= highlightColour;
+	}
+	
+	return (fbTextureColor) + (float4(sobel.rgb, 1.0f) * alpha);
+}

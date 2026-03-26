@@ -2335,6 +2335,7 @@ void DoSSAO(const int x, const int y, const int w, const int h)
 	}
 }
 
+ConVar cl_neo_debug_utility_texture("cl_neo_debug_utility_texture", "1", FCVAR_NONE);
 void DoNEOVision(const int neoClass, const int x, const int y, const int w, const int h)
 {
 	CMatRenderContextPtr pRenderContext(materials);
@@ -2343,8 +2344,6 @@ void DoNEOVision(const int neoClass, const int x, const int y, const int w, cons
 	const int nSrcWidth = pFbTex->GetActualWidth();
 	const int nSrcHeight = pFbTex->GetActualHeight();
 
-	constexpr float SMOKE_FOG_OVERLAY_THRESHOLD_TO_FILL_SCREEN = 1.4f;
-	bool bDoStencil = false;
 	IMaterial* pVMat;
 	switch (neoClass)
 	{
@@ -2356,20 +2355,7 @@ void DoNEOVision(const int neoClass, const int x, const int y, const int w, cons
 		pVMat = materials->FindMaterial("dev/neo_motionvision", TEXTURE_GROUP_OTHER, true);
 		break;
 	case NEO_CLASS_SUPPORT:
-		// We only want to draw thermal vision where NEO_HIGHLIGHT_THERMALS stencil bit is set, or everywhere if inside the smoke
-		if (g_SmokeFogOverlayAlpha < SMOKE_FOG_OVERLAY_THRESHOLD_TO_FILL_SCREEN)
-		{
-			bDoStencil = true;
-			pRenderContext->SetStencilEnable(true);
-			pRenderContext->SetStencilReferenceValue(NEO_HIGHLIGHT_THERMALS);
-			pRenderContext->SetStencilTestMask(NEO_HIGHLIGHT_THERMALS);
-			pRenderContext->SetStencilWriteMask(0x0);
-			pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_EQUAL);
-			pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
-			pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
-			pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
-		}
-		pVMat = materials->FindMaterial("dev/neo_thermalvision", TEXTURE_GROUP_OTHER, true);
+		pVMat = cl_neo_debug_utility_texture.GetBool() ? materials->FindMaterial("dev/neo_utility", TEXTURE_GROUP_OTHER, true) : materials->FindMaterial("dev/neo_thermalvision", TEXTURE_GROUP_OTHER, true);
 		break;
 	default:
 		return;
@@ -2384,14 +2370,62 @@ void DoNEOVision(const int neoClass, const int x, const int y, const int w, cons
 	Rect_t DestRect{ 0, 0, nSrcWidth, nSrcHeight };
 	const int renderTargetId = 0;
 
-	pRenderContext->CopyRenderTargetToTextureEx(pFbTex, renderTargetId, &DestRect, NULL);
+	bool bDisableStencilLater = false;
+	if (neoClass == NEO_CLASS_SUPPORT)
+	{
+		bDisableStencilLater = true;
 
-	pRenderContext->DrawScreenSpaceRectangle(pVMat,
-		0, 0, w, h,
-		0, 0, nSrcWidth - 1, nSrcHeight - 1,
-		nSrcWidth, nSrcHeight, GetClientWorldEntity()->GetClientRenderable());
+		// Draw the environment through smoke particles
+		bool foundModifyColour = false;
+		auto modifyColour = pVMat->FindVar("$modifycolour", &foundModifyColour);
+		if (foundModifyColour)
+			modifyColour->SetFloatValue(0.f);
+		bool foundStrength = false;
+		auto strength = pVMat->FindVar("$strength", &foundStrength);
+		if (foundStrength)
+			strength->SetFloatValue(1.f);
+
+		pRenderContext->SetStencilEnable(true);
+		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_PARTICLE);
+		constexpr float SMOKE_FOG_OVERLAY_THRESHOLD_TO_FILL_SCREEN = 1.4f;
+		pRenderContext->SetStencilTestMask( g_SmokeFogOverlayAlpha < SMOKE_FOG_OVERLAY_THRESHOLD_TO_FILL_SCREEN ? NEO_THERMALS_PARTICLE | NEO_THERMALS_TRANSLUCENT | NEO_GLOW_VIEWMODEL : NEO_THERMALS_TRANSLUCENT | NEO_GLOW_VIEWMODEL);
+		pRenderContext->SetStencilWriteMask(0x0);
+		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_EQUAL);
+		pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+		pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+		pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+		
+		pRenderContext->CopyRenderTargetToTextureEx(pFbTex, renderTargetId, &DestRect, NULL);
+		pRenderContext->DrawScreenSpaceRectangle(pVMat,
+			0, 0, w, h,
+			0, 0, nSrcWidth - 1, nSrcHeight - 1,
+			nSrcWidth, nSrcHeight, GetClientWorldEntity()->GetClientRenderable());
+
+		// Draw highlighted objects in thermals
+		if (foundModifyColour)
+			modifyColour->SetFloatValue(1.f);
+		if (foundStrength)
+			strength->SetFloatValue(2.5f);
+		
+		pRenderContext->SetStencilEnable(true);
+		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_HIGHLIGHT);
+		pRenderContext->SetStencilTestMask(NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_TRANSLUCENT | NEO_GLOW_VIEWMODEL);
+		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_EQUAL);
+		pRenderContext->DrawScreenSpaceRectangle(pVMat,
+			0, 0, w, h,
+			0, 0, nSrcWidth - 1, nSrcHeight - 1,
+			nSrcWidth, nSrcHeight, GetClientWorldEntity()->GetClientRenderable());
+	}
+	else
+	{
+		pRenderContext->CopyRenderTargetToTextureEx(pFbTex, renderTargetId, &DestRect, NULL);
+		pRenderContext->DrawScreenSpaceRectangle(pVMat,
+			0, 0, w, h,
+			0, 0, nSrcWidth - 1, nSrcHeight - 1,
+			nSrcWidth, nSrcHeight, GetClientWorldEntity()->GetClientRenderable());
+	}
 	
-	if (bDoStencil)
+	if (bDisableStencilLater)
 	{
 		pRenderContext->SetStencilEnable(false);
 	}

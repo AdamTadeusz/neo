@@ -822,13 +822,17 @@ int CParticleEffectBinding::DrawMaterialParticles(
 	}
 
 #ifdef NEO
-	if (bInThermalVision)// && !Q_strcmp("smokegrenade", m_pSim->GetEffectName()))
+	if (bInThermalVision)
 	{
 		IMatRenderContext* pRenderContext = materials->GetRenderContext();
-		pRenderContext->SetStencilReferenceValue(NEO_HIGHLIGHT_THERMALS);
-		pRenderContext->SetStencilWriteMask(NEO_HIGHLIGHT_THERMALS);
+		pRenderContext->SetStencilEnable(true);
+		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_PARTICLE);
+		pRenderContext->SetStencilWriteMask(NEO_THERMALS_PARTICLE);
+		pRenderContext->SetStencilTestMask(0x0);
 		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
 		pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+		pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+		pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
 	}
 #endif // NEO
 

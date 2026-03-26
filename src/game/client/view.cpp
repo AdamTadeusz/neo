@@ -395,6 +395,13 @@ void CViewRender::Init( void )
 			flags, 0);
 
 #ifdef DEBUG
+	ITexture* pUTex =
+#endif
+		materials->CreateNamedRenderTargetTextureEx("_rt_NEOVision", iW, iH,
+			RT_SIZE_FULL_FRAME_BUFFER, materials->GetBackBufferFormat(), MATERIAL_RT_DEPTH_SHARED,
+			flags, 0);
+
+#ifdef DEBUG
 	ITexture* pCbTex =
 #endif
 	materials->CreateNamedRenderTargetTextureEx("_rt_ColorBlind", iW, iH,
@@ -408,6 +415,7 @@ void CViewRender::Init( void )
 	Assert(pMVTex != NULL && !pMVTex->IsError());
 	Assert(pTvTex != NULL && !pTvTex->IsError());
 	Assert(pCbTex != NULL && !pCbTex->IsError());
+	Assert(pUTex != NULL && !pUTex->IsError());
 #endif
 
 	materials->EndRenderTargetAllocation();

@@ -3310,8 +3310,9 @@ int C_BaseAnimating::DrawModel( int flags )
 		{
 			isHot = true;
 			pRenderContext->SetStencilEnable(true);
-			pRenderContext->SetStencilReferenceValue(NEO_HIGHLIGHT_THERMALS);
-			pRenderContext->SetStencilWriteMask(NEO_HIGHLIGHT_THERMALS);
+			pRenderContext->SetStencilReferenceValue(IsViewModel() ? NEO_THERMALS_HIGHLIGHT | NEO_GLOW_VIEWMODEL : NEO_THERMALS_HIGHLIGHT);
+			pRenderContext->SetStencilWriteMask(IsViewModel() ? NEO_THERMALS_HIGHLIGHT | NEO_GLOW_VIEWMODEL : NEO_THERMALS_HIGHLIGHT);
+			pRenderContext->SetStencilTestMask(0x0);
 			pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
 			pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
 			pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);

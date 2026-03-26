@@ -91,7 +91,7 @@ SHADER_DRAW
 		BindTexture(SHADER_SAMPLER0, FBTEXTURE);
 		BindTexture(SHADER_SAMPLER1, MVTEXTURE);
 		BindTexture(SHADER_SAMPLER2, NOISETEXTURE);
-		
+
 		//s_pShaderAPI->SetPixelShaderConstant(0, NOISETRANSFORM);
 		float vNoiseTransform[2] = {0, 0};
 		params[NOISETRANSFORM]->GetVecValue(vNoiseTransform, 2);
