@@ -390,7 +390,7 @@ void CGlowObjectManager::ApplyEntityGlowEffects( const CViewSetup *pSetup, int n
 		}
 
 		stencilState.m_bEnable = true;
-		stencilState.m_nWriteMask = 0x0;
+		stencilState.m_nWriteMask = 0;
 		stencilState.m_nTestMask = NEO_GLOW_OBSTRUCTED + NEO_GLOW_VIEWMODEL;
 		stencilState.m_nReferenceValue = NEO_GLOW_OBSTRUCTED;
 		stencilState.m_CompareFunc = STENCILCOMPARISONFUNCTION_EQUAL;

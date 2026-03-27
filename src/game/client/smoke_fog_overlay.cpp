@@ -102,7 +102,11 @@ void DrawSmokeFogOverlay()
 	vColor.x = MIN(MAX(vColor.x, 0), 1);
 	vColor.y = MIN(MAX(vColor.y, 0), 1);
 	vColor.z = MIN(MAX(vColor.z, 0), 1);
+#ifdef NEO
 	float alpha = MIN(MAX(g_SmokeFogOverlayThermalOverride ? g_SmokeFogOverlayAlpha * 0.5 : g_SmokeFogOverlayAlpha, 0), 1);
+#else
+	float alpha = MIN(MAX(g_SmokeFogOverlayAlpha, 0), 1);
+#endif // NEO
 
 	meshBuilder.Begin( pMesh, MATERIAL_QUADS, 1 );
 

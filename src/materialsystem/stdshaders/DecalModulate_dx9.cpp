@@ -23,7 +23,7 @@
 
 DEFINE_FALLBACK_SHADER( DecalModulate, DecalModulate_DX9 )
 
-//extern ConVar r_flashlight_version2;
+extern ConVar r_flashlight_version2;
 
 BEGIN_VS_SHADER( DecalModulate_dx9, 
 			  "Help for DecalModulate_dx9" )
@@ -151,7 +151,7 @@ BEGIN_VS_SHADER( DecalModulate_dx9,
 		}
 		DYNAMIC_STATE
 		{
-			if ( pShaderAPI->InFlashlightMode() && ( !IsX360() /* && (r_flashlight_version2.GetInt() == 0)*/))
+			if ( pShaderAPI->InFlashlightMode() && ( !IsX360() && ( r_flashlight_version2.GetInt() == 0) ) )
 			{
 				// Don't draw anything for the flashlight pass
 				Draw( false );

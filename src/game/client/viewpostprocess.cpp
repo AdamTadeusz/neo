@@ -2335,7 +2335,6 @@ void DoSSAO(const int x, const int y, const int w, const int h)
 	}
 }
 
-ConVar cl_neo_debug_utility_texture("cl_neo_debug_utility_texture", "1", FCVAR_NONE);
 void DoNEOVision(const int neoClass, const int x, const int y, const int w, const int h)
 {
 	CMatRenderContextPtr pRenderContext(materials);
@@ -2355,7 +2354,7 @@ void DoNEOVision(const int neoClass, const int x, const int y, const int w, cons
 		pVMat = materials->FindMaterial("dev/neo_motionvision", TEXTURE_GROUP_OTHER, true);
 		break;
 	case NEO_CLASS_SUPPORT:
-		pVMat = cl_neo_debug_utility_texture.GetBool() ? materials->FindMaterial("dev/neo_utility", TEXTURE_GROUP_OTHER, true) : materials->FindMaterial("dev/neo_thermalvision", TEXTURE_GROUP_OTHER, true);
+		pVMat = materials->FindMaterial("dev/neo_utility", TEXTURE_GROUP_OTHER, true);
 		break;
 	default:
 		return;
