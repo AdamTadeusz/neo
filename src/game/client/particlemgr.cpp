@@ -358,7 +358,7 @@ int CParticleEffectBinding::DrawModel( int flags )
 	if (bInThermalVision)
 	{
 		IMatRenderContext* pRenderContext = materials->GetRenderContext();
-		pRenderContext->SetStencilEnable(true);
+		//pRenderContext->SetStencilEnable(true);
 		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_PARTICLE);
 		pRenderContext->SetStencilWriteMask(NEO_THERMALS_PARTICLE);
 		pRenderContext->SetStencilTestMask(0x0);

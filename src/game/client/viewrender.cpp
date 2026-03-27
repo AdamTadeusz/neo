@@ -4829,14 +4829,20 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 
 	DetailObjectSystem()->BeginTranslucentDetailRendering();
 
+	if (g_CurrentViewID == VIEW_MAIN)
+	{
+		IMatRenderContext* pRenderContext = materials->GetRenderContext();
+		pRenderContext->SetStencilEnable(true);
+	}
+
 	if ( m_pMainView->ShouldDrawEntities() && r_drawtranslucentrenderables.GetBool() )
 	{
 		MDLCACHE_CRITICAL_SECTION();
 #ifdef NEO
-		if (g_CurrentViewID == VIEW_MAIN)
+		//if (g_CurrentViewID == VIEW_MAIN)
 		{
 			IMatRenderContext* pRenderContext = materials->GetRenderContext();
-			pRenderContext->SetStencilEnable(true);
+			//pRenderContext->SetStencilEnable(true);
 			pRenderContext->SetStencilReferenceValue(NEO_THERMALS_PARTICLE);
 			pRenderContext->SetStencilWriteMask(NEO_THERMALS_PARTICLE);
 			pRenderContext->SetStencilTestMask(0x0);
@@ -4848,21 +4854,6 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 #endif // NEO
 		// Draw the particle singletons.
 		DrawParticleSingletons( bInSkybox );
-		
-#ifdef NEO
-		if (g_CurrentViewID == VIEW_MAIN)
-		{
-			CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
-			pRenderContext->SetStencilEnable(true);
-			pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
-			pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
-			pRenderContext->SetStencilTestMask(0x0);
-			pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-			pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
-			pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
-			pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
-		}
-#endif // NEO
 
 		CClientRenderablesList::CEntry *pEntities = m_pRenderablesList->m_RenderGroups[RENDER_GROUP_TRANSLUCENT_ENTITY];
 		int iCurTranslucentEntity = m_pRenderablesList->m_RenderGroupCounts[RENDER_GROUP_TRANSLUCENT_ENTITY] - 1;
@@ -4871,6 +4862,20 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 
 		while( iCurTranslucentEntity >= 0 )
 		{
+#ifdef NEO
+			//if (g_CurrentViewID == VIEW_MAIN)
+			{
+				CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
+				//pRenderContext->SetStencilEnable(true);
+				pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
+				pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
+				pRenderContext->SetStencilTestMask(0x0);
+				pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+				pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+				pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+				pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+			}
+#endif // NEO
 			// Seek the current leaf up to our current translucent-entity leaf.
 			int iThisLeaf = pEntities[iCurTranslucentEntity].m_iWorldListInfoLeaf;
 
@@ -4988,9 +4993,9 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 	
 #ifdef NEO
 	CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
-	if (g_CurrentViewID == VIEW_MAIN)
+	//if (g_CurrentViewID == VIEW_MAIN)
 	{
-		pRenderContext->SetStencilEnable(true);
+		//pRenderContext->SetStencilEnable(true);
 		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
 		pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
 		pRenderContext->SetStencilTestMask(0x0);
