@@ -1,6 +1,4 @@
-// Sobel Edge Detection Filter
-// GLSL Fragment Shader
-// Implementation by Patrick Hebron
+// Credit to Patrick Hebron for the GLSL Fragment Shader implementation of the Sobel Edge Detection algorithm
 
 #include "common_ps_fxc.h"
 
@@ -64,6 +62,10 @@ float4 main( const PS_INPUT i ) : COLOR
 	if (g_vHighlightColour)
 	{
 		sobel.rgb *= highlightColour;
+		// There are no edges to detect in dark environments, best we can do is give a minimum colour value to every pixel without any extra steps
+		float3 minHighlight = float3(0.05, 0.02, 0);
+		sobel.rgb = max(minHighlight, sobel.rgb);
+		alpha = max(minHighlight.r, alpha);
 	}
 	
 	return (fbTextureColor) + (float4(sobel.rgb, 1.0f) * alpha);

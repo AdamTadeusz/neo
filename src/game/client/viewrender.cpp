@@ -1230,7 +1230,7 @@ void CViewRender::DrawViewModels( const CViewSetup &viewRender, bool drawViewmod
 		// Toggles the viewmodel bit in the stencil layer for all pixels where an opaque viewmodel is drawn
 		pRenderContext->SetStencilEnable(true);
 		pRenderContext->SetStencilReferenceValue(NEO_GLOW_VIEWMODEL | NEO_THERMALS_HIGHLIGHT);
-		pRenderContext->SetStencilWriteMask(NEO_GLOW_VIEWMODEL | NEO_THERMALS_HIGHLIGHT);
+		pRenderContext->SetStencilWriteMask(NEO_GLOW_VIEWMODEL | NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_TRANSLUCENT);
 		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
 #endif // NEO && GLOWS_ENABLE
 		DrawRenderablesInList( opaqueViewModelList );
@@ -1239,14 +1239,13 @@ void CViewRender::DrawViewModels( const CViewSetup &viewRender, bool drawViewmod
 		ITexture* neoTexture = GetNEOVisionTexture();
 		pRenderContext->SetRenderTarget(neoTexture);
 		pRenderContext->Viewport(0,0,neoTexture->GetActualWidth(),neoTexture->GetActualHeight());
+		pRenderContext->ClearBuffers(false, true, false);
 		IMaterial *pMatGlowColor = NULL;
 		pMatGlowColor = materials->FindMaterial( "dev/glow_color", TEXTURE_GROUP_OTHER, true );
 		g_pStudioRender->ForcedMaterialOverride(pMatGlowColor);
-		//Vector vGlowColor = Vector(1, 1, 1);
-		//render->SetColorModulation( &vGlowColor[0] ); // This only sets rgb, not alpha
-		//render->SetBlend( 1 );
 		DrawRenderablesInList( opaqueViewModelList );
 		g_pStudioRender->ForcedMaterialOverride(nullptr);
+		DrawRenderablesInList( opaqueViewModelList );
 		pRenderContext->PopRenderTargetAndViewport();
 #endif // NEO && GLOWS_ENABLE
 		DrawRenderablesInList( translucentViewModelList, STUDIO_TRANSPARENCY );
@@ -4184,9 +4183,9 @@ static inline void DrawOpaqueRenderable( IClientRenderable *pEnt, bool bTwoPass,
 		// this way no matter what order objects are drawn in we don't see thermal highlights through objects
 		CMatRenderContextPtr pRenderContext( materials );
 		pRenderContext->SetStencilEnable(true);
-		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_HIGHLIGHT);
+		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_TRANSLUCENT | NEO_THERMALS_PARTICLE);
 		pRenderContext->SetStencilTestMask(0x0);
-		pRenderContext->SetStencilWriteMask(NEO_THERMALS_HIGHLIGHT); // opaques are drawn before translucents, no need to clear NEO_THERMALS_TRANSLUCENT or ..PARTICLE here
+		pRenderContext->SetStencilWriteMask(NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_TRANSLUCENT | NEO_THERMALS_PARTICLE);
 		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
 		pRenderContext->SetStencilPassOperation(STENCILOPERATION_ZERO);
 		pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
@@ -4833,6 +4832,20 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 	if ( m_pMainView->ShouldDrawEntities() && r_drawtranslucentrenderables.GetBool() )
 	{
 		MDLCACHE_CRITICAL_SECTION();
+#ifdef NEO
+		if (g_CurrentViewID == VIEW_MAIN)
+		{
+			IMatRenderContext* pRenderContext = materials->GetRenderContext();
+			pRenderContext->SetStencilEnable(true);
+			pRenderContext->SetStencilReferenceValue(NEO_THERMALS_PARTICLE);
+			pRenderContext->SetStencilWriteMask(NEO_THERMALS_PARTICLE);
+			pRenderContext->SetStencilTestMask(0x0);
+			pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+			pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+			pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+			pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+		}
+#endif // NEO
 		// Draw the particle singletons.
 		DrawParticleSingletons( bInSkybox );
 		
@@ -4843,6 +4856,7 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 			pRenderContext->SetStencilEnable(true);
 			pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
 			pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
+			pRenderContext->SetStencilTestMask(0x0);
 			pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
 			pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
 			pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
@@ -4979,6 +4993,7 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 		pRenderContext->SetStencilEnable(true);
 		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
 		pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
+		pRenderContext->SetStencilTestMask(0x0);
 		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
 		pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
 		pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
