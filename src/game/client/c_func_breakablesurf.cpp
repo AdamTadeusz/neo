@@ -13,6 +13,9 @@
 #include "model_types.h"
 #include "engine/ivmodelinfo.h"
 #include "clienteffectprecachesystem.h"
+#ifdef NEO
+#include "neo_player_shared.h"
+#endif // NEO
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -67,6 +70,10 @@ struct EdgeTexture_t
 	int					m_nStyle;
 	CMaterialReference	m_pMaterialEdge;
 	CTextureReference	m_pMaterialEdgeTexture;
+#ifdef NEO
+	CMaterialReference	m_pMaterialEdgeAT;
+	CTextureReference	m_pMaterialEdgeTextureAT;
+#endif // NEO
 };
 
 // Bits for m_nPanelBits
@@ -339,6 +346,12 @@ void C_BreakableSurface::InitMaterial(WinEdge_t nEdgeType, int nEdgeStyle, char 
 	m_pEdge[nEdgeType][nEdgeStyle].m_nStyle		   = nEdgeStyle;
 	m_pEdge[nEdgeType][nEdgeStyle].m_pMaterialEdge.Init(pMaterialName, TEXTURE_GROUP_CLIENT_EFFECTS);
 	m_pEdge[nEdgeType][nEdgeStyle].m_pMaterialEdgeTexture.Init( GetBaseTexture( m_pEdge[nEdgeType][nEdgeStyle].m_pMaterialEdge ) );
+#ifdef NEO
+	char szAlphaTestedMaterialName[ MAX_PATH ];
+	V_snprintf( szAlphaTestedMaterialName, sizeof(szAlphaTestedMaterialName)/sizeof(char), "%s_at", pMaterialName);
+	m_pEdge[nEdgeType][nEdgeStyle].m_pMaterialEdgeAT.Init(szAlphaTestedMaterialName, TEXTURE_GROUP_CLIENT_EFFECTS);
+	m_pEdge[nEdgeType][nEdgeStyle].m_pMaterialEdgeTextureAT.Init( GetBaseTexture( m_pEdge[nEdgeType][nEdgeStyle].m_pMaterialEdgeAT ) );
+#endif // NEO
 }
 
 //-----------------------------------------------------------------------------
@@ -561,6 +574,16 @@ void C_BreakableSurface::DrawRenderList(IBrushSurface* pBrushSurface)
 	int				nCurStyle		= -1;
 	int				nCurEdgeType	= -1;
 	CMatRenderContextPtr pRenderContext( materials );
+#ifdef NEO
+	// This is where we draw the broken glass edges. Stencil writes are done separately
+	pRenderContext->SetStencilReferenceValue(0x0);
+	pRenderContext->SetStencilWriteMask(0x0);
+	pRenderContext->SetStencilTestMask(0x0);
+	pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+	pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+	pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+	pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+#endif // NEO
 	for( unsigned short i = m_RenderList.Head(); i != m_RenderList.InvalidIndex(); i = m_RenderList.Next(i) )
 	{
 	
@@ -582,6 +605,42 @@ void C_BreakableSurface::DrawRenderList(IBrushSurface* pBrushSurface)
 
 		DrawOneEdge(pBrushSurface, pMesh,&pMeshBuilder,vRenderPos,vWidthStep,vHeightStep,(WinSide_t)m_RenderList[i].m_nSide);
 	}
+
+#ifdef NEO
+	nCurStyle		= -1;
+	nCurEdgeType	= -1;
+
+	pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
+	pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
+	pRenderContext->OverrideColorWriteEnable(true, false);
+	pRenderContext->OverrideAlphaWriteEnable(true, false);
+	pRenderContext->OverrideDepthEnable(true, false);
+
+	for( unsigned short i = m_RenderList.Head(); i != m_RenderList.InvalidIndex(); i = m_RenderList.Next(i) )
+	{
+	
+		if (nCurStyle		!= m_RenderList[i].m_nStyle		||
+			nCurEdgeType	!= m_RenderList[i].m_nEdgeType	)
+		{
+			nCurStyle	 = m_RenderList[i].m_nStyle;
+			nCurEdgeType = m_RenderList[i].m_nEdgeType;
+			m_pCurrentDetailTexture = m_pEdge[nCurEdgeType][nCurStyle].m_pMaterialEdgeTextureAT;
+			pRenderContext->Flush(false);
+			pRenderContext->Bind(m_pEdge[nCurEdgeType][nCurStyle].m_pMaterialEdgeAT, (IClientRenderable*)this);
+			pMesh = pRenderContext->GetDynamicMesh( );
+		}
+
+		Vector vRenderPos = m_vCorner + 
+							(m_RenderList[i].m_nWidth*vWidthStep)	+ 
+							(m_RenderList[i].m_nHeight*vHeightStep);
+
+		DrawOneEdge(pBrushSurface, pMesh,&pMeshBuilder,vRenderPos,vWidthStep,vHeightStep,(WinSide_t)m_RenderList[i].m_nSide);
+	}
+
+	pRenderContext->OverrideColorWriteEnable(false, false);
+	pRenderContext->OverrideAlphaWriteEnable(false, false);
+	pRenderContext->OverrideDepthEnable(false, false);
+#endif // NEO
 }
 
 

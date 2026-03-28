@@ -1245,7 +1245,25 @@ void CViewRender::DrawViewModels( const CViewSetup &viewRender, bool drawViewmod
 		g_pStudioRender->ForcedMaterialOverride(pMatGlowColor);
 		DrawRenderablesInList( opaqueViewModelList );
 		g_pStudioRender->ForcedMaterialOverride(nullptr);
-		DrawRenderablesInList( opaqueViewModelList );
+
+		const Vector4D white = { 1.f, 1.f, 1.f, 1.f };
+		static Vector4D white6[6] = 
+		{
+			white,
+			white,
+			white,
+			white,
+			white,
+			white,
+		};
+		pRenderContext->SetLightingOrigin( vec3_origin );
+		pRenderContext->SetAmbientLightCube(white6);
+		g_pStudioRender->SetAmbientLightColors(white6);
+		g_pStudioRender->SetLocalLights(0, nullptr);
+		modelrender->SuppressEngineLighting(true);
+		DrawRenderablesInList( opaqueViewModelList, STUDIO_STATIC_LIGHTING | STUDIO_NOSHADOWS );
+		modelrender->SuppressEngineLighting(false);
+
 		pRenderContext->PopRenderTargetAndViewport();
 #endif // NEO && GLOWS_ENABLE
 		DrawRenderablesInList( translucentViewModelList, STUDIO_TRANSPARENCY );
@@ -4900,8 +4918,22 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 				// Draw translucent renderables in the leaf interspersed with detail props
 				for( ;pEntities[iCurTranslucentEntity].m_iWorldListInfoLeaf == iThisLeaf && iCurTranslucentEntity >= 0; --iCurTranslucentEntity )
 				{
+#ifdef NEO
+					//if (g_CurrentViewID == VIEW_MAIN)
+					{
+						CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
+						//pRenderContext->SetStencilEnable(true);
+						pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
+						pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
+						pRenderContext->SetStencilTestMask(0x0);
+						pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+						pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+						pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+						pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+					}
+#endif // NEO
 					IClientRenderable *pRenderable = pEntities[iCurTranslucentEntity].m_pRenderable;
-
+					
 					// Draw any detail props in this leaf that's farther than the entity
 					const Vector &vecRenderOrigin = pRenderable->GetRenderOrigin();
 					DetailObjectSystem()->RenderTranslucentDetailObjectsInLeaf( CurrentViewOrigin(), CurrentViewForward(), CurrentViewRight(), CurrentViewUp(), nLeaf, &vecRenderOrigin );
@@ -4946,8 +4978,22 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 
 				for( ;pEntities[iCurTranslucentEntity].m_iWorldListInfoLeaf == iThisLeaf && iCurTranslucentEntity >= 0; --iCurTranslucentEntity )
 				{
+#ifdef NEO
+					//if (g_CurrentViewID == VIEW_MAIN)
+					{
+						CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
+						//pRenderContext->SetStencilEnable(true);
+						pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
+						pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
+						pRenderContext->SetStencilTestMask(0x0);
+						pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+						pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+						pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+						pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+					}
+#endif // NEO
 					IClientRenderable *pRenderable = pEntities[iCurTranslucentEntity].m_pRenderable;
-
+					
 					bool bUsesPowerOfTwoFB = pRenderable->UsesPowerOfTwoFrameBufferTexture();
 					bool bUsesFullFB       = pRenderable->UsesFullFrameBufferTexture();
 

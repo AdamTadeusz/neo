@@ -391,8 +391,7 @@ int CParticleEffectBinding::DrawModel( int flags )
 			bBucketSort,
 			pMaterial, 
 			flFrameTime,
-			bWireframe,
-			bInThermalVision);
+			bWireframe);
 	}
 
 	if ( ShouldDrawInWireFrameMode() )
@@ -406,8 +405,7 @@ int CParticleEffectBinding::DrawModel( int flags )
 				bBucketSort,
 				pMaterial, 
 				flFrameTime,
-				bWireframe,
-				bInThermalVision);
+				bWireframe);
 		}
 	}
 
@@ -802,8 +800,7 @@ int CParticleEffectBinding::DrawMaterialParticles(
 	bool bBucketSort,
 	CEffectMaterial *pMaterial, 
 	float flTimeDelta,
-	bool bWireframe,
-	bool bInThermalVision
+	bool bWireframe
 	 )
 {
 	// Setup everything.
