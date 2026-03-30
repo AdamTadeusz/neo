@@ -1092,17 +1092,6 @@ bool CViewRender::UpdateRefractIfNeededByList( CUtlVector< IClientRenderable * >
 //-----------------------------------------------------------------------------
 void CViewRender::DrawRenderablesInList( CUtlVector< IClientRenderable * > &list, int flags )
 {
-#ifdef NEO
-	auto pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
-	if (flags & STUDIO_USING_THERMALS)
-	{
-		flags &= !STUDIO_USING_THERMALS;
-	}
-	else if (pTargetPlayer && pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT)
-	{
-		flags |= STUDIO_USING_THERMALS;
-	}
-#endif // NEO
 	Assert( m_pCurrentlyDrawingEntity == NULL );
 	int nCount = list.Count();
 	for( int i=0; i < nCount; ++i )
@@ -1226,49 +1215,47 @@ void CViewRender::DrawViewModels( const CViewSetup &viewRender, bool drawViewmod
 			UpdateRefractIfNeededByList( translucentViewModelList );
 		}
 		
-#if defined NEO && defined GLOWS_ENABLE
-		// Toggles the viewmodel bit in the stencil layer for all pixels where an opaque viewmodel is drawn
-		pRenderContext->SetStencilEnable(true);
-		pRenderContext->SetStencilReferenceValue(NEO_GLOW_VIEWMODEL | NEO_THERMALS_HIGHLIGHT);
-		pRenderContext->SetStencilWriteMask(NEO_GLOW_VIEWMODEL | NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_TRANSLUCENT);
-		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-#endif // NEO && GLOWS_ENABLE
+#ifdef NEO
+		stencilSetupViewmodelRenderable();
+
+#endif // NEO 
 		DrawRenderablesInList( opaqueViewModelList );
-#if defined NEO && defined GLOWS_ENABLE
-		pRenderContext->PushRenderTargetAndViewport();
+#ifdef NEO
+
 		ITexture* neoTexture = GetNEOVisionTexture();
-		pRenderContext->SetRenderTarget(neoTexture);
-		pRenderContext->Viewport(0,0,neoTexture->GetActualWidth(),neoTexture->GetActualHeight());
-		pRenderContext->ClearBuffers(false, true, false);
-		IMaterial *pMatGlowColor = NULL;
-		pMatGlowColor = materials->FindMaterial( "dev/glow_color", TEXTURE_GROUP_OTHER, true );
-		g_pStudioRender->ForcedMaterialOverride(pMatGlowColor);
-		DrawRenderablesInList( opaqueViewModelList );
-		g_pStudioRender->ForcedMaterialOverride(nullptr);
-
-		const Vector4D white = { 1.f, 1.f, 1.f, 1.f };
-		static Vector4D white6[6] = 
+		if (neoTexture)
 		{
-			white,
-			white,
-			white,
-			white,
-			white,
-			white,
-		};
-		pRenderContext->SetLightingOrigin( vec3_origin );
-		pRenderContext->SetAmbientLightCube(white6);
-		g_pStudioRender->SetAmbientLightColors(white6);
-		g_pStudioRender->SetLocalLights(0, nullptr);
-		modelrender->SuppressEngineLighting(true);
-		DrawRenderablesInList( opaqueViewModelList, STUDIO_STATIC_LIGHTING | STUDIO_NOSHADOWS );
-		modelrender->SuppressEngineLighting(false);
-		pRenderContext->PopRenderTargetAndViewport();
+			pRenderContext->PushRenderTargetAndViewport();
 
-		pRenderContext->SetStencilEnable(false);
-		pRenderContext->SetStencilReferenceValue(0x0);
-		pRenderContext->SetStencilWriteMask(0x0);
-#endif // NEO && GLOWS_ENABLE
+			{ // Draw a shape where the viewmodel is to clear any edges that might be visible through translucent parts of the opaque viewmodel
+				pRenderContext->SetRenderTarget(neoTexture);
+				pRenderContext->Viewport(0,0,neoTexture->GetActualWidth(),neoTexture->GetActualHeight());
+				pRenderContext->ClearBuffers(false, true, false);
+				IMaterial *pMatGlowColor = materials->FindMaterial( "dev/glow_color", TEXTURE_GROUP_OTHER, true );
+				g_pStudioRender->ForcedMaterialOverride(pMatGlowColor);
+				DrawRenderablesInList( opaqueViewModelList );
+				g_pStudioRender->ForcedMaterialOverride(nullptr);
+			}
+
+			{ // Draw the viewmodel since its not present in this render context, and with a lighting override so the viewmodel glow in thermals does not vary with lighting conditions
+				const Vector4D white = { 1.f, 1.f, 1.f, 1.f };
+				static Vector4D white6[6] = {white,white,white,white,white,white};
+				pRenderContext->SetLightingOrigin( vec3_origin );
+				pRenderContext->SetAmbientLightCube(white6);
+				g_pStudioRender->SetAmbientLightColors(white6);
+				g_pStudioRender->SetLocalLights(0, nullptr);
+				modelrender->SuppressEngineLighting(true);
+				DrawRenderablesInList( opaqueViewModelList, STUDIO_STATIC_LIGHTING | STUDIO_NOSHADOWS );
+				modelrender->SuppressEngineLighting(false);
+			}
+
+			pRenderContext->PopRenderTargetAndViewport();
+			pRenderContext->SetStencilReferenceValue(0x0);
+			pRenderContext->SetStencilWriteMask(0x0);
+		}
+		stencilSetupNoStencilWrites();
+
+#endif // NEO
 		DrawRenderablesInList( translucentViewModelList, STUDIO_TRANSPARENCY );
 	}
 
@@ -3910,14 +3897,7 @@ void CRendering3dView::DrawWorld( float waterZAdjust )
 	}
 	
 #ifdef NEO
-	CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
-	pRenderContext->SetStencilEnable(true);
-	pRenderContext->SetStencilWriteMask(NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_PARTICLE | NEO_THERMALS_TRANSLUCENT);
-	pRenderContext->SetStencilTestMask(0x0);
-	pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-	pRenderContext->SetStencilPassOperation(STENCILOPERATION_ZERO);
-	pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
-	pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+	stencilSetupOpaqueRenderable();
 #endif // NEO
 
 	unsigned long engineFlags = BuildEngineDrawWorldListFlags( m_DrawFlags );
@@ -4206,20 +4186,14 @@ static inline void DrawOpaqueRenderable( IClientRenderable *pEnt, bool bTwoPass,
 		flags |= STUDIO_SSAODEPTHTEXTURE;
 	}
 	
+#ifdef NEO
 	if (C_NEO_Player *pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
 		pTargetPlayer && pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT)
 	{
 		flags |= STUDIO_USING_THERMALS;
-		CMatRenderContextPtr pRenderContext( materials );
-		pRenderContext->SetStencilEnable(true);
-		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_TRANSLUCENT | NEO_THERMALS_PARTICLE);
-		pRenderContext->SetStencilTestMask(0x0);
-		pRenderContext->SetStencilWriteMask(NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_TRANSLUCENT | NEO_THERMALS_PARTICLE);
-		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-		pRenderContext->SetStencilPassOperation(STENCILOPERATION_ZERO);
-		pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
-		pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+		stencilSetupOpaqueRenderable();
 	}
+#endif // NEO
 
 	float *pRenderClipPlane = NULL;
 	if( r_entityclips.GetBool() )
@@ -4294,11 +4268,7 @@ static void DrawOpaqueRenderables_DrawStaticProps( CClientRenderablesList::CEntr
 	if (C_NEO_Player *pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
 		pTargetPlayer && pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT)
 	{ // If DrawOpaqueRenderable below gets called on a renderable thats highlighted in thermals, this will break and will instead need to be moved into the loop before drawstaticprops
-		CMatRenderContextPtr pRenderContext( materials );
-		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_TRANSLUCENT | NEO_THERMALS_PARTICLE);
-		pRenderContext->SetStencilWriteMask(NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_TRANSLUCENT | NEO_THERMALS_PARTICLE);
-		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-		pRenderContext->SetStencilPassOperation(STENCILOPERATION_ZERO);
+		stencilSetupOpaqueRenderable();
 	}
 #endif NEO
 
@@ -4660,17 +4630,9 @@ static inline void DrawTranslucentRenderable( IClientRenderable *pEnt, bool twoP
 		view->SetCurrentlyDrawingEntity( NULL );
 	}
 	
-	if (g_CurrentViewID == VIEW_MAIN && dynamic_cast<CParticleEffectBinding *>(pEnt))
+	if (dynamic_cast<CParticleEffectBinding *>(pEnt))
 	{
-		IMatRenderContext* pRenderContext = materials->GetRenderContext();
-		pRenderContext->SetStencilEnable(true);
-		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
-		pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
-		pRenderContext->SetStencilTestMask(0x0);
-		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-		pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
-		pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
-		pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+		stencilSetupTranslucentRenderable();
 	}
 }
 
@@ -4731,9 +4693,7 @@ void CRendering3dView::DrawNoZBufferTranslucentRenderables( void )
 	int iCurTranslucentEntity = m_pRenderablesList->m_RenderGroupCounts[RENDER_GROUP_TRANSLUCENT_ENTITY] - 1;
 
 #ifdef NEO
-	CMatRenderContextPtr pRenderContext(materials);
-	pRenderContext->SetStencilReferenceValue(0x0);
-	pRenderContext->SetStencilWriteMask(0x0);
+	stencilSetupNoStencilWrites();
 #endif // NEO
 	while( iCurTranslucentEntity >= 0 )
 	{
@@ -4872,18 +4832,8 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 	{
 		MDLCACHE_CRITICAL_SECTION();
 #ifdef NEO
-		//if (g_CurrentViewID == VIEW_MAIN)
-		{
-			IMatRenderContext* pRenderContext = materials->GetRenderContext();
-			//pRenderContext->SetStencilEnable(true);
-			pRenderContext->SetStencilReferenceValue(NEO_THERMALS_PARTICLE);
-			pRenderContext->SetStencilWriteMask(NEO_THERMALS_PARTICLE);
-			pRenderContext->SetStencilTestMask(0x0);
-			pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-			pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
-			pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
-			pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
-		}
+		stencilSetupParticleRenderable();
+
 #endif // NEO
 		// Draw the particle singletons.
 		DrawParticleSingletons( bInSkybox );
@@ -4896,18 +4846,8 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 		while( iCurTranslucentEntity >= 0 )
 		{
 #ifdef NEO
-			//if (g_CurrentViewID == VIEW_MAIN)
-			{
-				CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
-				//pRenderContext->SetStencilEnable(true);
-				pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
-				pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
-				pRenderContext->SetStencilTestMask(0x0);
-				pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-				pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
-				pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
-				pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
-			}
+			stencilSetupTranslucentRenderable();
+
 #endif // NEO
 			// Seek the current leaf up to our current translucent-entity leaf.
 			int iThisLeaf = pEntities[iCurTranslucentEntity].m_iWorldListInfoLeaf;
@@ -4934,18 +4874,8 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 				for( ;pEntities[iCurTranslucentEntity].m_iWorldListInfoLeaf == iThisLeaf && iCurTranslucentEntity >= 0; --iCurTranslucentEntity )
 				{
 #ifdef NEO
-					//if (g_CurrentViewID == VIEW_MAIN)
-					{
-						CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
-						//pRenderContext->SetStencilEnable(true);
-						pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
-						pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
-						pRenderContext->SetStencilTestMask(0x0);
-						pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-						pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
-						pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
-						pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
-					}
+					stencilSetupTranslucentRenderable();
+
 #endif // NEO
 					IClientRenderable *pRenderable = pEntities[iCurTranslucentEntity].m_pRenderable;
 					
@@ -4994,18 +4924,7 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 				for( ;pEntities[iCurTranslucentEntity].m_iWorldListInfoLeaf == iThisLeaf && iCurTranslucentEntity >= 0; --iCurTranslucentEntity )
 				{
 #ifdef NEO
-					//if (g_CurrentViewID == VIEW_MAIN)
-					{
-						CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
-						//pRenderContext->SetStencilEnable(true);
-						pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
-						pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
-						pRenderContext->SetStencilTestMask(0x0);
-						pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-						pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
-						pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
-						pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
-					}
+					stencilSetupTranslucentRenderable();
 #endif // NEO
 					IClientRenderable *pRenderable = pEntities[iCurTranslucentEntity].m_pRenderable;
 					
@@ -5053,18 +4972,7 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 	}
 	
 #ifdef NEO
-	CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
-	//if (g_CurrentViewID == VIEW_MAIN)
-	{
-		//pRenderContext->SetStencilEnable(true);
-		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
-		pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
-		pRenderContext->SetStencilTestMask(0x0);
-		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-		pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
-		pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
-		pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
-	}
+	stencilSetupTranslucentRenderable();
 #endif // NEO
 	// Draw the rest of the surfaces in world leaves
 	DrawTranslucentWorldAndDetailPropsInLeaves( iPrevLeaf, 0, nEngineDrawFlags, nDetailLeafCount, pDetailLeafList, bShadowDepth );
@@ -5073,10 +4981,7 @@ void CRendering3dView::DrawTranslucentRenderables( bool bInSkybox, bool bShadowD
 	DetailObjectSystem()->RenderTranslucentDetailObjects( CurrentViewOrigin(), CurrentViewForward(), CurrentViewRight(), CurrentViewUp(), nDetailLeafCount, pDetailLeafList );
 	
 #ifdef NEO
-	if (g_CurrentViewID == VIEW_MAIN)
-	{
-		pRenderContext->SetStencilEnable(false);
-	}
+	stencilSetupNoStencilWrites();
 #endif // NEO
 	// Reset the blend state.
 	render->SetBlend( 1 );

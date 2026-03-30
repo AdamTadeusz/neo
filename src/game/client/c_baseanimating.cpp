@@ -3305,13 +3305,9 @@ int C_BaseAnimating::DrawModel( int flags )
 			}
 		}
 
-		CMatRenderContextPtr pRenderContext(materials);
 		if (flags & STUDIO_HIGHLIGHT_IN_THERMALS)
 		{
-			pRenderContext->SetStencilReferenceValue(NEO_THERMALS_HIGHLIGHT);
-			pRenderContext->SetStencilWriteMask(NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_TRANSLUCENT | NEO_THERMALS_PARTICLE);
-			pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-			pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+			stencilSetupOpaqueHighlightedRenderable();
 		}
 
 #endif // NEO
@@ -3346,18 +3342,13 @@ int C_BaseAnimating::DrawModel( int flags )
 #ifdef NEO
 					if (isMoving)
 					{ // Drawing an active weapon first draws the entity holding the weapon. This call removes the material override before the draw call on the active weapon can complete, re-override here
-						drawn = InternalDrawModel(STUDIO_RENDER | extraFlags);
+						InternalDrawModel(STUDIO_RENDER | extraFlags);
 						IMaterial* pass = materials->FindMaterial(NEO_MOTION_MODEL_MATERIAL, TEXTURE_GROUP_MODEL);
 						Assert(!IsErrorMaterial(pass));
 						modelrender->ForcedMaterialOverride(pass);
 					}
-					else
-					{
 #endif // NEO
 					drawn = InternalDrawModel( STUDIO_RENDER|extraFlags );
-#ifdef NEO
-					}
-#endif // NEO
 				}
 			}
 		}

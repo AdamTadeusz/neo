@@ -2387,7 +2387,7 @@ void DoNEOVision(const int neoClass, const int x, const int y, const int w, cons
 		pRenderContext->SetStencilEnable(true);
 		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_PARTICLE);
 		constexpr float SMOKE_FOG_OVERLAY_THRESHOLD_TO_FILL_SCREEN = 1.4f;
-		pRenderContext->SetStencilTestMask( g_SmokeFogOverlayAlpha < SMOKE_FOG_OVERLAY_THRESHOLD_TO_FILL_SCREEN ? NEO_THERMALS_PARTICLE | NEO_THERMALS_TRANSLUCENT | NEO_GLOW_VIEWMODEL : NEO_THERMALS_TRANSLUCENT | NEO_GLOW_VIEWMODEL);
+		pRenderContext->SetStencilTestMask( g_SmokeFogOverlayAlpha < SMOKE_FOG_OVERLAY_THRESHOLD_TO_FILL_SCREEN ? NEO_THERMALS_PARTICLE | NEO_THERMALS_TRANSLUCENT | NEO_VIEWMODEL : NEO_THERMALS_TRANSLUCENT | NEO_VIEWMODEL);
 		pRenderContext->SetStencilWriteMask(0x0);
 		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_EQUAL);
 		pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);

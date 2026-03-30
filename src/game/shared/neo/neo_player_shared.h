@@ -368,18 +368,6 @@ bool GetClNeoDisplayName(wchar_t (&pWszDisplayName)[NEO_MAX_DISPLAYNAME],
 #define TUTORIAL_MAP_CLASSES "ntre_class_tut"
 #define TUTORIAL_MAP_SHOOTING "ntre_shooting_tut"
 
-enum NeoGlowStencilBits
-{
-	NEO_GLOW_ZERO = 0,
-	NEO_GLOW_OBSTRUCTED = 1 << 0,
-	NEO_GLOW_NOTOBSTRUCTED = 1 << 1,
-	NEO_GLOW_CLOAKED = 1 << 2,
-	NEO_GLOW_VIEWMODEL = 1 << 3,
-	NEO_THERMALS_HIGHLIGHT = 1 << 4,
-	NEO_THERMALS_PARTICLE = 1 << 5,
-	NEO_THERMALS_TRANSLUCENT = 1 << 6,
-};
-
 enum
 {
 	TEAM_JINRAI = LAST_SHARED_TEAM + 1,

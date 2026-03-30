@@ -576,13 +576,7 @@ void C_BreakableSurface::DrawRenderList(IBrushSurface* pBrushSurface)
 	CMatRenderContextPtr pRenderContext( materials );
 #ifdef NEO
 	// This is where we draw the broken glass edges. Stencil writes are done separately
-	pRenderContext->SetStencilReferenceValue(0x0);
-	pRenderContext->SetStencilWriteMask(0x0);
-	pRenderContext->SetStencilTestMask(0x0);
-	pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-	pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
-	pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
-	pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+	stencilSetupNoStencilWrites();
 #endif // NEO
 	for( unsigned short i = m_RenderList.Head(); i != m_RenderList.InvalidIndex(); i = m_RenderList.Next(i) )
 	{
@@ -610,9 +604,8 @@ void C_BreakableSurface::DrawRenderList(IBrushSurface* pBrushSurface)
 	// Draw the broken glass a second time, with a simple alphatested texture and only to the stencil buffer
 	nCurStyle		= -1;
 	nCurEdgeType	= -1;
-
-	pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
-	pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
+	
+	stencilSetupTranslucentRenderable();
 	pRenderContext->OverrideColorWriteEnable(true, false);
 	pRenderContext->OverrideAlphaWriteEnable(true, false);
 	pRenderContext->OverrideDepthEnable(true, false);

@@ -327,4 +327,97 @@ extern IVRenderView *render;
 extern IVRenderView *render;
 #endif
 
+#ifdef NEO
+
+enum NeoStencilBits
+{
+	NEO_GLOW_ZERO = 0,
+	NEO_GLOW_OBSTRUCTED = 1 << 0,
+	NEO_GLOW_NOTOBSTRUCTED = 1 << 1,
+	NEO_GLOW_CLOAKED = 1 << 2,
+	NEO_VIEWMODEL = 1 << 3,
+	NEO_THERMALS_HIGHLIGHT = 1 << 4,
+	NEO_THERMALS_PARTICLE = 1 << 5,
+	NEO_THERMALS_TRANSLUCENT = 1 << 6,
+};
+
+static void stencilSetupOpaqueRenderable()
+{
+	CMatRenderContextPtr pRenderContext( materials );
+	pRenderContext->SetStencilEnable(true);
+	pRenderContext->SetStencilReferenceValue(0x0);
+	pRenderContext->SetStencilTestMask(0x0);
+	pRenderContext->SetStencilWriteMask(NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_PARTICLE | NEO_THERMALS_TRANSLUCENT);
+	pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+	pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE); // could zero too
+	pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+	pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+}
+
+static void stencilSetupOpaqueHighlightedRenderable()
+{
+	CMatRenderContextPtr pRenderContext( materials );
+	pRenderContext->SetStencilEnable(true);
+	pRenderContext->SetStencilReferenceValue(NEO_THERMALS_HIGHLIGHT);
+	pRenderContext->SetStencilTestMask(0x0);
+	pRenderContext->SetStencilWriteMask(NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_PARTICLE | NEO_THERMALS_TRANSLUCENT);
+	pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+	pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+	pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+	pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+}
+
+static void stencilSetupViewmodelRenderable()
+{
+	CMatRenderContextPtr pRenderContext( materials );
+	pRenderContext->SetStencilEnable(true);
+	pRenderContext->SetStencilReferenceValue(NEO_VIEWMODEL | NEO_THERMALS_HIGHLIGHT);
+	pRenderContext->SetStencilTestMask(0x0);
+	pRenderContext->SetStencilWriteMask(NEO_VIEWMODEL | NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_PARTICLE | NEO_THERMALS_TRANSLUCENT);
+	pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+	pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+	pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+	pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+}
+
+static void stencilSetupTranslucentRenderable()
+{
+	CMatRenderContextPtr pRenderContext( materials );
+	pRenderContext->SetStencilEnable(true);
+	pRenderContext->SetStencilReferenceValue(NEO_THERMALS_TRANSLUCENT);
+	pRenderContext->SetStencilTestMask(0x0);
+	pRenderContext->SetStencilWriteMask(NEO_THERMALS_TRANSLUCENT);
+	pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+	pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+	pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+	pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+}
+
+static void stencilSetupParticleRenderable()
+{
+	CMatRenderContextPtr pRenderContext( materials );
+	pRenderContext->SetStencilEnable(true);
+	pRenderContext->SetStencilReferenceValue(NEO_THERMALS_PARTICLE);
+	pRenderContext->SetStencilTestMask(0x0);
+	pRenderContext->SetStencilWriteMask(NEO_THERMALS_PARTICLE);
+	pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+	pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+	pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+	pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+}
+
+static void stencilSetupNoStencilWrites()
+{
+	CMatRenderContextPtr pRenderContext( materials );
+	pRenderContext->SetStencilEnable(false);
+	pRenderContext->SetStencilReferenceValue(0x0);
+	pRenderContext->SetStencilTestMask(0x0);
+	pRenderContext->SetStencilWriteMask(0x0);
+	pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+	pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+	pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+	pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+}
+#endif // NEO
+
 #endif // IVRENDERVIEW_H
