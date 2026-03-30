@@ -607,6 +607,7 @@ void C_BreakableSurface::DrawRenderList(IBrushSurface* pBrushSurface)
 	}
 
 #ifdef NEO
+	// Draw the broken glass a second time, with a simple alphatested texture and only to the stencil buffer
 	nCurStyle		= -1;
 	nCurEdgeType	= -1;
 

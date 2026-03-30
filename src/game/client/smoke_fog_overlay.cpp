@@ -142,12 +142,17 @@ void DrawSmokeFogOverlay()
 #endif // NEO
 }
 
-#ifdef GLOWS_ENABLE
-extern ConVar glow_outline_effect_enable;
-#endif // GLOWS_ENABLE
+ConVar drawSmokeOverlay("drawSmokeOverlay", "0", FCVAR_CHEAT);
 extern ConVar mp_forcecamera;
 void UpdateThermalOverride()
 {
+	if (drawSmokeOverlay.GetBool())
+	{
+		g_SmokeFogOverlayThermalOverride = true;
+		g_SmokeFogOverlayAlpha = 10.f;
+		return;
+	}
+
 	auto localPlayer = C_NEO_Player::GetLocalNEOPlayer();
 	Assert(localPlayer);
 	if (localPlayer->IsAlive())

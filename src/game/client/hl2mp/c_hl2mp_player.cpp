@@ -1482,7 +1482,7 @@ void C_HL2MPRagdoll::SetupWeights( const matrix3x4_t *pBoneToWorld, int nFlexWei
 #ifdef NEO
 int C_HL2MPRagdoll::DrawModel(int flags)
 {
-	if (flags & STUDIO_USING_THERMALS)
+	if (flags & STUDIO_USING_THERMALS && gpGlobals->curtime - m_flNeoCreateTime < (THERMALS_OBJECT_MAX_TEMPERATURE / THERMALS_OBJECT_COOL_RATE) )
 		flags |= STUDIO_HIGHLIGHT_IN_THERMALS;
 
 	return BaseClass::DrawModel(flags);

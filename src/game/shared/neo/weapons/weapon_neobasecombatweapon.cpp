@@ -1262,7 +1262,7 @@ int CNEOBaseCombatWeapon::DrawModel(int flags)
 	}
 
 	auto pOwner = static_cast<C_NEO_Player *>(GetOwner());
-	if (flags & STUDIO_USING_THERMALS && (!pOwner || (pOwner && !pOwner->IsCloaked())))
+	if (flags & STUDIO_USING_THERMALS && ((!pOwner && m_flTemperature > THERMALS_OBJECT_MIN_TEMPERATURE) || (pOwner && !pOwner->IsCloaked())))
 	{
 		flags |= STUDIO_HIGHLIGHT_IN_THERMALS;
 	}

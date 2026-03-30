@@ -1263,8 +1263,11 @@ void CViewRender::DrawViewModels( const CViewSetup &viewRender, bool drawViewmod
 		modelrender->SuppressEngineLighting(true);
 		DrawRenderablesInList( opaqueViewModelList, STUDIO_STATIC_LIGHTING | STUDIO_NOSHADOWS );
 		modelrender->SuppressEngineLighting(false);
-
 		pRenderContext->PopRenderTargetAndViewport();
+
+		pRenderContext->SetStencilEnable(false);
+		pRenderContext->SetStencilReferenceValue(0x0);
+		pRenderContext->SetStencilWriteMask(0x0);
 #endif // NEO && GLOWS_ENABLE
 		DrawRenderablesInList( translucentViewModelList, STUDIO_TRANSPARENCY );
 	}
@@ -3905,6 +3908,17 @@ void CRendering3dView::DrawWorld( float waterZAdjust )
 	{
 		return;
 	}
+	
+#ifdef NEO
+	CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
+	pRenderContext->SetStencilEnable(true);
+	pRenderContext->SetStencilWriteMask(NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_PARTICLE | NEO_THERMALS_TRANSLUCENT);
+	pRenderContext->SetStencilTestMask(0x0);
+	pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+	pRenderContext->SetStencilPassOperation(STENCILOPERATION_ZERO);
+	pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+	pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+#endif // NEO
 
 	unsigned long engineFlags = BuildEngineDrawWorldListFlags( m_DrawFlags );
 
@@ -4192,13 +4206,10 @@ static inline void DrawOpaqueRenderable( IClientRenderable *pEnt, bool bTwoPass,
 		flags |= STUDIO_SSAODEPTHTEXTURE;
 	}
 	
-	auto pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
-	if (pTargetPlayer && pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT)
+	if (C_NEO_Player *pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
+		pTargetPlayer && pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT)
 	{
 		flags |= STUDIO_USING_THERMALS;
-
-		// By default every opaque renderable clears the highlight in thermals bit. Every object that should be highlighted in thermals will change these stencil settings to write instead.
-		// this way no matter what order objects are drawn in we don't see thermal highlights through objects
 		CMatRenderContextPtr pRenderContext( materials );
 		pRenderContext->SetStencilEnable(true);
 		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_TRANSLUCENT | NEO_THERMALS_PARTICLE);
@@ -4279,6 +4290,17 @@ static void DrawOpaqueRenderables_DrawStaticProps( CClientRenderablesList::CEntr
 	IClientRenderable *pStatics[ MAX_STATICS_PER_BATCH ];
 	
 	int numScheduled = 0, numAvailable = MAX_STATICS_PER_BATCH;
+#ifdef NEO
+	if (C_NEO_Player *pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
+		pTargetPlayer && pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT)
+	{ // If DrawOpaqueRenderable below gets called on a renderable thats highlighted in thermals, this will break and will instead need to be moved into the loop before drawstaticprops
+		CMatRenderContextPtr pRenderContext( materials );
+		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_TRANSLUCENT | NEO_THERMALS_PARTICLE);
+		pRenderContext->SetStencilWriteMask(NEO_THERMALS_HIGHLIGHT | NEO_THERMALS_TRANSLUCENT | NEO_THERMALS_PARTICLE);
+		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
+		pRenderContext->SetStencilPassOperation(STENCILOPERATION_ZERO);
+	}
+#endif NEO
 
 	for( CClientRenderablesList::CEntry *itEntity = pEntitiesBegin; itEntity < pEntitiesEnd; ++ itEntity )
 	{
@@ -4302,20 +4324,8 @@ static void DrawOpaqueRenderables_DrawStaticProps( CClientRenderablesList::CEntr
 		numAvailable = MAX_STATICS_PER_BATCH;
 	}
 	
-#ifdef NEO
-	CMatRenderContextPtr pRenderContext = materials->GetRenderContext();
-	pRenderContext->SetStencilEnable(true);
-	pRenderContext->SetStencilWriteMask(NEO_THERMALS_HIGHLIGHT);
-	pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-	pRenderContext->SetStencilPassOperation(STENCILOPERATION_ZERO);
-	pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
-	pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
-#endif // NEO
 	if ( numScheduled )
 		staticpropmgr->DrawStaticProps( pStatics, numScheduled, DepthMode, vcollide_wireframe.GetBool() );
-#ifdef NEO
-	pRenderContext->SetStencilEnable(false);
-#endif // NEO
 }
 
 static void DrawOpaqueRenderables_Range( CClientRenderablesList::CEntry *pEntitiesBegin, CClientRenderablesList::CEntry *pEntitiesEnd, ERenderDepthMode DepthMode )
@@ -4720,6 +4730,11 @@ void CRendering3dView::DrawNoZBufferTranslucentRenderables( void )
 	CClientRenderablesList::CEntry *pEntities = m_pRenderablesList->m_RenderGroups[RENDER_GROUP_TRANSLUCENT_ENTITY];
 	int iCurTranslucentEntity = m_pRenderablesList->m_RenderGroupCounts[RENDER_GROUP_TRANSLUCENT_ENTITY] - 1;
 
+#ifdef NEO
+	CMatRenderContextPtr pRenderContext(materials);
+	pRenderContext->SetStencilReferenceValue(0x0);
+	pRenderContext->SetStencilWriteMask(0x0);
+#endif // NEO
 	while( iCurTranslucentEntity >= 0 )
 	{
 		IClientRenderable *pRenderable = pEntities[iCurTranslucentEntity].m_pRenderable;
