@@ -476,6 +476,7 @@ C_NEO_Player::C_NEO_Player()
 	m_bIsAllowedToToggleVision = false;
 
 	m_flTocFactor = 0.15f;
+	m_flTemperature = THERMALS_OBJECT_MAX_TEMPERATURE;
 
 	memset(m_szNeoNameWDupeIdx, 0, sizeof(m_szNeoNameWDupeIdx));
 	m_szNameDupePos = 0;
@@ -682,8 +683,6 @@ int C_NEO_Player::DrawModel(int flags)
 		modelrender->ForcedMaterialOverride(nullptr);
 		return ret;
 	}
-	else if (flags & STUDIO_USING_THERMALS)
-		flags |= STUDIO_HIGHLIGHT_IN_THERMALS;
 
 	return BaseClass::DrawModel(flags);
 }

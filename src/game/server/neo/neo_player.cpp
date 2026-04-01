@@ -544,6 +544,7 @@ CNEO_Player::CNEO_Player()
 	m_bInAim = false;
 	m_bCarryingGhost = false;
 	m_bInLean = NEO_LEAN_NONE;
+	m_flTemperature = THERMALS_OBJECT_MAX_TEMPERATURE;
 
 	m_iLoadoutWepChoice = NEORules()->GetForcedWeapon() >= 0 ? NEORules()->GetForcedWeapon() : 0;
 	m_iNextSpawnClassChoice = NEO_CLASS_RANDOM;
@@ -661,6 +662,7 @@ void CNEO_Player::Spawn(void)
 	}
 
 	BaseClass::Spawn();
+	SetContextThink( nullptr, gpGlobals->curtime, "TemperatureContext" );
 
 	SetMaxHealth(MAX_HEALTH_FOR_CLASS[m_iNeoClass]);
 	SetHealth(GetMaxHealth());

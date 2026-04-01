@@ -313,6 +313,9 @@ IMPLEMENT_SERVERCLASS_ST_NOBASE( CBaseEntity, DT_BaseEntity )
 #ifdef TF_DLL
 	SendPropArray3( SENDINFO_ARRAY3(m_nModelIndexOverrides), SendPropInt( SENDINFO_ARRAY(m_nModelIndexOverrides), SP_MODEL_INDEX_BITS, 0 ) ),
 #endif
+#ifdef NEO
+	SendPropFloat(SENDINFO(m_flTemperature), 0, SPROP_CHANGES_OFTEN, THERMALS_OBJECT_MIN_TEMPERATURE, THERMALS_OBJECT_MAX_TEMPERATURE),
+#endif // NEO
 
 END_SEND_TABLE()
 
@@ -425,6 +428,9 @@ CBaseEntity::CBaseEntity( bool bServerOnly )
 #endif
 
 	m_bTruceValidForEnt = false;
+#ifdef NEO
+	m_flTemperature = THERMALS_OBJECT_MIN_TEMPERATURE;
+#endif // NEO
 }
 
 //-----------------------------------------------------------------------------
@@ -2256,6 +2262,11 @@ BEGIN_DATADESC_NO_BASE( CBaseEntity )
 	DEFINE_ARRAY( m_nModelIndexOverrides, FIELD_INTEGER, MAX_VISION_MODES ),
 #endif
 
+#ifdef NEO
+	DEFINE_FIELD( m_flTemperature, FIELD_FLOAT ),
+	DEFINE_THINKFUNC( TemperatureThink ),
+#endif // NEO
+
 END_DATADESC()
 
 DEFINE_SCRIPT_INSTANCE_HELPER( CBaseEntity, &g_BaseEntityScriptInstanceHelper )
@@ -3465,6 +3476,14 @@ void CBaseEntity::SetShadowCastDistance( float flDesiredDistance, float flDelay 
 	}
 }
 
+// Cools the object down to the minimum temperature then stops
+void CBaseEntity::TemperatureThink()
+{
+	m_flTemperature = Max(THERMALS_OBJECT_MIN_TEMPERATURE, m_flTemperature - (TICK_INTERVAL * THERMALS_OBJECT_COOL_RATE));
+	NetworkStateChanged();
+	if (m_flTemperature > THERMALS_OBJECT_MIN_TEMPERATURE)
+		SetNextThink(gpGlobals->curtime + TICK_INTERVAL, "TemperatureContext");
+}
 
 /*
 ================
@@ -3998,6 +4017,10 @@ void CBaseEntity::SetMoveType( MoveType_t val, MoveCollide_t moveCollide )
 
 void CBaseEntity::Spawn( void ) 
 {
+#ifdef NEO
+	RegisterThinkContext("TemperatureContext");
+	SetContextThink( &CBaseEntity::TemperatureThink, gpGlobals->curtime, "TemperatureContext" );
+#endif // NEO
 }
 
 

@@ -255,8 +255,6 @@ int CNEOPredictedViewModel::DrawModel(int flags)
 
 		return 0;
 	}
-	else if (flags & STUDIO_USING_THERMALS)
-		flags |= STUDIO_HIGHLIGHT_IN_THERMALS;
 	return BaseClass::DrawModel(flags);
 }
 #endif

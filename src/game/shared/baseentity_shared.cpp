@@ -2902,6 +2902,19 @@ bool CBaseEntity::IsSimulatingOnAlternateTicks()
 	return sv_alternateticks.GetBool();
 }
 
+#ifdef NEO
+bool CBaseEntity::TemperatureFade()
+{
+	if (m_flTemperature == THERMALS_OBJECT_MIN_TEMPERATURE)
+	{
+		return true;
+	}
+	m_flTemperature = Max(THERMALS_OBJECT_MIN_TEMPERATURE, m_flTemperature - (TICK_INTERVAL * THERMALS_OBJECT_COOL_RATE));
+	//NetworkStateChanged();
+	return false;
+}
+#endif // NEO
+
 #ifdef CLIENT_DLL
 //-----------------------------------------------------------------------------
 // Purpose: 

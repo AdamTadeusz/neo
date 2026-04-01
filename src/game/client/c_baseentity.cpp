@@ -484,6 +484,9 @@ BEGIN_RECV_TABLE_NOBASE(C_BaseEntity, DT_BaseEntity)
 #ifdef TF_CLIENT_DLL
 	RecvPropArray3( RECVINFO_ARRAY(m_nModelIndexOverrides),	RecvPropInt( RECVINFO(m_nModelIndexOverrides[0]) ) ),
 #endif
+#ifdef NEO
+	RecvPropFloat(RECVINFO(m_flTemperature)),
+#endif // NEO
 
 END_RECV_TABLE()
 
@@ -569,6 +572,9 @@ BEGIN_PREDICTION_DATA_NO_BASE( C_BaseEntity )
 #if !defined( CLIENT_DLL )
 	// DEFINE_FIELD( m_bPredictionEligible, FIELD_BOOLEAN ),
 #endif
+#ifdef NEO
+	DEFINE_PRED_FIELD_TOL( m_flTemperature, FIELD_FLOAT, FTYPEDESC_INSENDTABLE, 0.25f ),
+#endif // NEO
 END_PREDICTION_DATA()
 
 //-----------------------------------------------------------------------------
@@ -974,6 +980,10 @@ C_BaseEntity::C_BaseEntity() :
 	m_bWasDeemedInvalid = false;
 #endif
 
+#ifdef NEO
+	m_flTemperature = THERMALS_OBJECT_MIN_TEMPERATURE;
+#endif // NEO
+
 	ParticleProp()->Init( this );
 }
 
@@ -1051,6 +1061,9 @@ void C_BaseEntity::Clear( void )
 	// Do not enable this on all entities. It forces bone setup for entities that
 	// don't need it.
 	//AddEFlags( EFL_USE_PARTITION_WHEN_NOT_SOLID );
+#ifdef NEO
+	m_flTemperature = THERMALS_OBJECT_MIN_TEMPERATURE;
+#endif // NEO
 
 	UpdateVisibility();
 }

@@ -216,7 +216,7 @@ public:
 	inline const Vector& GetInitialRagdollOrigin(void) const { return m_vecRagdollOrigin.Get(); }
 	inline const Vector& GetInitialRagdollVelocity(void) const { return m_vecRagdollVelocity.Get(); }
 #ifdef CLIENT_DLL
-	virtual int DrawModel(int flags) override;
+	void ClientThink() override;
 #endif // CLIENT_DLL
 	float m_flNeoCreateTime; // don't know what m_flCreateTime is used for, better to be safe I guess
 #endif // NEO

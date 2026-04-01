@@ -234,6 +234,37 @@ void CNEOBaseCombatWeapon::Precache()
 	BaseClass::Precache();
 }
 
+#ifdef CLIENT_DLL
+void CNEOBaseCombatWeapon::ClientThink()
+#else
+void CNEOBaseCombatWeapon::TemperatureThink()
+#endif // CLIENT_DLL
+{
+	const float temperatureChange = GetOwner() && m_flTemperature < THERMALS_OBJECT_TEMPERATURE_HELD ? TICK_INTERVAL * THERMALS_OBJECT_COOL_RATE : -TICK_INTERVAL * THERMALS_OBJECT_COOL_RATE;
+	float temperature = Max(THERMALS_OBJECT_MIN_TEMPERATURE, Min(THERMALS_OBJECT_MAX_TEMPERATURE, m_flTemperature + temperatureChange));
+	
+	// We don't want the temperature to jump around either side of THERMALS_OBJECT_TEMPERATURE_HELD to avoid network updates;
+	if (GetOwner())
+	{
+		if (m_flTemperature <= THERMALS_OBJECT_TEMPERATURE_HELD && temperature >= THERMALS_OBJECT_TEMPERATURE_HELD)
+			temperature = THERMALS_OBJECT_TEMPERATURE_HELD;
+		else if (m_flTemperature >= THERMALS_OBJECT_TEMPERATURE_HELD && temperature <= THERMALS_OBJECT_TEMPERATURE_HELD)
+			temperature = THERMALS_OBJECT_TEMPERATURE_HELD;
+	}
+
+	if (temperature != m_flTemperature)
+	{
+		m_flTemperature = temperature;
+		NetworkStateChanged();
+	}
+
+#ifdef CLIENT_DLL
+	SetNextClientThink(gpGlobals->curtime + TICK_INTERVAL);
+#else
+	SetNextThink(gpGlobals->curtime + TICK_INTERVAL, "TemperatureContext");
+#endif // CLIENT_DLL
+}
+
 void CNEOBaseCombatWeapon::Spawn()
 {
 	// If this fires, either the enum bit mask has overflowed,
@@ -242,6 +273,10 @@ void CNEOBaseCombatWeapon::Spawn()
 	Assert(GetNeoWepBits() != NEO_WEP_INVALID);
 
 	BaseClass::Spawn();
+	
+#ifdef GAME_DLL
+	SetContextThink( &CNEOBaseCombatWeapon::TemperatureThink, gpGlobals->curtime, "TemperatureContext" );
+#endif // GAME_DLL
 
 	m_iClip1 = GetWpnData().iMaxClip1;
 	m_iPrimaryAmmoCount = GetWpnData().iDefaultClip1;
@@ -319,17 +354,6 @@ void CNEOBaseCombatWeapon::Activate(void)
 	}
 #endif
 }
-
-#ifdef CLIENT_DLL
-void CNEOBaseCombatWeapon::ClientThink()
-{
-	const float temperatureChange = GetOwner() && m_flTemperature < THERMALS_OBJECT_TEMPERATURE_HELD ? TICK_INTERVAL * THERMALS_OBJECT_COOL_RATE : -TICK_INTERVAL * THERMALS_OBJECT_COOL_RATE;
-	m_flTemperature = Max(THERMALS_OBJECT_MIN_TEMPERATURE, Min(THERMALS_OBJECT_MAX_TEMPERATURE, m_flTemperature + temperatureChange));
-
-	SetNextClientThink(gpGlobals->curtime + TICK_INTERVAL);
-}
-#endif // CLIENT_DLL
-
 
 void CNEOBaseCombatWeapon::Equip(CBaseCombatCharacter* pOwner)
 {
@@ -1027,6 +1051,9 @@ void CNEOBaseCombatWeapon::PrimaryAttack(void)
 	info.m_flPenetration = GetPenetration();
 
 	pPlayer->FireBullets(info);
+	
+	constexpr float BULLET_HEAT_COST = .1f;
+	m_flTemperature = Min(THERMALS_OBJECT_MAX_TEMPERATURE, m_flTemperature + (info.m_iShots * BULLET_HEAT_COST));
 
 	if (!m_iClip1 && m_iPrimaryAmmoCount <= 0)
 	{
@@ -1262,11 +1289,7 @@ int CNEOBaseCombatWeapon::DrawModel(int flags)
 	}
 
 	auto pOwner = static_cast<C_NEO_Player *>(GetOwner());
-	if (flags & STUDIO_USING_THERMALS && ((!pOwner && m_flTemperature > THERMALS_OBJECT_MIN_TEMPERATURE) || (pOwner && !pOwner->IsCloaked())))
-	{
-		flags |= STUDIO_HIGHLIGHT_IN_THERMALS;
-	}
-	else if (pOwner && pOwner->IsCloaked())
+	if (pOwner && pOwner->IsCloaked())
 	{
 		IMaterial* pass = materials->FindMaterial("models/player/toc", TEXTURE_GROUP_CLIENT_EFFECTS);
 		modelrender->ForcedMaterialOverride(pass);

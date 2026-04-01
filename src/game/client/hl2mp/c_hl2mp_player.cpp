@@ -1248,7 +1248,7 @@ END_RECV_TABLE()
 C_HL2MPRagdoll::C_HL2MPRagdoll()
 {
 #ifdef NEO
-	m_flNeoCreateTime = gpGlobals->curtime;
+	m_flTemperature = THERMALS_OBJECT_MAX_TEMPERATURE;
 #endif // NEO
 }
 
@@ -1420,6 +1420,7 @@ void C_HL2MPRagdoll::CreateHL2MPRagdoll( void )
 		m_pRagdoll->SetInitialVelocity(GetInitialRagdollVelocity());
 		m_pRagdoll->SetLastOrigin(GetInitialRagdollOrigin());
 	}
+	SetNextClientThink(CLIENT_THINK_ALWAYS);
 #endif // NEO
 }
 
@@ -1479,13 +1480,14 @@ void C_HL2MPRagdoll::SetupWeights( const matrix3x4_t *pBoneToWorld, int nFlexWei
 		}
 	}
 }
-#ifdef NEO
-int C_HL2MPRagdoll::DrawModel(int flags)
-{
-	if (flags & STUDIO_USING_THERMALS && gpGlobals->curtime - m_flNeoCreateTime < (THERMALS_OBJECT_MAX_TEMPERATURE / THERMALS_OBJECT_COOL_RATE) )
-		flags |= STUDIO_HIGHLIGHT_IN_THERMALS;
 
-	return BaseClass::DrawModel(flags);
+#ifdef NEO
+void C_HL2MPRagdoll::ClientThink()
+{
+	if (!TemperatureFade())
+	{
+		SetNextClientThink(gpGlobals->curtime + TICK_INTERVAL);
+	}
 }
 #endif // NEO
 

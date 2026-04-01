@@ -42,7 +42,6 @@ public:
 	virtual void PostDataUpdate( DataUpdateType_t type );
 #ifdef NEO
 	virtual void ClientThink() override;
-	float m_flTemperature;
 private:
 	void DrawPath();
 	Vector m_vLastDrawPosition = Vector(VEC_T_NAN, VEC_T_NAN, VEC_T_NAN);

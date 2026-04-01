@@ -352,7 +352,6 @@ void CWeaponSupa7::PrimaryAttack(void)
 	pPlayer->DoMuzzleFlash();
 
 	SendWeaponAnim(m_bSlugLoaded ? ACT_VM_PRIMARYATTACK : ACT_VM_SECONDARYATTACK);
-	m_bSlugLoaded = false;
 
 	// Don't fire again until fire animation has completed
 	ProposeNextAttack(gpGlobals->curtime + GetFireRate());
@@ -367,6 +366,11 @@ void CWeaponSupa7::PrimaryAttack(void)
 
 	// Fire the bullets, and force the first shot to be perfectly accurate
 	pPlayer->FireBullets(info);
+	
+	const float flBulletHeatCost = m_bSlugLoaded ? .5f : .1f;
+	m_flTemperature = Min(THERMALS_OBJECT_MAX_TEMPERATURE , m_flTemperature + (info.m_iShots * flBulletHeatCost));
+
+	m_bSlugLoaded = false;
 
 	if (!m_iClip1 && m_iPrimaryAmmoCount <= 0)
 	{

@@ -40,6 +40,7 @@
 
 #ifdef NEO
 #include "neo_gamerules.h"
+#include "weapon_neobasecombatweapon.h"
 #endif
 
 #include "vprof.h"
@@ -2930,29 +2931,6 @@ BEGIN_NETWORK_TABLE_NOBASE( CBaseCombatWeapon, DT_LocalWeaponData )
 #endif
 END_NETWORK_TABLE()
 
-#ifdef NEO
-#include "weapon_neobasecombatweapon.h"
-#ifdef CLIENT_DLL
-void RecvProxy_m_iClip(const CRecvProxyData* pData, void* pStruct, void* pOut)
-{
-	const int oldValue = *((int*)pOut);
-	const int newValue = pData->m_Value.m_Int - 1;
-	const int bulletsFired = oldValue - newValue;
-	
-	RecvProxy_IntSubOne(pData, pStruct, pOut);
-
-	CNEOBaseCombatWeapon* pNeoWeapon = reinterpret_cast<CNEOBaseCombatWeapon*>(pStruct);
-	if (!pNeoWeapon || bulletsFired <= 0)
-	{
-		return;
-	}
-
-	const float bulletHeatCost = pNeoWeapon->GetNeoWepBits() & (NEO_WEP_SUPA7 | NEO_WEP_AA13) ? 0.5f : 0.1f; // NEO TODO (Adam) store this in weapon info text file?
-	pNeoWeapon->m_flTemperature = Min(THERMALS_OBJECT_MAX_TEMPERATURE , pNeoWeapon->m_flTemperature + (bulletsFired * bulletHeatCost));
-}
-#endif //CLIENT_DLL
-#endif // NEO
-
 BEGIN_NETWORK_TABLE(CBaseCombatWeapon, DT_BaseCombatWeapon)
 #if !defined( CLIENT_DLL )
 	SendPropDataTable("LocalWeaponData", 0, &REFERENCE_SEND_TABLE(DT_LocalWeaponData), SendProxy_SendLocalWeaponDataTable ),
@@ -2969,8 +2947,8 @@ BEGIN_NETWORK_TABLE(CBaseCombatWeapon, DT_BaseCombatWeapon)
 	RecvPropDataTable("LocalWeaponData", 0, 0, &REFERENCE_RECV_TABLE(DT_LocalWeaponData)),
 	RecvPropDataTable("LocalActiveWeaponData", 0, 0, &REFERENCE_RECV_TABLE(DT_LocalActiveWeaponData)),
 #ifdef NEO
-	RecvPropIntWithMinusOneFlag(RECVINFO(m_iClip1), RecvProxy_m_iClip),
-	RecvPropIntWithMinusOneFlag(RECVINFO(m_iClip2), RecvProxy_m_iClip),
+	RecvPropIntWithMinusOneFlag(RECVINFO(m_iClip1)),
+	RecvPropIntWithMinusOneFlag(RECVINFO(m_iClip2)),
 #endif // NEO
 	RecvPropInt( RECVINFO(m_iViewModelIndex)),
 	RecvPropInt( RECVINFO(m_iWorldModelIndex)),

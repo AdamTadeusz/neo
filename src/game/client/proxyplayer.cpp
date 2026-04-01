@@ -301,32 +301,23 @@ EXPOSE_INTERFACE( CEntitySpeedProxy, IMaterialProxy, "EntitySpeed" IMATERIAL_PRO
 
 #ifdef NEO
 //-----------------------------------------------------------------------------
-// Returns Temperature of object
+// Returns the temperature of an entity
 //-----------------------------------------------------------------------------
-class CBaseAnimatingTemperature : public CResultProxy
+class CBaseEntityTemperature : public CResultProxy
 {
 public:
 	void OnBind(void* pC_BaseEntity);
 };
 
-void CBaseAnimatingTemperature::OnBind(void* pC_BaseEntity)
+void CBaseEntityTemperature::OnBind(void* pC_BaseEntity)
 {
 	Assert(m_pResult);
 
-	auto pEntity = dynamic_cast<C_BaseAnimating*>(BindArgToEntity(pC_BaseEntity));
-	if (!pEntity)
-	{
-		m_pResult->SetFloatValue(0);
-	}
-	else if (pEntity->IsPlayer())
-	{
-		m_pResult->SetFloatValue(THERMALS_OBJECT_MAX_TEMPERATURE);
-	}
+	if (C_BaseEntity *pEntity = BindArgToEntity(pC_BaseEntity);
+		pEntity)
+		m_pResult->SetFloatValue(pEntity->m_flTemperature);
 	else
-	{
-		const float lifeTime = gpGlobals->curtime - pEntity->m_flNeoCreateTime;
-		m_pResult->SetFloatValue(Max(THERMALS_OBJECT_MIN_TEMPERATURE, THERMALS_OBJECT_MAX_TEMPERATURE - (THERMALS_OBJECT_COOL_RATE * lifeTime)));
-	}
+		m_pResult->SetFloatValue(THERMALS_OBJECT_MIN_TEMPERATURE);
 
 	if (ToolsEnabled())
 	{
@@ -334,80 +325,7 @@ void CBaseAnimatingTemperature::OnBind(void* pC_BaseEntity)
 	}
 }
 
-EXPOSE_INTERFACE(CBaseAnimatingTemperature, IMaterialProxy, "BaseAnimatingTemperature" IMATERIAL_PROXY_INTERFACE_VERSION);
-
-//-----------------------------------------------------------------------------
-// Returns weapon temperature
-//-----------------------------------------------------------------------------
-class CWeaponTemperature : public CResultProxy
-{
-public:
-	void OnBind(void* pC_BaseEntity);
-};
-
-void CWeaponTemperature::OnBind(void* pC_BaseEntity)
-{
-	Assert(m_pResult);
-
-	auto pEntityWeapon = dynamic_cast<C_NEOBaseCombatWeapon*>(BindArgToEntity(pC_BaseEntity));
-	if (!pEntityWeapon)
-	{
-		auto pEntityViewModel = dynamic_cast<C_NEOPredictedViewModel*>(BindArgToEntity(pC_BaseEntity));
-		if (pEntityViewModel)
-		{
-			pEntityWeapon = static_cast<C_NEOBaseCombatWeapon*>(pEntityViewModel->GetOwningWeapon());
-		}
-	}
-
-	if (!pEntityWeapon)
-	{
-		m_pResult->SetFloatValue(0);
-	}
-	else
-	{
-		const float temperature = pEntityWeapon->m_flTemperature;
-		m_pResult->SetFloatValue(temperature);
-	}
-
-	if (ToolsEnabled())
-	{
-		ToolFramework_RecordMaterialParams(GetMaterial());
-	}
-}
-
-EXPOSE_INTERFACE(CWeaponTemperature, IMaterialProxy, "WeaponTemperature" IMATERIAL_PROXY_INTERFACE_VERSION);
-
-//-----------------------------------------------------------------------------
-// Returns grenade projectile temperature
-//-----------------------------------------------------------------------------
-class CGrenadeProjectileTemperature : public CResultProxy
-{
-public:
-	void OnBind(void* pC_BaseEntity);
-};
-
-void CGrenadeProjectileTemperature::OnBind(void* pC_BaseEntity)
-{
-	Assert(m_pResult);
-
-	auto pEntityProjectile = dynamic_cast<CBaseGrenadeProjectile*>(BindArgToEntity(pC_BaseEntity));
-	if (!pEntityProjectile)
-	{
-		m_pResult->SetFloatValue(0);
-	}
-	else
-	{
-		const float temperature = pEntityProjectile->m_flTemperature;
-		m_pResult->SetFloatValue(temperature);
-	}
-
-	if (ToolsEnabled())
-	{
-		ToolFramework_RecordMaterialParams(GetMaterial());
-	}
-}
-
-EXPOSE_INTERFACE(CGrenadeProjectileTemperature, IMaterialProxy, "GrenadeProjectileTemperature" IMATERIAL_PROXY_INTERFACE_VERSION);
+EXPOSE_INTERFACE(CBaseEntityTemperature, IMaterialProxy, "BaseEntityTemperature" IMATERIAL_PROXY_INTERFACE_VERSION);
 #endif // NEO
 
 //-----------------------------------------------------------------------------

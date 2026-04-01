@@ -2033,6 +2033,11 @@ public:
 
 	virtual bool BCanCallVote() { return true; }
 
+#ifdef NEO
+	CNetworkVarForDerived( float, m_flTemperature );
+	bool TemperatureFade();
+	virtual void TemperatureThink();
+#endif // NEO
 private:
 	CThreadFastMutex m_CalcAbsolutePositionMutex;
 

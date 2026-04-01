@@ -196,9 +196,6 @@ int C_AI_BaseNPC::DrawModel( int flags )
         return BaseClass::DrawModel(flags);
     }
 
-	else if (flags & STUDIO_USING_THERMALS)
-		flags |= STUDIO_HIGHLIGHT_IN_THERMALS;
-
 	return BaseClass::DrawModel(flags);
 }
 #endif

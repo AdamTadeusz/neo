@@ -98,10 +98,6 @@ ConVar cl_neo_grenade_show_path("cl_neo_grenade_show_path", "0", FCVAR_ARCHIVE |
 			}
 		}
 #endif // NEO
-#ifdef NEO
-		if (flags & STUDIO_USING_THERMALS)
-			flags |= STUDIO_HIGHLIGHT_IN_THERMALS;
-#endif // NEO
 		return BaseClass::DrawModel( flags );
 	}
 
@@ -110,8 +106,7 @@ ConVar cl_neo_grenade_show_path("cl_neo_grenade_show_path", "0", FCVAR_ARCHIVE |
 		m_flSpawnTime = gpGlobals->curtime;
 		BaseClass::Spawn();
 #ifdef NEO
-		m_flTemperature = THERMALS_OBJECT_TEMPERATURE_HELD;	// NEO NOTE (Adam) The server doesn't know the client side temperature of the weapon that spawned this projectile, and the client doesn't know what weapon spawned this projectile (may not exist already)
-															// NEO TODO (Adam) use the temperature of the weapon at the time this projectile was created as the starting projectile temperature.
+		m_flTemperature = THERMALS_OBJECT_TEMPERATURE_HELD;
 		SetNextClientThink(gpGlobals->curtime + TICK_INTERVAL);
 #endif // NEO
 	}
@@ -175,6 +170,9 @@ ConVar cl_neo_grenade_show_path("cl_neo_grenade_show_path", "0", FCVAR_ARCHIVE |
 	void CBaseGrenadeProjectile::Spawn( void )
 	{
 		BaseClass::Spawn();
+#ifdef NEO
+		m_flTemperature = THERMALS_OBJECT_TEMPERATURE_HELD;
+#endif // NEO
 
 		SetSolidFlags( FSOLID_NOT_STANDABLE );
 		SetMoveType( MOVETYPE_FLYGRAVITY, MOVECOLLIDE_FLY_CUSTOM );

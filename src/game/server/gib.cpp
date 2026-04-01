@@ -607,6 +607,8 @@ void CGib::Spawn( const char *szGibModel )
 #endif//HL1_DLL
 #ifdef NEO
 	m_bIsGib = true;
+	m_flTemperature = THERMALS_OBJECT_MAX_TEMPERATURE;
+	CBaseEntity::Spawn();
 #endif // NEO
 
 	SetNextThink( gpGlobals->curtime + 4 );

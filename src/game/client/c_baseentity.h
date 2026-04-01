@@ -1722,6 +1722,12 @@ protected:
 
 private:
 	bool	m_bOldShouldDraw;
+
+#ifdef NEO
+public:
+	float m_flTemperature = THERMALS_OBJECT_MIN_TEMPERATURE;
+	bool TemperatureFade();
+#endif // NEO
 };
 
 EXTERN_RECV_TABLE(DT_BaseEntity);

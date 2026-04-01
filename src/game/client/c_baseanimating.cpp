@@ -298,6 +298,9 @@ C_ClientRagdoll::C_ClientRagdoll( bool bRestoring )
 	m_bFadingOut = false;
 	m_bImportant = false;
 	m_bNoModelParticles = false;
+#ifdef NEO
+	m_flTemperature = THERMALS_OBJECT_MAX_TEMPERATURE;
+#endif // NEO
 
 	SetClassname("client_ragdoll");
 
@@ -387,16 +390,6 @@ void C_ClientRagdoll::OnRestore( void )
 	RagdollMoved();
 }
 
-#ifdef NEO
-int C_ClientRagdoll::DrawModel(int flags)
-{
-	if (flags & STUDIO_USING_THERMALS && gpGlobals->curtime - m_flNeoCreateTime < (THERMALS_OBJECT_MAX_TEMPERATURE / THERMALS_OBJECT_COOL_RATE) )
-		flags |= STUDIO_HIGHLIGHT_IN_THERMALS;
-
-	return BaseClass::DrawModel(flags);
-}
-
-#endif // NEO
 void C_ClientRagdoll::ImpactTrace( trace_t *pTrace, int iDamageType, const char *pCustomImpactName )
 {
 	VPROF( "C_ClientRagdoll::ImpactTrace" );
@@ -593,6 +586,11 @@ void C_ClientRagdoll::ClientThink( void )
 		{
 			debugoverlay->AddBoxOverlay( origin, vMins, vMaxs, QAngle( 0, 0, 0 ), 0, 255, 0, 16, 0 );
 		}
+	}
+
+	if (!CBaseEntity::TemperatureFade())
+	{
+		SetNextClientThink(gpGlobals->curtime + TICK_INTERVAL);
 	}
 
 	HandleAnimatedFriction();
@@ -3305,7 +3303,7 @@ int C_BaseAnimating::DrawModel( int flags )
 			}
 		}
 
-		if (flags & STUDIO_HIGHLIGHT_IN_THERMALS)
+		if (flags & STUDIO_USING_THERMALS && m_flTemperature > THERMALS_OBJECT_MIN_TEMPERATURE)
 		{
 			stencilSetupOpaqueHighlightedRenderable();
 		}

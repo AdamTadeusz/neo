@@ -105,6 +105,10 @@ void C_Gib::ClientThink( void )
 	}
 
 	SetNextClientThink( gpGlobals->curtime + 1.0f );
+#ifdef NEO
+	if (!TemperatureFade())
+		SetNextClientThink(gpGlobals->curtime + TICK_INTERVAL);
+#endif // NEO
 }
 
 //-----------------------------------------------------------------------------

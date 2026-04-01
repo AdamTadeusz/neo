@@ -112,6 +112,9 @@ void CWeaponAA13::PrimaryAttack(void)
 
 	// Fire the bullets, and force the first shot to be perfectly accurate
 	pPlayer->FireBullets(info);
+	
+	constexpr float BULLET_HEAT_COST = .1f;
+	m_flTemperature = Min(THERMALS_OBJECT_MAX_TEMPERATURE , m_flTemperature + (info.m_iShots * BULLET_HEAT_COST));
 
 	if (!m_iClip1 && pPlayer->GetAmmoCount(m_iPrimaryAmmoType) <= 0)
 	{

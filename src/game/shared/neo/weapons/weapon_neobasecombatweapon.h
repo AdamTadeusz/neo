@@ -130,6 +130,8 @@ public:
 
 #ifdef CLIENT_DLL
 	virtual void ClientThink() override;
+#else
+	virtual void TemperatureThink() override;
 #endif // CLIENT_DLL
 
 	virtual void Equip(CBaseCombatCharacter* pOwner) override;
@@ -227,9 +229,6 @@ public:
 
 	virtual float GetFireRate() override final;
 	float GetPenetration() const;
-#ifdef CLIENT_DLL
-	float m_flTemperature;
-#endif // CLIENT_DLL
 
 protected:
 	WeaponHandlingInfo_t m_weaponHandling;
