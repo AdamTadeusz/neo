@@ -16,9 +16,6 @@
 #include "model_types.h"
 #include "vprof.h"
 #include "input.h"
-#ifdef NEO
-#include "neo_player_shared.h"
-#endif // NEO
 
 extern ConVar cl_particleeffect_aabb_buffer;
 
@@ -575,14 +572,7 @@ int CNewParticleEffect::DrawModel( int flags )
 		}
 		
 #ifdef NEO
-		pRenderContext->SetStencilEnable(true);
-		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_PARTICLE);
-		pRenderContext->SetStencilWriteMask(NEO_THERMALS_PARTICLE);
-		pRenderContext->SetStencilTestMask(0x0);
-		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-		pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
-		pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
-		pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+		stencilSetupParticleRenderable();
 #endif // NEO
 
 		pRenderContext->MatrixMode( MATERIAL_MODEL );

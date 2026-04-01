@@ -2354,7 +2354,7 @@ void DoNEOVision(const int neoClass, const int x, const int y, const int w, cons
 		pVMat = materials->FindMaterial("dev/neo_motionvision", TEXTURE_GROUP_OTHER, true);
 		break;
 	case NEO_CLASS_SUPPORT:
-		pVMat = materials->FindMaterial("dev/neo_utility", TEXTURE_GROUP_OTHER, true);
+		pVMat = materials->FindMaterial("dev/neo_thermalvision", TEXTURE_GROUP_OTHER, true);
 		break;
 	default:
 		return;

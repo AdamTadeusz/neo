@@ -470,9 +470,6 @@ void CNEOModelManager::Precache( void ) const
 	//PrecacheMaterial("water/ntwater_ivy");
 
 	PrecacheMaterial("dev/motion_model.vmt");
-	PrecacheMaterial("dev/thermal_model.vmt");
-	PrecacheMaterial("dev/thermal_weapon_model.vmt");
-	PrecacheMaterial("dev/thermal_grenade_projectile_model.vmt");
 }
 
 static inline int GetTeamArrOffset(int iTeam)

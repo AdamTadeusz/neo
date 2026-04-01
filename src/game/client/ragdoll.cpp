@@ -396,9 +396,6 @@ public:
 
 	virtual void PostDataUpdate( DataUpdateType_t updateType );
 
-#ifdef NEO
-	virtual int DrawModel(int flags);
-#endif // NEO
 	virtual int InternalDrawModel( int flags );
 	virtual CStudioHdr *OnNewModel( void );
 	virtual unsigned char GetClientSideFade();
@@ -474,32 +471,6 @@ float C_ServerRagdoll::LastBoneChangedTime()
 {
 	return m_flLastBoneChangeTime;
 }
-
-#ifdef NEO
-extern ConVar glow_outline_effect_enable;
-int C_ServerRagdoll::DrawModel(int flags)
-{
-	auto pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
-	if (!pTargetPlayer)
-	{
-		Assert(false);
-		return BaseClass::DrawModel(flags);
-	}
-
-	const bool inThermalVision = pTargetPlayer ? (pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT) : false;
-	if (inThermalVision)
-	{
-		IMaterial* pass = materials->FindMaterial(NEO_THERMAL_MODEL_MATERIAL, TEXTURE_GROUP_MODEL);
-		modelrender->ForcedMaterialOverride(pass);
-		const int ret = BaseClass::DrawModel(flags);
-		modelrender->ForcedMaterialOverride(nullptr);
-		return ret;
-	}
-
-	return BaseClass::DrawModel(flags);
-}
-
-#endif // NEO
 
 int C_ServerRagdoll::InternalDrawModel( int flags )
 {

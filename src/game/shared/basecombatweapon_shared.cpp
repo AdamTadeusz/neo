@@ -2895,10 +2895,8 @@ END_NETWORK_TABLE()
 //-----------------------------------------------------------------------------
 BEGIN_NETWORK_TABLE_NOBASE( CBaseCombatWeapon, DT_LocalWeaponData )
 #if !defined( CLIENT_DLL )
-#ifndef NEO
 	SendPropIntWithMinusOneFlag( SENDINFO(m_iClip1 ), 8 ),
 	SendPropIntWithMinusOneFlag( SENDINFO(m_iClip2 ), 8 ),
-#endif // NEO
 	SendPropIntWithMinusOneFlag( SENDINFO(m_iPrimaryAmmoCount), 8),
 	SendPropIntWithMinusOneFlag( SENDINFO(m_iSecondaryAmmoCount), 8),
 	SendPropInt( SENDINFO(m_iPrimaryAmmoType ), 8 ),
@@ -2914,10 +2912,8 @@ BEGIN_NETWORK_TABLE_NOBASE( CBaseCombatWeapon, DT_LocalWeaponData )
 #endif
 
 #else
-#ifndef NEO
 	RecvPropIntWithMinusOneFlag( RECVINFO(m_iClip1 )),
 	RecvPropIntWithMinusOneFlag( RECVINFO(m_iClip2 )),
-#endif // NEO
 	RecvPropIntWithMinusOneFlag( RECVINFO(m_iPrimaryAmmoCount )),
 	RecvPropIntWithMinusOneFlag( RECVINFO(m_iSecondaryAmmoCount )),
 	RecvPropInt( RECVINFO(m_iPrimaryAmmoType )),
@@ -2935,10 +2931,6 @@ BEGIN_NETWORK_TABLE(CBaseCombatWeapon, DT_BaseCombatWeapon)
 #if !defined( CLIENT_DLL )
 	SendPropDataTable("LocalWeaponData", 0, &REFERENCE_SEND_TABLE(DT_LocalWeaponData), SendProxy_SendLocalWeaponDataTable ),
 	SendPropDataTable("LocalActiveWeaponData", 0, &REFERENCE_SEND_TABLE(DT_LocalActiveWeaponData), SendProxy_SendActiveLocalWeaponDataTable ),
-#ifdef NEO
-	SendPropIntWithMinusOneFlag(SENDINFO(m_iClip1), 8),
-	SendPropIntWithMinusOneFlag(SENDINFO(m_iClip2), 8),
-#endif // NEO
 	SendPropModelIndex( SENDINFO(m_iViewModelIndex) ),
 	SendPropModelIndex( SENDINFO(m_iWorldModelIndex) ),
 	SendPropInt( SENDINFO(m_iState ), 8, SPROP_UNSIGNED ),
@@ -2946,10 +2938,6 @@ BEGIN_NETWORK_TABLE(CBaseCombatWeapon, DT_BaseCombatWeapon)
 #else
 	RecvPropDataTable("LocalWeaponData", 0, 0, &REFERENCE_RECV_TABLE(DT_LocalWeaponData)),
 	RecvPropDataTable("LocalActiveWeaponData", 0, 0, &REFERENCE_RECV_TABLE(DT_LocalActiveWeaponData)),
-#ifdef NEO
-	RecvPropIntWithMinusOneFlag(RECVINFO(m_iClip1)),
-	RecvPropIntWithMinusOneFlag(RECVINFO(m_iClip2)),
-#endif // NEO
 	RecvPropInt( RECVINFO(m_iViewModelIndex)),
 	RecvPropInt( RECVINFO(m_iWorldModelIndex)),
 	RecvPropInt( RECVINFO(m_iState), 0, &CBaseCombatWeapon::RecvProxy_WeaponState ),

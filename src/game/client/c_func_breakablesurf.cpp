@@ -13,9 +13,6 @@
 #include "model_types.h"
 #include "engine/ivmodelinfo.h"
 #include "clienteffectprecachesystem.h"
-#ifdef NEO
-#include "neo_player_shared.h"
-#endif // NEO
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"

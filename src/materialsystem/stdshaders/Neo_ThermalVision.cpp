@@ -6,13 +6,13 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-BEGIN_SHADER_FLAGS(Neo_ThermalVision, "Help for the thermalvision shader.", SHADER_NOT_EDITABLE)
+BEGIN_SHADER_FLAGS( Neo_ThermalVision, "Help for the thermalvision shader.", SHADER_NOT_EDITABLE)
 
 BEGIN_SHADER_PARAMS
 SHADER_PARAM(FBTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "_rt_FullFrameFB", "")
-SHADER_PARAM(TVTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "dev/tvgrad2", "")
-SHADER_PARAM(NOISETEXTURE, SHADER_PARAM_TYPE_TEXTURE, "dev/noise", "")
-SHADER_PARAM(NOISETRANSFORM, SHADER_PARAM_TYPE_VEC2, "[0 0]", "")
+SHADER_PARAM(UTILTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "_rt_NEOVision", "")
+SHADER_PARAM(MODIFYCOLOUR, SHADER_PARAM_TYPE_BOOL, "0", "")
+SHADER_PARAM(STRENGTH, SHADER_PARAM_TYPE_FLOAT, "1", "")
 END_SHADER_PARAMS
 
 SHADER_INIT
@@ -26,23 +26,19 @@ SHADER_INIT
 		Assert(false);
 	}
 
-	if (params[TVTEXTURE]->IsDefined())
+	if (params[UTILTEXTURE]->IsDefined())
 	{
-		LoadTexture(TVTEXTURE);
+		LoadTexture(UTILTEXTURE);
 	}
 	else
 	{
 		Assert(false);
 	}
+}
 
-	if (params[NOISETEXTURE]->IsDefined())
-	{
-		LoadTexture(NOISETEXTURE);
-	}
-	else
-	{
-		Assert(false);
-	}
+bool NeedsFullFrameBufferTexture(IMaterialVar **params, bool bCheckSpecificToThisFrame /* = true */) const
+{
+	return true;
 }
 
 SHADER_FALLBACK
@@ -53,7 +49,6 @@ SHADER_FALLBACK
 		Assert(0);
 		return "Wireframe";
 	}
-
 	return 0;
 }
 
@@ -63,11 +58,13 @@ SHADER_DRAW
 	{
 		pShaderShadow->EnableTexture(SHADER_SAMPLER0, true);
 		pShaderShadow->EnableTexture(SHADER_SAMPLER1, true);
-		pShaderShadow->EnableTexture(SHADER_SAMPLER2, true);
-		
-		pShaderShadow->VertexShaderVertexFormat(VERTEX_POSITION, 1, NULL, 0);
-		
+		pShaderShadow->EnableSRGBRead(SHADER_SAMPLER0, false);
+		pShaderShadow->EnableSRGBRead(SHADER_SAMPLER1, false);
 		pShaderShadow->EnableDepthWrites(false);
+		pShaderShadow->EnableDepthTest(false);
+
+		int fmt = VERTEX_POSITION;
+		pShaderShadow->VertexShaderVertexFormat(fmt, 1, 0, 0);
 
 		DECLARE_STATIC_VERTEX_SHADER(neo_passthrough_vs30);
 		SET_STATIC_VERTEX_SHADER(neo_passthrough_vs30);
@@ -79,13 +76,14 @@ SHADER_DRAW
 	DYNAMIC_STATE
 	{
 		BindTexture(SHADER_SAMPLER0, FBTEXTURE);
-		BindTexture(SHADER_SAMPLER1, TVTEXTURE);
-		BindTexture(SHADER_SAMPLER2, NOISETEXTURE);
+		BindTexture(SHADER_SAMPLER1, UTILTEXTURE);
 		
-		//s_pShaderAPI->SetPixelShaderConstant(0, NOISETRANSFORM);
-		float vNoiseTransform[2] = {0, 0};
-		params[NOISETRANSFORM]->GetVecValue(vNoiseTransform, 2);
-		s_pShaderAPI->SetPixelShaderConstant(0, vNoiseTransform);
+		ITexture *src_texture=params[FBTEXTURE]->GetTextureValue();
+		float vPixelSizeModifyColourStrength[4] = {src_texture->GetActualWidth(), 
+													src_texture->GetActualHeight(),
+													params[MODIFYCOLOUR]->GetFloatValue(),
+													params[STRENGTH]->GetFloatValue()};
+		s_pShaderAPI->SetPixelShaderConstant(0, vPixelSizeModifyColourStrength);
 
 		DECLARE_DYNAMIC_VERTEX_SHADER(neo_passthrough_vs30);
 		SET_DYNAMIC_VERTEX_SHADER(neo_passthrough_vs30);
@@ -96,4 +94,5 @@ SHADER_DRAW
 
 	Draw();
 }
+
 END_SHADER

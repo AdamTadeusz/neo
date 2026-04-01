@@ -3226,7 +3226,6 @@ void C_BaseAnimating::UpdateVisibility()
 
 ConVar r_drawothermodels( "r_drawothermodels", "1", FCVAR_CHEAT, "0=Off, 1=Normal, 2=Wireframe" );
 
-ConVar cl_neo_thermals_overwrite_lighting("cl_neo_thermals_overwrite_lighting", "1", FCVAR_NONE);
 //-----------------------------------------------------------------------------
 // Purpose: Draws the object
 // Input  : flags - 

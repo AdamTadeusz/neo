@@ -353,20 +353,7 @@ int CParticleEffectBinding::DrawModel( int flags )
 	}
 
 #ifdef NEO
-	auto pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
-	bool bInThermalVision = pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT;
-	if (bInThermalVision)
-	{
-		IMatRenderContext* pRenderContext = materials->GetRenderContext();
-		//pRenderContext->SetStencilEnable(true);
-		pRenderContext->SetStencilReferenceValue(NEO_THERMALS_PARTICLE);
-		pRenderContext->SetStencilWriteMask(NEO_THERMALS_PARTICLE);
-		pRenderContext->SetStencilTestMask(0x0);
-		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
-		pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
-		pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
-		pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
-	}
+	stencilSetupParticleRenderable();
 #endif // NEO
 
 	// For each material, render...

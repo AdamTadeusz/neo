@@ -8,12 +8,14 @@
 
 BEGIN_SHADER_FLAGS(Neo_NightVision, "Help for the nightvision shader.", SHADER_NOT_EDITABLE)
 
+ConVar luminosityMP("luminosityMP", "1", FCVAR_NONE);
+ConVar luminosityIntensity("luminosityIntensity", "1", FCVAR_NONE);
 BEGIN_SHADER_PARAMS
 SHADER_PARAM(FBTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "_rt_FullFrameFB", "")
-//SHADER_PARAM(BLURTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "_rt_SmallHDR0", "")
-SHADER_PARAM(NVTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "dev/nvgrad", "")
-SHADER_PARAM(NOISETEXTURE, SHADER_PARAM_TYPE_TEXTURE, "dev/noise", "")
-SHADER_PARAM(NOISETRANSFORM, SHADER_PARAM_TYPE_VEC2, "[0 0]", "")
+SHADER_PARAM(UTILTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "_rt_NEOVision", "")
+SHADER_PARAM(GRADIENTTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "dev/nvgradient", "")
+SHADER_PARAM(LUMINOSITYMP, SHADER_PARAM_TYPE_BOOL, "1", "")
+SHADER_PARAM(LUMINOSITYINTENSITY, SHADER_PARAM_TYPE_FLOAT, "1", "")
 END_SHADER_PARAMS
 
 SHADER_INIT
@@ -27,32 +29,28 @@ SHADER_INIT
 		Assert(false);
 	}
 
-	/*if (params[BLURTEXTURE]->IsDefined())
+	if (params[UTILTEXTURE]->IsDefined())
 	{
-		LoadTexture(BLURTEXTURE);
-	}
-	else
-	{
-		Assert(false);
-	}*/
-
-	if (params[NVTEXTURE]->IsDefined())
-	{
-		LoadTexture(NVTEXTURE);
+		LoadTexture(UTILTEXTURE);
 	}
 	else
 	{
 		Assert(false);
 	}
 
-	if (params[NOISETEXTURE]->IsDefined())
+	if (params[GRADIENTTEXTURE]->IsDefined())
 	{
-		LoadTexture(NOISETEXTURE);
+		LoadTexture(GRADIENTTEXTURE);
 	}
 	else
 	{
 		Assert(false);
 	}
+}
+
+bool NeedsFullFrameBufferTexture(IMaterialVar **params, bool bCheckSpecificToThisFrame /* = true */) const
+{
+	return true;
 }
 
 SHADER_FALLBACK
@@ -72,15 +70,17 @@ SHADER_DRAW
 	SHADOW_STATE
 	{
 		pShaderShadow->EnableTexture(SHADER_SAMPLER0, true);
-		//pShaderShadow->EnableTexture(SHADER_SAMPLER1, true);
+		pShaderShadow->EnableTexture(SHADER_SAMPLER1, true);
 		pShaderShadow->EnableTexture(SHADER_SAMPLER2, true);
-		pShaderShadow->EnableTexture(SHADER_SAMPLER3, true);
-
-		pShaderShadow->VertexShaderVertexFormat(VERTEX_POSITION, 1, NULL, 0);
-		
+		pShaderShadow->EnableSRGBRead(SHADER_SAMPLER0, false);
+		pShaderShadow->EnableSRGBRead(SHADER_SAMPLER1, false);
+		pShaderShadow->EnableSRGBRead(SHADER_SAMPLER2, false);
 		pShaderShadow->EnableDepthWrites(false);
+		pShaderShadow->EnableDepthTest(false);
 
-		// Pre-cache shaders
+		int fmt = VERTEX_POSITION;
+		pShaderShadow->VertexShaderVertexFormat(fmt, 1, 0, 0);
+
 		DECLARE_STATIC_VERTEX_SHADER(neo_passthrough_vs30);
 		SET_STATIC_VERTEX_SHADER(neo_passthrough_vs30);
 
@@ -90,15 +90,15 @@ SHADER_DRAW
 
 	DYNAMIC_STATE
 	{
-		BindTexture(SHADER_SAMPLER0, FBTEXTURE, -1);
-		//BindTexture(SHADER_SAMPLER1, BLURTEXTURE, -1);
-		BindTexture(SHADER_SAMPLER2, NVTEXTURE, -1);
-		BindTexture(SHADER_SAMPLER3, NOISETEXTURE, -1);
+		BindTexture(SHADER_SAMPLER0, FBTEXTURE);
+		BindTexture(SHADER_SAMPLER1, UTILTEXTURE);
+		BindTexture(SHADER_SAMPLER2, GRADIENTTEXTURE);
 		
-		//s_pShaderAPI->SetPixelShaderConstant(0, NOISETRANSFORM);
-		float vNoiseTransform[2] = {0, 0};
-		params[NOISETRANSFORM]->GetVecValue(vNoiseTransform, 2);
-		s_pShaderAPI->SetPixelShaderConstant(0, vNoiseTransform);
+		ITexture *src_texture=params[FBTEXTURE]->GetTextureValue();
+		float vPixelSizeModifyColourStrength[4] = {src_texture->GetActualWidth(), src_texture->GetActualHeight(),
+													luminosityMP.GetFloat(),
+													luminosityIntensity.GetFloat()};
+		s_pShaderAPI->SetPixelShaderConstant(0, vPixelSizeModifyColourStrength);
 
 		DECLARE_DYNAMIC_VERTEX_SHADER(neo_passthrough_vs30);
 		SET_DYNAMIC_VERTEX_SHADER(neo_passthrough_vs30);

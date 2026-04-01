@@ -4,8 +4,7 @@
 //
 //==================================================================================================
 
-#ifndef NEO_THERMAL_MODEL_DX9_HELPER_H
-#define NEO_THERMAL_MODEL_DX9_HELPER_H
+#pragma once
 
 #include <string.h>
 
@@ -43,5 +42,3 @@ void DrawNeoMotionModel_DX9( CBaseVSShader *pShader, IMaterialVar** params, ISha
 				   IShaderShadow* pShaderShadow,
 				   NeoMotionModel_DX9_Vars_t &info, VertexCompressionType_t vertexCompression,
 				   CBasePerMaterialContextData **pContextDataPtr );
-
-#endif // NEO_THERMAL_MODEL_DX9_HELPER_H

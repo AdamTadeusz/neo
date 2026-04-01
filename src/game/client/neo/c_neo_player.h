@@ -12,7 +12,6 @@ class C_NEO_Player;
 
 #include "neo_player_shared.h"
 
-#define NEO_THERMAL_MODEL_MATERIAL "dev/thermal_model"
 #define NEO_MOTION_MODEL_MATERIAL "dev/motion_model"
 
 class C_NEOPredictedViewModel;
