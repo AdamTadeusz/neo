@@ -2415,6 +2415,49 @@ void DoNEOVision(const int neoClass, const int x, const int y, const int w, cons
 			0, 0, nSrcWidth - 1, nSrcHeight - 1,
 			nSrcWidth, nSrcHeight, GetClientWorldEntity()->GetClientRenderable());
 	}
+	else if (neoClass == NEO_CLASS_RECON || neoClass == NEO_CLASS_JUGGERNAUT)
+	{
+		bDisableStencilLater = true;
+		
+		// Copy the render target to the framebuffer texture
+		pRenderContext->CopyRenderTargetToTextureEx(pFbTex, renderTargetId, &DestRect, NULL);
+
+		pRenderContext->SetStencilEnable(true);
+		pRenderContext->SetStencilReferenceValue(0x0);
+		pRenderContext->SetStencilTestMask(NEO_THERMALS_HIGHLIGHT);
+		pRenderContext->SetStencilWriteMask(0x0);
+		pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_EQUAL);
+		pRenderContext->SetStencilPassOperation(STENCILOPERATION_REPLACE);
+		pRenderContext->SetStencilFailOperation(STENCILOPERATION_KEEP);
+		pRenderContext->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+
+		{ // remove edges above luminence threshold in the main buffer.
+			IMaterial* pGradientMaterial = materials->FindMaterial("dev/neo_gradient", TEXTURE_GROUP_OTHER, true);
+			pRenderContext->DrawScreenSpaceRectangle(pGradientMaterial,
+			0, 0, w, h,
+			0, 0, nSrcWidth - 1, nSrcHeight - 1,
+			nSrcWidth, nSrcHeight, GetClientWorldEntity()->GetClientRenderable());
+		}
+
+		{ // make the pixels of highlighted players lighter so their edges show up in dark environments easier
+			IMaterial* pGradientHighlightMaterial = materials->FindMaterial("dev/neo_gradient_highlight", TEXTURE_GROUP_OTHER, true);
+			pRenderContext->SetStencilReferenceValue(NEO_THERMALS_HIGHLIGHT);
+			pRenderContext->DrawScreenSpaceRectangle(pGradientHighlightMaterial,
+			0, 0, w, h,
+			0, 0, nSrcWidth - 1, nSrcHeight - 1,
+			nSrcWidth, nSrcHeight, GetClientWorldEntity()->GetClientRenderable());
+		}
+
+		// Copy the grayscale render target to the framebuffer texture
+		pRenderContext->CopyRenderTargetToTextureEx(GetNEOVisionTexture(), renderTargetId, &DestRect, NULL);
+
+		// Draw the vision to the frame buffer
+		pRenderContext->SetStencilEnable(false);
+		pRenderContext->DrawScreenSpaceRectangle(pVMat,
+			0, 0, w, h,
+			0, 0, nSrcWidth - 1, nSrcHeight - 1,
+			nSrcWidth, nSrcHeight, GetClientWorldEntity()->GetClientRenderable());
+	}
 	else
 	{
 		pRenderContext->CopyRenderTargetToTextureEx(pFbTex, renderTargetId, &DestRect, NULL);

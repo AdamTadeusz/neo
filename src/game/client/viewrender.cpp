@@ -868,7 +868,8 @@ CLIENTEFFECT_REGISTER_BEGIN( PrecachePostProcessingEffects )
 	CLIENTEFFECT_MATERIAL("dev/neo_nightvision")
 	CLIENTEFFECT_MATERIAL("dev/neo_motionvision")
 	CLIENTEFFECT_MATERIAL("dev/neo_thermalvision")
-	CLIENTEFFECT_MATERIAL("dev/neo_utility")
+	CLIENTEFFECT_MATERIAL("dev/neo_gradient")
+	CLIENTEFFECT_MATERIAL("dev/neo_gradient_highlight")
 
 	CLIENTEFFECT_MATERIAL("dev/neo_colorblind_adjust")
 
@@ -4188,10 +4189,12 @@ static inline void DrawOpaqueRenderable( IClientRenderable *pEnt, bool bTwoPass,
 	
 #ifdef NEO
 	if (C_NEO_Player *pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
-		pTargetPlayer && pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT)
+		pTargetPlayer && pTargetPlayer->IsInVision())
 	{
-		flags |= STUDIO_USING_THERMALS;
-		stencilSetupOpaqueRenderable();
+		if (pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT)
+			flags |= STUDIO_USING_THERMALS;
+		else if (pTargetPlayer->GetClass() == NEO_CLASS_RECON)
+			flags |= STUDIO_USING_NVGS;
 	}
 #endif // NEO
 
@@ -4220,6 +4223,9 @@ static inline void DrawOpaqueRenderable( IClientRenderable *pEnt, bool bTwoPass,
 		pEnt->DrawModel( flags );
 		view->SetCurrentlyDrawingEntity( NULL );
 	}
+#ifdef NEO
+	stencilSetupOpaqueRenderable();
+#endif // NEO
 }
 
 //-------------------------------------
@@ -5906,6 +5912,10 @@ void CBaseWorldView::DrawExecute( float waterHeight, view_id_t viewID, float wat
 
 	ERenderDepthMode DepthMode = DEPTH_MODE_NORMAL;
 
+#ifdef NEO
+	auto pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
+	const int neoClass = pTargetPlayer->GetClass();
+#endif // NEO
 	if ( m_DrawFlags & DF_DRAW_ENTITITES )
 	{
 #ifdef NEO
@@ -5946,7 +5956,8 @@ void CBaseWorldView::DrawExecute( float waterHeight, view_id_t viewID, float wat
 		DrawOpaqueRenderables( DepthMode );
 		
 #ifdef NEO
-		UpdateNEOVisionTexture();
+		if (neoClass == NEO_CLASS_SUPPORT)
+			UpdateNEOVisionTexture();
 #endif // NEO
 
 #ifdef TF_CLIENT_DLL
@@ -5959,10 +5970,19 @@ void CBaseWorldView::DrawExecute( float waterHeight, view_id_t viewID, float wat
 #endif
 		DrawTranslucentRenderables( false, false );
 		DrawNoZBufferTranslucentRenderables();
+#ifdef NEO
+		if (neoClass == NEO_CLASS_RECON || neoClass == NEO_CLASS_JUGGERNAUT)
+			UpdateNEOVisionTexture();
+#endif // NEO
 	}
 	else
 	{
 		DrawWorld( waterZAdjust );
+		
+#ifdef NEO
+		if (neoClass == NEO_CLASS_SUPPORT)
+			UpdateNEOVisionTexture();
+#endif // NEO
 
 #ifdef TF_CLIENT_DLL
 		bool bVisionOverride = ( localplayer_visionflags.GetInt() & ( 0x01 ) ); // Pyro-vision Goggles
@@ -5974,6 +5994,10 @@ void CBaseWorldView::DrawExecute( float waterHeight, view_id_t viewID, float wat
 #endif
 		// Draw translucent world brushes only, no entities
 		DrawTranslucentWorldInLeaves( false );
+#ifdef NEO
+		if (neoClass == NEO_CLASS_RECON || neoClass == NEO_CLASS_JUGGERNAUT)
+			UpdateNEOVisionTexture();
+#endif // NEO
 	}
 
 	// issue the pixel visibility tests for sub-views

@@ -3306,6 +3306,10 @@ int C_BaseAnimating::DrawModel( int flags )
 		{
 			stencilSetupOpaqueHighlightedRenderable();
 		}
+		else if (flags & STUDIO_USING_NVGS && (IsBaseCombatCharacter() || IsBaseCombatWeapon()))
+		{
+			stencilSetupOpaqueHighlightedRenderable();
+		}
 
 #endif // NEO
 

@@ -1,0 +1,19 @@
+#include "common_ps_fxc.h"
+
+sampler FrameBuffer				: register(s0);
+sampler Gradient				: register(s1);
+
+struct PS_INPUT
+{
+	float2 texCoord	: TEXCOORD0;
+};
+
+float4 main( const PS_INPUT i ) : COLOR
+{
+	float4 fbTextureColor = tex2D(FrameBuffer, i.texCoord);
+	
+	const float3 luminanceWeights = float3(0.3, 0.59, 0.11);
+	fbTextureColor.rgb = dot(fbTextureColor.rgb, luminanceWeights);
+	
+	return tex1D(Gradient, fbTextureColor.r);
+}

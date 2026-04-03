@@ -17,6 +17,9 @@
 #include "view_shared.h"
 #include "rendertexture.h"
 #include "materialsystem/itexture.h"
+#ifdef NEO
+#include "neo_player_shared.h"
+#endif // NEO
 
 
 extern ConVar mat_wireframe;

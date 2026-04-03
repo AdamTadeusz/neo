@@ -326,6 +326,39 @@ void CBaseEntityTemperature::OnBind(void* pC_BaseEntity)
 }
 
 EXPOSE_INTERFACE(CBaseEntityTemperature, IMaterialProxy, "BaseEntityTemperature" IMATERIAL_PROXY_INTERFACE_VERSION);
+
+
+//-----------------------------------------------------------------------------
+// Returns whether the current spectate target is using night vision
+//-----------------------------------------------------------------------------
+class CPlayerNightVision : public CResultProxy
+{
+public:
+	void OnBind(void* pC_BaseEntity);
+};
+
+void CPlayerNightVision::OnBind(void* pC_BaseEntity)
+{
+	Assert(m_pResult);
+
+	C_NEO_Player *pPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
+	if (pPlayer && pPlayer->IsInVision())
+	{
+		m_pResult->SetFloatValue(1.f);
+	}
+	else
+	{
+		m_pResult->SetFloatValue(0);
+	}
+
+	if (ToolsEnabled())
+	{
+		ToolFramework_RecordMaterialParams(GetMaterial());
+	}
+}
+
+EXPOSE_INTERFACE(CPlayerNightVision, IMaterialProxy, "PlayerNightVision" IMATERIAL_PROXY_INTERFACE_VERSION);
+
 #endif // NEO
 
 //-----------------------------------------------------------------------------

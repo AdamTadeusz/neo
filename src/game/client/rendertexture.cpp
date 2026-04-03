@@ -123,6 +123,20 @@ ITexture *GetFullFrameFrameBufferTexture( int textureIndex )
 
 
 #ifdef NEO
+// Copy of the full frame buffer
+static CTextureReference s_pFullFrameFrameBufferCopyTexture;
+ITexture *GetFullFrameFrameBufferCopyTexture( void )
+{
+	if ( !s_pFullFrameFrameBufferCopyTexture )
+	{
+		s_pFullFrameFrameBufferCopyTexture.Init( materials->FindTexture( "_rt_FullFrameFBCopy", TEXTURE_GROUP_RENDER_TARGET ) );
+		Assert( !IsErrorTexture( s_pFullFrameFrameBufferCopyTexture ) );
+		AddReleaseFunc();
+	}
+	
+	return s_pFullFrameFrameBufferCopyTexture;
+}
+
 // Intermediate utility fullscreen texture for neovisions
 static CTextureReference s_pNEOVisionTexture;
 ITexture *GetNEOVisionTexture( void )

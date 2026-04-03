@@ -1,32 +1,32 @@
 #include "BaseVSShader.h"
 
 #include "neo_passthrough_vs30.inc"
-#include "neo_nightvision_ps30.inc"
+#include "neo_gradient_ps30.inc"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-BEGIN_SHADER_FLAGS(Neo_NightVision, "Help for the nightvision shader.", SHADER_NOT_EDITABLE)
+BEGIN_SHADER_FLAGS(Neo_Gradient, "Help for the gradient shader.", SHADER_NOT_EDITABLE)
 
 BEGIN_SHADER_PARAMS
-SHADER_PARAM(FBTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "_rt_FullFrameFB", "")
-SHADER_PARAM(UTILTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "_rt_NEOVision", "")
+SHADER_PARAM(UTILTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "_rt_FullFrameFB", "")
+SHADER_PARAM(GRADIENTTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "dev/nvgradient", "")
 END_SHADER_PARAMS
 
 SHADER_INIT
 {
-	if (params[FBTEXTURE]->IsDefined())
+	if (params[UTILTEXTURE]->IsDefined())
 	{
-		LoadTexture(FBTEXTURE);
+		LoadTexture(UTILTEXTURE);
 	}
 	else
 	{
 		Assert(false);
 	}
 
-	if (params[UTILTEXTURE]->IsDefined())
+	if (params[GRADIENTTEXTURE]->IsDefined())
 	{
-		LoadTexture(UTILTEXTURE);
+		LoadTexture(GRADIENTTEXTURE);
 	}
 	else
 	{
@@ -68,24 +68,20 @@ SHADER_DRAW
 		DECLARE_STATIC_VERTEX_SHADER(neo_passthrough_vs30);
 		SET_STATIC_VERTEX_SHADER(neo_passthrough_vs30);
 
-		DECLARE_STATIC_PIXEL_SHADER(neo_nightvision_ps30);
-		SET_STATIC_PIXEL_SHADER(neo_nightvision_ps30);
+		DECLARE_STATIC_PIXEL_SHADER(neo_gradient_ps30);
+		SET_STATIC_PIXEL_SHADER(neo_gradient_ps30);
 	}
 
 	DYNAMIC_STATE
 	{
-		BindTexture(SHADER_SAMPLER0, FBTEXTURE);
-		BindTexture(SHADER_SAMPLER1, UTILTEXTURE);
-		
-		ITexture *src_texture=params[FBTEXTURE]->GetTextureValue();
-		float vPixelSize[4] = {src_texture->GetActualWidth(), src_texture->GetActualHeight(), 0, 0};
-		s_pShaderAPI->SetPixelShaderConstant(0, vPixelSize);
+		BindTexture(SHADER_SAMPLER0, UTILTEXTURE);
+		BindTexture(SHADER_SAMPLER1, GRADIENTTEXTURE);
 
 		DECLARE_DYNAMIC_VERTEX_SHADER(neo_passthrough_vs30);
 		SET_DYNAMIC_VERTEX_SHADER(neo_passthrough_vs30);
 
-		DECLARE_DYNAMIC_PIXEL_SHADER(neo_nightvision_ps30);
-		SET_DYNAMIC_PIXEL_SHADER(neo_nightvision_ps30);
+		DECLARE_DYNAMIC_PIXEL_SHADER(neo_gradient_ps30);
+		SET_DYNAMIC_PIXEL_SHADER(neo_gradient_ps30);
 	}
 
 	Draw();

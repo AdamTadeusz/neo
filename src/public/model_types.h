@@ -26,6 +26,7 @@
 #ifdef NEO
 #define STUDIO_IGNORE_NEO_EFFECTS		0x00000400
 #define STUDIO_USING_THERMALS			0x00000800 // Indicates we are using thermals
+#define STUDIO_USING_NVGS				0x00001000 // Indicates we are using nvgs
 #endif
 
 // Not a studio flag, but used to flag when we want studio stats

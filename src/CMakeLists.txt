@@ -148,6 +148,7 @@ add_compile_definitions(
     FRAME_POINTER_OMISSION_DISABLED
     SOURCE1=1
     DEV_BUILD
+    PIX_ENABLE
 
     # NEO NOTE (nullsystem): New defines since 2025-02-18 TF2 SDK Update
     PLATFORM_64BITS

@@ -4,12 +4,8 @@
 
 sampler FrameBuffer				: register(s0);
 sampler UtilTexture             : register(s1);
-sampler NVGradient				: register(s2);
 
-float4 g_vPixelSizeLuminosityMPLuminosityIntensity	: 	register(c0);
-#define g_vPixelSize g_vPixelSizeLuminosityMPLuminosityIntensity.xy
-#define g_LuminosityMP g_vPixelSizeLuminosityMPLuminosityIntensity.z
-#define g_LuminosityIntensity g_vPixelSizeLuminosityMPLuminosityIntensity.w
+float4 g_vPixelSize	: 	register(c0);
 
 void make_kernel(inout float4 n[9], sampler2D tex, float2 coord)
 {
@@ -18,15 +14,15 @@ void make_kernel(inout float4 n[9], sampler2D tex, float2 coord)
 
 	const float3 luminanceWeights = float3(0.3, 0.59, 0.11);
 	
-	n[0] = tex2D(NVGradient, dot(tex2D(tex, coord + float2( -w, -h)), luminanceWeights));
-	n[1] = tex2D(NVGradient, dot(tex2D(tex, coord + float2(0.0, -h)), luminanceWeights));
-	n[2] = tex2D(NVGradient, dot(tex2D(tex, coord + float2(  w, -h)), luminanceWeights));
-	n[3] = tex2D(NVGradient, dot(tex2D(tex, coord + float2( -w, 0.0)), luminanceWeights));
-	n[4] = tex2D(NVGradient, dot(tex2D(tex, coord), luminanceWeights));
-	n[5] = tex2D(NVGradient, dot(tex2D(tex, coord + float2(  w, 0.0)), luminanceWeights));
-	n[6] = tex2D(NVGradient, dot(tex2D(tex, coord + float2( -w, h)), luminanceWeights));
-	n[7] = tex2D(NVGradient, dot(tex2D(tex, coord + float2(0.0, h)), luminanceWeights));
-	n[8] = tex2D(NVGradient, dot(tex2D(tex, coord + float2(  w, h)), luminanceWeights));
+	n[0] = tex2D(tex, coord + float2( -w, -h));
+	n[1] = tex2D(tex, coord + float2(0.0, -h));
+	n[2] = tex2D(tex, coord + float2(  w, -h));
+	n[3] = tex2D(tex, coord + float2( -w, 0.0));
+	n[4] = tex2D(tex, coord);
+	n[5] = tex2D(tex, coord + float2(  w, 0.0));
+	n[6] = tex2D(tex, coord + float2( -w, h));
+	n[7] = tex2D(tex, coord + float2(0.0, h));
+	n[8] = tex2D(tex, coord + float2(  w, h));
 }
 
 struct PS_INPUT
@@ -49,9 +45,9 @@ float4 main( const PS_INPUT i ) : COLOR
 	const float3 luminanceWeights = float3(0.3, 0.59, 0.11);
 	sobel.rgb = dot(sobel.rgb, luminanceWeights);
 	sobel = min(0.99, sobel.r);
-	float alpha = sobel.r;
-	alpha *= g_LuminosityMP * (1 - n[4]);
 	
+	float alpha = sobel.r;
+	alpha *= (1 - n[4]);
 	sobel.rgb = 1.0f - sobel.rgb;
 	
 	return (fbTextureColor) + (float4(sobel.rgb, 1.0f) * alpha);

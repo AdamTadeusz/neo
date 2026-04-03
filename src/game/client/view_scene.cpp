@@ -13,6 +13,10 @@
 #include "viewrender.h"
 #include "sourcevr/isourcevirtualreality.h"
 #include "client_virtualreality.h"
+#ifdef NEO
+#include "neo_player_shared.h"
+#include "viewpostprocess.h"
+#endif // NEO
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -162,7 +166,6 @@ void UpdateNEOVisionTexture()
 
 	ITexture* pNEOVisionTex = GetNEOVisionTexture();
 	CMatRenderContextPtr pRenderContext( materials );
-	
 	pRenderContext->CopyRenderTargetToTextureEx( pNEOVisionTex, 0, nullptr, nullptr );
 }
 #endif // NEO

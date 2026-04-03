@@ -400,6 +400,13 @@ void CViewRender::Init( void )
 		materials->CreateNamedRenderTargetTextureEx("_rt_NEOVision", iW, iH,
 			RT_SIZE_FULL_FRAME_BUFFER, materials->GetBackBufferFormat(), MATERIAL_RT_DEPTH_SHARED,
 			flags, 0);
+	
+#ifdef DEBUG
+	ITexture* pFBCopyTex =
+#endif
+		materials->CreateNamedRenderTargetTextureEx("_rt_FullFrameFBCopy", iW, iH,
+			RT_SIZE_FULL_FRAME_BUFFER, materials->GetBackBufferFormat(), MATERIAL_RT_DEPTH_SHARED,
+			flags, 0);
 
 #ifdef DEBUG
 	ITexture* pCbTex =
@@ -416,6 +423,7 @@ void CViewRender::Init( void )
 	Assert(pTvTex != NULL && !pTvTex->IsError());
 	Assert(pCbTex != NULL && !pCbTex->IsError());
 	Assert(pUTex != NULL && !pUTex->IsError());
+	Assert(pFBCopyTex != NULL && !pFBCopyTex->IsError());
 #endif
 
 	materials->EndRenderTargetAllocation();
