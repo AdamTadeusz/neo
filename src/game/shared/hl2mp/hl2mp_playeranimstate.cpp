@@ -819,13 +819,19 @@ void CHL2MPPlayerAnimState::ComputePoseParam_AimYaw( CStudioHdr *pStudioHdr )
 
 	// Turn off a force aim yaw - either we have already updated or we don't need to.
 	m_bForceAimYaw = false;
-
-#ifndef CLIENT_DLL
+#ifdef NEO
 	QAngle angle = GetBasePlayer()->GetAbsAngles();
 	angle[YAW] = m_flCurrentFeetYaw;
 
 	GetBasePlayer()->SetAbsAngles( angle );
+#else
+#ifndef CLIENT_DLL
+	QAngle angle = GetBasePlayer()->GetAbsAngles();
+	angle[YAW] = m_flCurrentFeetYaw;
+	
+	GetBasePlayer()->SetAbsAngles( angle );
 #endif
+#endif // NEO
 }
 
 //-----------------------------------------------------------------------------
