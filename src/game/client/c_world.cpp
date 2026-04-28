@@ -102,7 +102,11 @@ void C_World::OnDataChanged( DataUpdateType_t updateType )
 	{
 		modemanager->SwitchMode( false, true );
 
+#ifdef NEO
+		if ( 0 == m_iTimesCreated++ && m_bStartDark )
+#else
 		if ( m_bStartDark )
+#endif // NEO
 		{
 			ScreenFade_t sf;
 			memset( &sf, 0, sizeof( sf ) );

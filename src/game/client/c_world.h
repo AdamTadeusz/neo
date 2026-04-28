@@ -16,7 +16,11 @@
 #define CWorld C_World
 #endif
 
+#ifdef NEO
+class C_World : public C_BaseEntity, CAutoGameSystem
+#else
 class C_World : public C_BaseEntity
+#endif // NEO
 {
 public:
 	DECLARE_CLASS( C_World, C_BaseEntity );
@@ -40,6 +44,10 @@ public:
 
 	float GetWaveHeight() const;
 	const char *GetDetailSpriteMaterial() const;
+	
+#ifdef NEO
+	void LevelShutdownPostEntity() override	{ m_iTimesCreated = 0; }
+#endif // NEO
 
 public:
 	enum
@@ -56,6 +64,9 @@ public:
 	float	m_flMinPropScreenSpaceWidth;
 	float	m_flMaxPropScreenSpaceWidth;
 	bool	m_bColdWorld;
+#ifdef NEO
+	int		m_iTimesCreated = 0;
+#endif // NEO
 
 private:
 	void	RegisterSharedActivities( void );
