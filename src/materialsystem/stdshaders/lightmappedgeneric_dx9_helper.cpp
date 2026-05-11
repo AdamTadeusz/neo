@@ -288,6 +288,23 @@ void InitLightmappedGeneric_DX9( CBaseVSShader *pShader, IMaterialVar** params, 
 		params[info.m_nEnvmapMask]->SetUndefined();
 	}
 
+	if (params[info.m_nInteriormap]->IsDefined())
+	{
+		if (!IS_FLAG_SET(MATERIAL_VAR_ENVMAPSPHERE))
+		{
+			pShader->LoadCubeMap(info.m_nInteriormap, g_pHardwareConfig->GetHDRType() == HDR_TYPE_NONE ? TEXTUREFLAGS_SRGB : 0 );
+		}
+		else
+		{
+			pShader->LoadTexture( info.m_nInteriormap );
+		}
+
+		if ( !g_pHardwareConfig->SupportsCubeMaps() )
+		{
+			SET_FLAGS( MATERIAL_VAR_ENVMAPSPHERE );
+		}
+	}
+
 	// We always need this because of the flashlight.
 	SET_FLAGS2( MATERIAL_VAR2_NEEDS_TANGENT_SPACES );
 }
@@ -330,6 +347,7 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 		bool hasNormalMapAlphaEnvmapMask = IS_FLAG_SET( MATERIAL_VAR_NORMALMAPALPHAENVMAPMASK );
 #ifdef NEO
 		bool hasParallaxCorrection = params[info.m_nEnvmap]->IsDefined() && params[info.m_nEnvmapParallaxObb1]->GetType() == MATERIAL_VAR_TYPE_VECTOR;
+		bool hasInteriorMap = params[info.m_nInteriormap]->IsTexture() && !(hasFlashlight && IsX360());
 #endif
 
 		if ( hasFlashlight && !IsX360() )				
@@ -381,7 +399,11 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 			bool hasVertexColor = IS_FLAG_SET( MATERIAL_VAR_VERTEXCOLOR );
 			bool hasDiffuseBumpmap = hasBump && (params[info.m_nNoDiffuseBumpLighting]->GetIntValue() == 0);
 
+#ifdef NEO
+			bool hasEnvmap = params[info.m_nEnvmap]->IsTexture() || hasInteriorMap;
+#else
 			bool hasEnvmap = params[info.m_nEnvmap]->IsTexture();
+#endif // NEO
 
 			bool bSeamlessMapping = ( ( info.m_nSeamlessMappingScale != -1 ) && 
 									  ( params[info.m_nSeamlessMappingScale]->GetFloatValue() != 0.0 ) );
@@ -522,6 +544,16 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 					pShaderShadow->SetShadowDepthFiltering( SHADER_SAMPLER14 );
 					pShaderShadow->EnableTexture( SHADER_SAMPLER15, true );
 				}
+#ifdef NEO
+				else if (hasInteriorMap)
+				{
+					pShaderShadow->EnableTexture( SHADER_SAMPLER13, true );
+					if( g_pHardwareConfig->GetHDRType() == HDR_TYPE_NONE )
+					{
+						pShaderShadow->EnableSRGBRead( SHADER_SAMPLER13, true );
+					}
+				}
+#endif // NEO
 
 				if( hasVertexColor || hasBaseTexture2 || hasBump2 )
 				{
@@ -548,7 +580,11 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 
 				DECLARE_STATIC_VERTEX_SHADER( lightmappedgeneric_vs20 );
 				SET_STATIC_VERTEX_SHADER_COMBO( ENVMAP_MASK,  hasEnvmapMask );
+#ifdef NEO
+				SET_STATIC_VERTEX_SHADER_COMBO( TANGENTSPACE,  params[info.m_nEnvmap]->IsTexture() || hasInteriorMap );
+#else
 				SET_STATIC_VERTEX_SHADER_COMBO( TANGENTSPACE,  params[info.m_nEnvmap]->IsTexture() );
+#endif // NEO
 				SET_STATIC_VERTEX_SHADER_COMBO( BUMPMAP,  hasBump );
 				SET_STATIC_VERTEX_SHADER_COMBO( DIFFUSEBUMPMAP, hasDiffuseBumpmap );
 				SET_STATIC_VERTEX_SHADER_COMBO( VERTEXCOLOR, IS_FLAG_SET( MATERIAL_VAR_VERTEXCOLOR ) );
@@ -588,6 +624,7 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 					SET_STATIC_PIXEL_SHADER_COMBO( SOFTEDGES, bHasSoftEdges );
 #ifdef NEO
 					SET_STATIC_PIXEL_SHADER_COMBO( PARALLAXCORRECT, hasParallaxCorrection );
+					SET_STATIC_PIXEL_SHADER_COMBO( INTERIORMAP, hasInteriorMap );
 					// NEO NOTE DG: Put it before DETAIL_BLEND_MODE in the fxc or else you get a fun int overflow.
 #endif
 					SET_STATIC_PIXEL_SHADER_COMBO( DETAIL_BLEND_MODE, nDetailBlendMode );
@@ -880,6 +917,10 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 			}
 
 #ifdef NEO
+			if (hasInteriorMap)
+			{
+				pContextData->m_SemiStaticCmdsOut.BindTexture( pShader, SHADER_SAMPLER13, info.m_nInteriormap, -1 );
+			}
 			if ( hasParallaxCorrection )
 			{
 				float envMapOrigin[4] = {0,0,0,0};

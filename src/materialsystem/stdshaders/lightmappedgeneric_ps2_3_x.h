@@ -154,6 +154,8 @@ sampler AlphaMaskSampler		: register( s11 );	// alpha
 sampler FlashlightSampler		: register( s13 );
 sampler ShadowDepthSampler		: register( s14 );
 sampler RandRotSampler			: register( s15 );
+#else
+sampler InteriormapSampler 		: register( s13 );
 #endif
 
 struct PS_INPUT
@@ -521,6 +523,63 @@ HALF4 main( PS_INPUT i ) : COLOR
 		float3 selfIllumComponent = g_SelfIllumTint * albedo.xyz;
 		diffuseComponent = lerp( diffuseComponent, selfIllumComponent, baseColor.a );
 	}
+	
+	float3 interiorComponent = float3( 0.0f, 0.0f, 0.0f );
+#if INTERIORMAP
+	{
+		float3 coordinates = float3( 0.0f, 0.0f, -1.0f);
+		// Number of rooms
+		//i.baseTexCoord.xy *= (2, 2);
+		// wrap texture coordinates
+		coordinates.xy = frac(i.baseTexCoord.xy);
+		// Flip UV coordinates vertically
+		coordinates.xy *= (2, -2);
+		coordinates.xy -= (1, -1);
+		
+		float3 eyeVect = g_EyePos - i.worldPos_projPosZ.xyz;
+		// Translate eye vector from world space to tangent space
+		eyeVect = normalize(mul(i.tangentSpaceTranspose, eyeVect));
+		
+		// Flip the x coordinate
+		// eyeVect.x *= -1;
+		
+		float3 reciprocalEyeVect = 1/eyeVect;
+		float3 thing = abs(reciprocalEyeVect) - (reciprocalEyeVect * coordinates);
+		float smallestComponent = min(min(thing.x, thing.y),thing.z);
+		float3 finalCoordinates = (smallestComponent * eyeVect) + coordinates;
+
+		// Rotate the cubemap
+		finalCoordinates.xyz = float3(finalCoordinates.z, -finalCoordinates.x, finalCoordinates.y);
+		/*if (finalCoordinates.x >= 0.999)
+		{
+			finalCoordinates.x = -1 + (1 - abs(finalCoordinates.z)) + (1 - abs(finalCoordinates.y));
+		}*/
+
+		interiorComponent = texCUBE( InteriormapSampler, finalCoordinates ) * (1 - albedo.a);
+
+		//if (frac(finalCoordinates.x / 0.21f) < 0.2f)
+		//{
+		//	interiorComponent.r = 1.f;
+		//}
+		//
+		//if (frac(finalCoordinates.y / 0.21f) < 0.2f)
+		//{
+		//	interiorComponent.g = 1.f;
+		//}
+		//
+		//if (frac(finalCoordinates.z / 0.21f) < 0.2f)
+		//{
+		//	interiorComponent.b = 1.f;
+		//}
+
+		//if (abs(finalCoordinates.x) < 0.01f || abs(finalCoordinates.y) < 0.01f || abs(finalCoordinates.z) < 0.01f)
+		//{
+		//	interiorComponent.rgb = 0.f;
+		//}
+
+		diffuseComponent *= albedo.a;
+	}
+#endif // INTERIORMAP
 
 	HALF3 specularLighting = HALF3( 0.0f, 0.0f, 0.0f );
 #if CUBEMAP
@@ -564,8 +623,7 @@ HALF4 main( PS_INPUT i ) : COLOR
 		specularLighting *= fresnel;
 	}
 #endif
-
-	HALF3 result = diffuseComponent + specularLighting;
+	HALF3 result = interiorComponent + diffuseComponent + specularLighting;
 	
 #if LIGHTING_PREVIEW
 	worldSpaceNormal = mul( vNormal, i.tangentSpaceTranspose );

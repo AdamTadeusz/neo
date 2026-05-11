@@ -79,6 +79,8 @@ BEGIN_VS_SHADER( LightmappedGeneric,
 		SHADER_PARAM( ENVMAPPARALLAXOBB2, SHADER_PARAM_TYPE_VEC4, "[0 1 0 0]", "The second line of the parallax correction OBB matrix" )
 		SHADER_PARAM( ENVMAPPARALLAXOBB3, SHADER_PARAM_TYPE_VEC4, "[0 0 1 0]", "The third line of the parallax correction OBB matrix" )
 		SHADER_PARAM( ENVMAPORIGIN, SHADER_PARAM_TYPE_VEC3, "[0 0 0]", "The world space position of the env_cubemap being corrected" )
+
+		SHADER_PARAM( INTERIORMAP, SHADER_PARAM_TYPE_TEXTURE, "", "Interior map" )
 #endif
 END_SHADER_PARAMS
 
@@ -147,6 +149,8 @@ END_SHADER_PARAMS
 		info.m_nEnvmapParallaxObb2 = ENVMAPPARALLAXOBB2;
 		info.m_nEnvmapParallaxObb3 = ENVMAPPARALLAXOBB3;
 		info.m_nEnvmapOrigin = ENVMAPORIGIN;
+
+		info.m_nInteriormap = INTERIORMAP;
 #endif
 	}
 

@@ -92,6 +92,8 @@ struct LightmappedGeneric_DX9_Vars_t
 	int m_nEnvmapParallaxObb2;
 	int m_nEnvmapParallaxObb3;
 	int m_nEnvmapOrigin;
+
+	int m_nInteriormap;
 #endif
 };
 
