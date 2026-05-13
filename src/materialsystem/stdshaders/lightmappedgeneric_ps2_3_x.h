@@ -572,6 +572,7 @@ HALF4 main( PS_INPUT i ) : COLOR
 		// Move the room
 		i.baseTexCoord.xy += (0, 0.5);
 		
+		// Number of rooms
 		half2 numberOfRooms = half2(1, 1); // NEO TODO read from material
 		half2 baseCoordinates = i.baseTexCoord.xy * numberOfRooms;
 		
@@ -584,26 +585,23 @@ HALF4 main( PS_INPUT i ) : COLOR
 		// wrap texture coordinates
 		coordinates.xy = frac(baseCoordinates);
 
-		// Flip UV coordinates vertically
+		// Flip UV coordinates vertically, center UV coordinates on the center of the room
 		coordinates.xy *= (2, -2);
 		coordinates.xy -= (1, -1);
 
 		float3 eyeVect = g_EyePos - i.worldPos_projPosZ.xyz;
 		// Translate eye vector from world space to tangent space
 		eyeVect = normalize(mul(i.tangentSpaceTranspose, eyeVect));
-		// Correct camera vector for room stretch
-		// eyeVect.x *= 10;
+		// Fixup camera vector for room stretch
 		eyeVect.y *= 4;
 		eyeVect.x *= 2;
-
-
-		// Flip the x coordinate
-		// eyeVect.x *= -1;
 		
+		// This does our parallax correction I guess. Not sure how it works, but when drawing "magentaCyanThing" directly,
+		// we can see magenta colour tending towards white following the path of the floor and ceiling towards the back wall,
+		// and cyan colour tending towards white following the side walls towards the back wall.
 		float3 reciprocalEyeVect = 1/eyeVect;
-		float3 thing = abs(reciprocalEyeVect) - (reciprocalEyeVect * coordinates);
-		interiorComponent = thing;
-		float smallestComponent = min(min(thing.x, thing.y),thing.z);
+		float3 magentaCyanThing = abs(reciprocalEyeVect) - (reciprocalEyeVect * coordinates);
+		float smallestComponent = min(min(magentaCyanThing.x, magentaCyanThing.y),magentaCyanThing.z);
 		float3 finalCoordinates = (smallestComponent * eyeVect) + coordinates;
 
 		// Tile the cubemap
@@ -620,9 +618,9 @@ HALF4 main( PS_INPUT i ) : COLOR
 		//	finalCoordinates.x += (finalCoordinates.x + 1) * (1 / 2); // now between 1 and -1
 		//}
 
-		// Rotate the cubemap
+		// Fixup cubemap rotation
 		finalCoordinates.xyz = float3(finalCoordinates.z, -finalCoordinates.x, finalCoordinates.y);
-		// Fixup the x axis texture coordinates
+		// Fixup the x axis texture coordinates (alternatively, if not doing any stretching, set coordinates.z at the start to -1)
 		finalCoordinates.x = lerp(-1, 1, finalCoordinates.x);
 
 		// Random room reflection
@@ -631,9 +629,10 @@ HALF4 main( PS_INPUT i ) : COLOR
 		// Random room rotation
 		finalCoordinates.xyz = lerp(randomRotation.xyz, randomRotation.yxz, randomRoomValue.z);
 
-		//finalCoordinates = tweakSampleDirForReapeat(finalCoordinates, float3(3, 3, 3));
-		interiorComponent = texCUBE(InteriormapSampler, finalCoordinates) * (1 - albedo.a) * randomRoomValue.x;
+		interiorComponent = texCUBE(InteriormapSampler, finalCoordinates);
 
+		// Brightness
+		interiorComponent *= (1 - albedo.a) * randomRoomValue.x;
 		diffuseComponent *= albedo.a;
 	}
 #endif // INTERIORMAP
