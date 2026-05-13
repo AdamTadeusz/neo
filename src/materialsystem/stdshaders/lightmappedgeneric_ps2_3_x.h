@@ -47,6 +47,45 @@
 #define USE_FAST_PATH FASTPATH
 #endif
 
+float3 tweakSampleDirForReapeat(float3 dir, float3 repeatScale)
+{
+	float3 d = abs(dir);
+	float3 d2 = round(d);
+	d += 0.5f;
+	d *= repeatScale;
+	d = frac(d);
+	d -= 0.5f;
+	dir = (d2 * dir) + ((1-d2) * d);
+	return dir;
+
+    //for(int i = 0; i < 3; i++) {
+    //    float d = abs(dir[i]);
+    //    if(abs(d) >= 0.5) // skip dominant direction (assuming a coordinate in a unit cube centered at the origin)
+    //        continue;
+    //    d += 0.5; // transform from [-0.5, +0.5] range to [0, 1]
+    //    d *= repeatScale; // transform from [0, 1] range to [0, repeatScale]
+    //    d = fract(d); // wrap [0, repeatScale] to multiple [0, 1] ranges
+    //    d -= 0.5; // transform from [0, 1] range to [-0.5, +0.5]
+    //    dir[i] = d;
+    //}
+    //return dir;
+}
+
+float3 hash23(float2 seedXY)
+{
+	float3 vec1 = float3(seedXY.x, seedXY.y, seedXY.x);
+	float3 vec2 = float3(seedXY.y, seedXY.x, seedXY.x);
+	float3 vec3 = float3(seedXY.x, seedXY.y, seedXY.y);
+
+	float3 seed1 = float3(127.1, 311.7, 74.7);
+	float3 seed2 = float3(269.5, 183.3, 246.1);
+	float3 seed3 = float3(113.5, 271.9, 124.6);
+	float3 finalVec = float3(dot(vec1, seed1), dot(vec2, seed2), dot(vec3, seed3));
+
+	float seed4 = 43758.546875;
+	return frac(sin(finalVec) * seed4);
+}
+
 const HALF4 g_EnvmapTint : register( c0 );
 
 #if USE_FAST_PATH == 1
@@ -524,58 +563,76 @@ HALF4 main( PS_INPUT i ) : COLOR
 		diffuseComponent = lerp( diffuseComponent, selfIllumComponent, baseColor.a );
 	}
 	
-	float3 interiorComponent = float3( 0.0f, 0.0f, 0.0f );
+	half3 interiorComponent = half3( 0.0f, 0.0f, 0.0f );
 #if INTERIORMAP
 	{
-		float3 coordinates = float3( 0.0f, 0.0f, -1.0f);
-		// Number of rooms
-		//i.baseTexCoord.xy *= (2, 2);
+		float3 coordinates = float3( 0.0f, 0.0f, 1.f - (1.f / (2.f * 4.f)));	// NEO TODO z default -1 in tutorial, we're using 0 and fixing up later, value here needs to be between 0 and 1 where the closer to 1 the closer the far wall is to the window
+																				// distance depends on stretch in x and y direction, so for example at 2x wide and 4x tall stretch, z value should be 1.f - (1.f / (2.f*4.f)) to maintain projected depth
+
+		// Move the room
+		i.baseTexCoord.xy += (0, 0.5);
+		
+		half2 numberOfRooms = half2(1, 1); // NEO TODO read from material
+		half2 baseCoordinates = i.baseTexCoord.xy * numberOfRooms;
+		
+		// Stretch the room
+		baseCoordinates.y *= 0.5;
+		baseCoordinates.x *= 0.25;
+
+		float3 randomRoomValue = round(hash23(floor(baseCoordinates)));
+
 		// wrap texture coordinates
-		coordinates.xy = frac(i.baseTexCoord.xy);
+		coordinates.xy = frac(baseCoordinates);
+
 		// Flip UV coordinates vertically
 		coordinates.xy *= (2, -2);
 		coordinates.xy -= (1, -1);
-		
+
 		float3 eyeVect = g_EyePos - i.worldPos_projPosZ.xyz;
 		// Translate eye vector from world space to tangent space
 		eyeVect = normalize(mul(i.tangentSpaceTranspose, eyeVect));
-		
+		// Correct camera vector for room stretch
+		// eyeVect.x *= 10;
+		eyeVect.y *= 4;
+		eyeVect.x *= 2;
+
+
 		// Flip the x coordinate
 		// eyeVect.x *= -1;
 		
 		float3 reciprocalEyeVect = 1/eyeVect;
 		float3 thing = abs(reciprocalEyeVect) - (reciprocalEyeVect * coordinates);
+		interiorComponent = thing;
 		float smallestComponent = min(min(thing.x, thing.y),thing.z);
 		float3 finalCoordinates = (smallestComponent * eyeVect) + coordinates;
 
+		// Tile the cubemap
+		//float x = finalCoordinates.x;
+		//if (x < 0 && x > (-1/3))
+		//{
+		//	finalCoordinates.x *= 3;
+		//}
+
+		//else if (x < (-1 / 3) && x > -0.999999)
+		//{
+		//	finalCoordinates.x *= 2;
+		//	finalCoordinates.x += 1; // now between 1/3 and -1
+		//	finalCoordinates.x += (finalCoordinates.x + 1) * (1 / 2); // now between 1 and -1
+		//}
+
 		// Rotate the cubemap
 		finalCoordinates.xyz = float3(finalCoordinates.z, -finalCoordinates.x, finalCoordinates.y);
-		/*if (finalCoordinates.x >= 0.999)
-		{
-			finalCoordinates.x = -1 + (1 - abs(finalCoordinates.z)) + (1 - abs(finalCoordinates.y));
-		}*/
+		// Fixup the x axis texture coordinates
+		finalCoordinates.x = lerp(-1, 1, finalCoordinates.x);
 
-		interiorComponent = texCUBE( InteriormapSampler, finalCoordinates ) * (1 - albedo.a);
+		// Random room reflection
+		half3 randomRotation = finalCoordinates.xyz * (lerp(half3(-1, 1, 1), half3(1, -1, 1), randomRoomValue.x) * lerp(half3(1, 1, 1), half3(-1, 1, 1), randomRoomValue.y));
+		
+		// Random room rotation
+		finalCoordinates.xyz = lerp(randomRotation.xyz, randomRotation.yxz, randomRoomValue.z);
 
-		//if (frac(finalCoordinates.x / 0.21f) < 0.2f)
-		//{
-		//	interiorComponent.r = 1.f;
-		//}
-		//
-		//if (frac(finalCoordinates.y / 0.21f) < 0.2f)
-		//{
-		//	interiorComponent.g = 1.f;
-		//}
-		//
-		//if (frac(finalCoordinates.z / 0.21f) < 0.2f)
-		//{
-		//	interiorComponent.b = 1.f;
-		//}
-
-		//if (abs(finalCoordinates.x) < 0.01f || abs(finalCoordinates.y) < 0.01f || abs(finalCoordinates.z) < 0.01f)
-		//{
-		//	interiorComponent.rgb = 0.f;
-		//}
+		//finalCoordinates = tweakSampleDirForReapeat(finalCoordinates, float3(3, 3, 3));
+		interiorComponent = texCUBE(InteriormapSampler, finalCoordinates) * (1 - albedo.a) * randomRoomValue.x;
 
 		diffuseComponent *= albedo.a;
 	}
