@@ -144,6 +144,14 @@ const float4 g_ShadowTweaks					: register( c19 );
 const float3 g_CubemapPos					: register( c21 );
 const float4x4 g_ObbMatrix					: register( c22 ); // Through c25
 #endif
+const float4 gInteriorScale_gTileInteriorTextures : register(c26);
+#define gInteriorScale gInteriorScale_gTileInteriorTextures.xyz
+#define gTileInteriorTextures gInteriorScale_gTileInteriorTextures.w
+const float4 gInteriorOffset_gLightThreshold : register(c27);
+#define gInteriorOffset gInteriorOffset_gLightThreshold.xyz
+#define gLightThreshold gInteriorOffset_gLightThreshold.w
+const float gNumberRooms : register(c28);
+
 
 sampler BaseTextureSampler		: register( s0 );
 sampler LightmapSampler			: register( s1 );
@@ -566,35 +574,35 @@ HALF4 main( PS_INPUT i ) : COLOR
 	half3 interiorComponent = half3( 0.0f, 0.0f, 0.0f );
 #if INTERIORMAP
 	{
-		float3 coordinates = float3( 0.0f, 0.0f, 1.f - (1.f / (2.f * 4.f)));	// NEO TODO z default -1 in tutorial, we're using 0 and fixing up later, value here needs to be between 0 and 1 where the closer to 1 the closer the far wall is to the window
-																				// distance depends on stretch in x and y direction, so for example at 2x wide and 4x tall stretch, z value should be 1.f - (1.f / (2.f*4.f)) to maintain projected depth
+		// If gInteriorScale.y = 1, coordinates.z = -1 + 2 ( ( 1 / - gInteriorScale.x ) + 1 ). Same if gInteriorScale.x = 1 for gInteriorScale.y
+		float3 coordinates = float3( 0.0f, 0.0f, gInteriorScale.z / (gInteriorScale.x * gInteriorScale.y));
 
 		// Move the room
-		i.baseTexCoord.xy += (0, 0.5);
+		i.baseTexCoord.xy += gInteriorOffset.xy;
 		
 		// Number of rooms
-		half2 numberOfRooms = half2(1, 1); // NEO TODO read from material
-		half2 baseCoordinates = i.baseTexCoord.xy * numberOfRooms;
+		half2 baseCoordinates = i.baseTexCoord.xy * gNumberRooms;
 		
 		// Stretch the room
-		baseCoordinates.y *= 0.5;
-		baseCoordinates.x *= 0.25;
+		baseCoordinates.x /= gInteriorScale.x;
+		baseCoordinates.y /= gInteriorScale.y;
+		//coordinates.z /= gInteriorScale.x * gInteriorScale.y;
 
 		float3 randomRoomValue = round(hash23(floor(baseCoordinates)));
 
 		// wrap texture coordinates
 		coordinates.xy = frac(baseCoordinates);
-
+		
 		// Flip UV coordinates vertically, center UV coordinates on the center of the room
-		coordinates.xy *= (2, -2);
-		coordinates.xy -= (1, -1);
+		coordinates.xyz *= (2, -2, -2);
+		coordinates.xyz -= (1, -1, -1);
 
 		float3 eyeVect = g_EyePos - i.worldPos_projPosZ.xyz;
 		// Translate eye vector from world space to tangent space
 		eyeVect = normalize(mul(i.tangentSpaceTranspose, eyeVect));
 		// Fixup camera vector for room stretch
-		eyeVect.y *= 4;
-		eyeVect.x *= 2;
+		eyeVect.y *= gInteriorScale.x;
+		eyeVect.x *= gInteriorScale.y;
 		
 		// This does our parallax correction I guess. Not sure how it works, but when drawing "magentaCyanThing" directly,
 		// we can see magenta colour tending towards white following the path of the floor and ceiling towards the back wall,
@@ -603,6 +611,12 @@ HALF4 main( PS_INPUT i ) : COLOR
 		float3 magentaCyanThing = abs(reciprocalEyeVect) - (reciprocalEyeVect * coordinates);
 		float smallestComponent = min(min(magentaCyanThing.x, magentaCyanThing.y),magentaCyanThing.z);
 		float3 finalCoordinates = (smallestComponent * eyeVect) + coordinates;
+
+		// Fix z coordinates due to stretch
+		finalCoordinates.z *= gInteriorScale.x * gInteriorScale.y;
+		finalCoordinates.z -= ((gInteriorScale.x * gInteriorScale.y) - 1);
+		finalCoordinates.z /= gInteriorScale.z;
+		finalCoordinates.z += (1 - (1 / (gInteriorScale.z)));
 
 		// Tile the cubemap
 		//float x = finalCoordinates.x;
@@ -620,8 +634,6 @@ HALF4 main( PS_INPUT i ) : COLOR
 
 		// Fixup cubemap rotation
 		finalCoordinates.xyz = float3(finalCoordinates.z, -finalCoordinates.x, finalCoordinates.y);
-		// Fixup the x axis texture coordinates (alternatively, if not doing any stretching, set coordinates.z at the start to -1)
-		finalCoordinates.x = lerp(-1, 1, finalCoordinates.x);
 
 		// Random room reflection
 		half3 randomRotation = finalCoordinates.xyz * (lerp(half3(-1, 1, 1), half3(1, -1, 1), randomRoomValue.x) * lerp(half3(1, 1, 1), half3(-1, 1, 1), randomRoomValue.y));
@@ -631,8 +643,12 @@ HALF4 main( PS_INPUT i ) : COLOR
 
 		interiorComponent = texCUBE(InteriormapSampler, finalCoordinates);
 
-		// Brightness
-		interiorComponent *= (1 - albedo.a) * randomRoomValue.x;
+		// Brightness // NEO TODO read from gradient texture
+		interiorComponent *= (1 - albedo.a);
+		if (randomRoomValue.x < gLightThreshold)
+		{
+			interiorComponent *= 0.2;
+		}
 		diffuseComponent *= albedo.a;
 	}
 #endif // INTERIORMAP

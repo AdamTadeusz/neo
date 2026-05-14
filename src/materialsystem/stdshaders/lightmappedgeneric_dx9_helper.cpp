@@ -196,6 +196,20 @@ void InitParamsLightmappedGeneric_DX9( CBaseVSShader *pShader, IMaterialVar** pa
 	{
 		params[info.m_nSelfShadowedBumpFlag]->SetIntValue( 0 );
 	}
+	if (!params[info.m_nInteriorNumberOfRooms]->IsDefined())
+	{
+		params[info.m_nInteriorNumberOfRooms]->SetFloatValue(1.f); // Why do I have to do this here? I already defined the default
+	}
+//#ifdef NEO
+//	if (!params[info.m_nInteriorScale_m_nTileInteriorTextures]->IsDefined())
+//	{
+//		params[info.m_nInteriorScale_m_nTileInteriorTextures]->SetVecValue(kDefaultInteriorScale_kTileInteriorTextures, 4);
+//	}
+//	if (!params[info.m_nInteriorOffset_m_nLightsThreshold]->IsDefined())
+//	{
+//		params[info.m_nInteriorOffset_m_nLightsThreshold]->SetVecValue(kDefaultInteriorOffset_kLightsThreshold, 4);
+//	}
+//#endif // NEO
 	// handle line art parms
 	InitFloatParam( info.m_nEdgeSoftnessStart, params, 0.5 );
 	InitFloatParam( info.m_nEdgeSoftnessEnd, params, 0.5 );
@@ -920,6 +934,19 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 			if (hasInteriorMap)
 			{
 				pContextData->m_SemiStaticCmdsOut.BindTexture( pShader, SHADER_SAMPLER13, info.m_nInteriormap, -1 );
+				
+				float gInteriorScale_gTileInteriorTextures[4] = {1,1,1,1};
+				params[info.m_nInteriorScale]->GetVecValue(gInteriorScale_gTileInteriorTextures, 3);
+				params[info.m_nInteriorTile]->GetVecValue(&gInteriorScale_gTileInteriorTextures[3], 1);
+				pContextData->m_SemiStaticCmdsOut.SetPixelShaderConstant( 26, gInteriorScale_gTileInteriorTextures, 1);
+				
+				float gInteriorOffset_gLightThreshold[4] = {0,0,0,0.5};
+				params[info.m_nInteriorOffset]->GetVecValue(gInteriorOffset_gLightThreshold, 3);
+				params[info.m_nInteriorLightThreshold]->GetVecValue(&gInteriorOffset_gLightThreshold[3], 1);
+				pContextData->m_SemiStaticCmdsOut.SetPixelShaderConstant( 27, gInteriorOffset_gLightThreshold, 1);
+
+				float numRooms[4] = {params[info.m_nInteriorNumberOfRooms]->GetFloatValue(), 0, 0, 0};
+				pContextData->m_SemiStaticCmdsOut.SetPixelShaderConstant( 28, numRooms, 1);
 			}
 			if ( hasParallaxCorrection )
 			{
