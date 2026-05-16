@@ -86,6 +86,22 @@ float3 hash23(float2 seedXY)
 	return frac(sin(finalVec) * seed4);
 }
 
+uint pcg_hash(uint input)
+{
+    uint state = input * 747796405u + 2891336453u;
+    uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    return (word >> 22u) ^ word;
+}
+
+//uint3 pcg3d(uint3 v)
+//{
+//	/*v = v * 1664525u + 1013904223u;
+//	v.x += v.y*v.z; v.y += v.z*v.x; v.z += v.x*v.y;
+//	v ˆ= v >> 16u;
+//	v.x += v.y*v.z; v.y += v.z*v.x; v.z += v.x*v.y;
+//	return v;*/
+//}
+
 const HALF4 g_EnvmapTint : register( c0 );
 
 #if USE_FAST_PATH == 1
@@ -574,21 +590,19 @@ HALF4 main( PS_INPUT i ) : COLOR
 	half3 interiorComponent = half3( 0.0f, 0.0f, 0.0f );
 #if INTERIORMAP
 	{
-		// If gInteriorScale.y = 1, coordinates.z = -1 + 2 ( ( 1 / - gInteriorScale.x ) + 1 ). Same if gInteriorScale.x = 1 for gInteriorScale.y
 		float3 coordinates = float3( 0.0f, 0.0f, gInteriorScale.z / (gInteriorScale.x * gInteriorScale.y));
-
-		// Move the room
-		i.baseTexCoord.xy += gInteriorOffset.xy;
 		
+		// Move the room
 		// Number of rooms
-		half2 baseCoordinates = i.baseTexCoord.xy * gNumberRooms;
+		half2 baseCoordinates = (i.baseTexCoord.xy + gInteriorOffset.xy) * gNumberRooms;
 		
 		// Stretch the room
 		baseCoordinates.x /= gInteriorScale.x;
 		baseCoordinates.y /= gInteriorScale.y;
 		//coordinates.z /= gInteriorScale.x * gInteriorScale.y;
 
-		float3 randomRoomValue = round(hash23(floor(baseCoordinates)));
+		half3 randomRoomValue = hash23(floor(baseCoordinates));
+		half3 randomRoomRounded = round(randomRoomValue);
 
 		// wrap texture coordinates
 		coordinates.xy = frac(baseCoordinates);
@@ -613,42 +627,112 @@ HALF4 main( PS_INPUT i ) : COLOR
 		float3 finalCoordinates = (smallestComponent * eyeVect) + coordinates;
 
 		// Fix z coordinates due to stretch
-		finalCoordinates.z *= gInteriorScale.x * gInteriorScale.y;
-		finalCoordinates.z -= ((gInteriorScale.x * gInteriorScale.y) - 1);
+		/*finalCoordinates.z *= gInteriorScale.x * gInteriorScale.y;
+		finalCoordinates.z -= (gInteriorScale.x * gInteriorScale.y) - 1;
 		finalCoordinates.z /= gInteriorScale.z;
-		finalCoordinates.z += (1 - (1 / (gInteriorScale.z)));
+		finalCoordinates.z += 1 - (1 / (gInteriorScale.z));*/
 
-		// Tile the cubemap
-		//float x = finalCoordinates.x;
-		//if (x < 0 && x > (-1/3))
-		//{
-		//	finalCoordinates.x *= 3;
-		//}
+		float gInteriorScaleXY = gInteriorScale.x * gInteriorScale.y;
+		float gInteriorScaleXYZ = (gInteriorScale.x * gInteriorScale.y) / gInteriorScale.z;
+		finalCoordinates.z *= gInteriorScaleXYZ;
+		finalCoordinates.z += 1 - (1 / (gInteriorScale.z)) - ((gInteriorScaleXY - 1) /  gInteriorScale.z);
 
-		//else if (x < (-1 / 3) && x > -0.999999)
-		//{
-		//	finalCoordinates.x *= 2;
-		//	finalCoordinates.x += 1; // now between 1/3 and -1
-		//	finalCoordinates.x += (finalCoordinates.x + 1) * (1 / 2); // now between 1 and -1
-		//}
-
+		float3 finalCoordinatesBeforeRotation = finalCoordinates.xyz;
 		// Fixup cubemap rotation
 		finalCoordinates.xyz = float3(finalCoordinates.z, -finalCoordinates.x, finalCoordinates.y);
 
+		// Tile texture
+		finalCoordinates++;
+		finalCoordinates.xyz *= gInteriorScale.zxy;
+		finalCoordinates %= (2 + 0.000001);
+		finalCoordinates--;
+
 		// Random room reflection
-		half3 randomRotation = finalCoordinates.xyz * (lerp(half3(-1, 1, 1), half3(1, -1, 1), randomRoomValue.x) * lerp(half3(1, 1, 1), half3(-1, 1, 1), randomRoomValue.y));
+		half3 randomRotation = finalCoordinates.xyz * (lerp(half3(-1, 1, 1), half3(1, -1, 1), randomRoomRounded.x) * lerp(half3(1, 1, 1), half3(-1, 1, 1), randomRoomRounded.y));
 		
 		// Random room rotation
-		finalCoordinates.xyz = lerp(randomRotation.xyz, randomRotation.yxz, randomRoomValue.z);
+		finalCoordinates.xyz = lerp(randomRotation.xyz, randomRotation.yxz, randomRoomRounded.z);
 
+		// Sample cubemap
 		interiorComponent = texCUBE(InteriormapSampler, finalCoordinates);
 
-		// Brightness // NEO TODO read from gradient texture
-		interiorComponent *= (1 - albedo.a);
+		interiorComponent *= g_TintValuesAndLightmapScale.rgb;
+
+		// Lighting
+
+		// Uniform room light // NEO TODO read from gradient texture
 		if (randomRoomValue.x < gLightThreshold)
 		{
-			interiorComponent *= 0.2;
+			interiorComponent *= 0.1;
 		}
+
+		//// Hard shadows (or hard rays of light?) from the window
+		//// This whole problem can be easily solved in 2D
+		//// Determine the origin of the shadow ray. Since
+		//// everything is axis-aligned, This is just the
+		//// XY coordinate of the earlier ray-box intersection.
+		//float2 sOri = (finalCoordinatesBeforeRotation.xy+1) / 2;
+
+		//// Determine a 2D ray direction. This is the
+		//// "XY per unit Z" of the light ray
+		////float2 sDir = (-IN.tLightVec.xy / IN.tLightVec.z) * _RoomSize.z;
+		//float2 sDir = normalize(-float2(1, 0) / -0.2);
+
+		//// Lastly, determine our shadow sample position. Since
+		//// our sDir is unit-length along the Z axis, we can
+		//// simply multiply by the depth of the fragment to
+		//// determine the 2D offset of the final shadow coord!
+		//float2 sPos = sOri + sDir;
+		//half4 baseTextureAtPos = tex2D(BaseTextureSampler, sPos.yx);
+		//interiorComponent += interiorComponent * (20 * (1 - baseTextureAtPos.a)); //LightMapSample(LightmapSampler, sOri);
+
+		// INTERIOR SHADOWS
+
+		// Adapted from https://andrewgotow.com/2019/02/27/interior-mapping-part-3/
+
+		// Cast a ray backwards, from the point in the room opposite
+		// the direction of the light. Here, we're doing it in 2D,
+		// since the room is in unit-space.
+		finalCoordinatesBeforeRotation.xy = 1 - ((finalCoordinatesBeforeRotation.xy + 1) / 2);
+		finalCoordinatesBeforeRotation.z = ((finalCoordinatesBeforeRotation.z + 1) / 2);
+		float2 sOri = finalCoordinatesBeforeRotation.xy;
+		//float2 sOri = frac(i.baseTexCoord.xy);
+		float3 tLightVec = normalize(mul(i.tangentSpaceTranspose, float3(0.546, -0.566, -0.966)));
+		//float3 tLightVec = normalize(float3(1, 0, 0.5));
+		float2 sDir = (tLightVec.xy / tLightVec.z) * (gInteriorScale.z);
+		float2 sPos = sOri + sDir * finalCoordinatesBeforeRotation.z;
+
+		// Now, calculate shadow UVs. This is remapping from the
+		// light ray's point of intersection on the near wall to the
+		// exterior map.
+		float2 shadowUV = saturate(sPos * half2(gInteriorScale.x / gNumberRooms, gInteriorScale.y / gNumberRooms));
+		float2 offset = floor(frac(i.baseTexCoord.xy) * gNumberRooms);
+		shadowUV += offset / gNumberRooms;
+		shadowUV = clamp(offset / gNumberRooms, (offset + 1) / gNumberRooms, shadowUV);
+		//shadowUV *= _Workaround_MainTex_ST.xy + _Workaround_MainTex_ST.zw;
+				
+		//// Finally, sample the shadow SDF, and simulate soft shadows
+		//// with a smooth threshold.
+		//fixed shadowDist = tex2D(_ShadowTex, shadowUV).a;
+		//fixed shadowThreshold = saturate(0.5 + _ShadowSoftness * (-roomPos.z * _RoomSize.z));
+		//float shadow = smoothstep(0.5, shadowThreshold, shadowDist);
+
+		//// Make sure we don't illuminate rooms facing opposite the light.
+		//shadow = lerp(shadow, 1, step(0, IN.tLightVec.z));
+		
+		half4 baseTextureAtPos = tex2D(BaseTextureSampler, shadowUV);
+		
+		float3 lightColourAndIntensity = (2.0, 2.0, 2.0);
+		float3 shadow = baseTextureAtPos.rgb * lerp(1, 0, baseTextureAtPos.a);
+		shadow = lerp(shadow, 0, step(0, tLightVec.z));
+
+		half3 projectedlightmapColor = LightMapSample( LightmapSampler, i.lightmapTexCoord1And2.xy );
+
+		// Finally, modify the output albedo with the shadow constant.
+		interiorComponent.rgb *= lerp(1, 1024 * projectedlightmapColor, shadow);
+		//interiorComponent.rgb = projectedlightmapColor;
+
+		interiorComponent *= (1 - albedo.a);
 		diffuseComponent *= albedo.a;
 	}
 #endif // INTERIORMAP

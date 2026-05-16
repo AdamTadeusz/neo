@@ -931,23 +931,6 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 			}
 
 #ifdef NEO
-			if (hasInteriorMap)
-			{
-				pContextData->m_SemiStaticCmdsOut.BindTexture( pShader, SHADER_SAMPLER13, info.m_nInteriormap, -1 );
-				
-				float gInteriorScale_gTileInteriorTextures[4] = {1,1,1,1};
-				params[info.m_nInteriorScale]->GetVecValue(gInteriorScale_gTileInteriorTextures, 3);
-				params[info.m_nInteriorTile]->GetVecValue(&gInteriorScale_gTileInteriorTextures[3], 1);
-				pContextData->m_SemiStaticCmdsOut.SetPixelShaderConstant( 26, gInteriorScale_gTileInteriorTextures, 1);
-				
-				float gInteriorOffset_gLightThreshold[4] = {0,0,0,0.5};
-				params[info.m_nInteriorOffset]->GetVecValue(gInteriorOffset_gLightThreshold, 3);
-				params[info.m_nInteriorLightThreshold]->GetVecValue(&gInteriorOffset_gLightThreshold[3], 1);
-				pContextData->m_SemiStaticCmdsOut.SetPixelShaderConstant( 27, gInteriorOffset_gLightThreshold, 1);
-
-				float numRooms[4] = {params[info.m_nInteriorNumberOfRooms]->GetFloatValue(), 0, 0, 0};
-				pContextData->m_SemiStaticCmdsOut.SetPixelShaderConstant( 28, numRooms, 1);
-			}
 			if ( hasParallaxCorrection )
 			{
 				float envMapOrigin[4] = {0,0,0,0};
@@ -969,6 +952,23 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 				matrix[3][0] = matrix[3][1] = matrix[3][2] = 0;
 				matrix[3][3] = 1;
 				pContextData->m_SemiStaticCmdsOut.SetPixelShaderConstant( 22, &matrix[0][0], 4 );
+			}
+			if (hasInteriorMap)
+			{
+				pContextData->m_SemiStaticCmdsOut.BindTexture( pShader, SHADER_SAMPLER13, info.m_nInteriormap, -1 );
+				
+				float gInteriorScale_gTileInteriorTextures[4] = {1,1,1,1};
+				params[info.m_nInteriorScale]->GetVecValue(gInteriorScale_gTileInteriorTextures, 3);
+				params[info.m_nInteriorTile]->GetVecValue(&gInteriorScale_gTileInteriorTextures[3], 1);
+				pContextData->m_SemiStaticCmdsOut.SetPixelShaderConstant( 26, gInteriorScale_gTileInteriorTextures, 1);
+				
+				float gInteriorOffset_gLightThreshold[4] = {0,0,0,0.5};
+				params[info.m_nInteriorOffset]->GetVecValue(gInteriorOffset_gLightThreshold, 3);
+				params[info.m_nInteriorLightThreshold]->GetVecValue(&gInteriorOffset_gLightThreshold[3], 1);
+				pContextData->m_SemiStaticCmdsOut.SetPixelShaderConstant( 27, gInteriorOffset_gLightThreshold, 1);
+
+				float numRooms[4] = {params[info.m_nInteriorNumberOfRooms]->GetFloatValue(), 0, 0, 0};
+				pContextData->m_SemiStaticCmdsOut.SetPixelShaderConstant( 28, numRooms, 1);
 			}
 #endif
 
