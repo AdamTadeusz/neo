@@ -317,6 +317,11 @@ void InitLightmappedGeneric_DX9( CBaseVSShader *pShader, IMaterialVar** params, 
 		{
 			SET_FLAGS( MATERIAL_VAR_ENVMAPSPHERE );
 		}
+
+		if (params[info.m_nInteriormaplight]->IsDefined())
+		{
+			pShader->LoadTexture( info.m_nInteriormaplight );
+		}
 	}
 
 	// We always need this because of the flashlight.
@@ -362,6 +367,7 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 #ifdef NEO
 		bool hasParallaxCorrection = params[info.m_nEnvmap]->IsDefined() && params[info.m_nEnvmapParallaxObb1]->GetType() == MATERIAL_VAR_TYPE_VECTOR;
 		bool hasInteriorMap = params[info.m_nInteriormap]->IsTexture() && !(hasFlashlight && IsX360());
+		bool hasInteriorMapLight = hasInteriorMap && params[info.m_nInteriormaplight]->IsTexture();
 #endif
 
 		if ( hasFlashlight && !IsX360() )				
@@ -566,6 +572,14 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 					{
 						pShaderShadow->EnableSRGBRead( SHADER_SAMPLER13, true );
 					}
+					if (hasInteriorMapLight)
+					{
+						pShaderShadow->EnableTexture( SHADER_SAMPLER14, true );
+						if( g_pHardwareConfig->GetHDRType() == HDR_TYPE_NONE )
+						{
+							pShaderShadow->EnableSRGBRead( SHADER_SAMPLER14, true );
+						}
+					}
 				}
 #endif // NEO
 
@@ -639,6 +653,7 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 #ifdef NEO
 					SET_STATIC_PIXEL_SHADER_COMBO( PARALLAXCORRECT, hasParallaxCorrection );
 					SET_STATIC_PIXEL_SHADER_COMBO( INTERIORMAP, hasInteriorMap );
+					SET_STATIC_PIXEL_SHADER_COMBO( INTERIORMAPLIGHT, hasInteriorMapLight );
 					// NEO NOTE DG: Put it before DETAIL_BLEND_MODE in the fxc or else you get a fun int overflow.
 #endif
 					SET_STATIC_PIXEL_SHADER_COMBO( DETAIL_BLEND_MODE, nDetailBlendMode );
@@ -969,6 +984,11 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 
 				float numRooms[4] = {params[info.m_nInteriorNumberOfRooms]->GetFloatValue(), 0, 0, 0};
 				pContextData->m_SemiStaticCmdsOut.SetPixelShaderConstant( 28, numRooms, 1);
+
+				if (hasInteriorMapLight)
+				{
+					pContextData->m_SemiStaticCmdsOut.BindTexture( pShader, SHADER_SAMPLER14, info.m_nInteriormaplight, -1 );
+				}
 			}
 #endif
 

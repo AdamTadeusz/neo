@@ -219,6 +219,7 @@ sampler ShadowDepthSampler		: register( s14 );
 sampler RandRotSampler			: register( s15 );
 #else
 sampler InteriormapSampler 		: register( s13 );
+sampler InteriormapLightSampler : register( s14 );
 #endif
 
 struct PS_INPUT
@@ -590,16 +591,17 @@ HALF4 main( PS_INPUT i ) : COLOR
 	half3 interiorComponent = half3( 0.0f, 0.0f, 0.0f );
 #if INTERIORMAP
 	{
+		// Interior mapping adapted from https://www.youtube.com/watch?v=HA0xXiqxA54&list=PL78XDi0TS4lFHEvvUXpOoTzV-IdCs1hNk Interior mapping playlist by Ben Cloward
 		float3 coordinates = float3( 0.0f, 0.0f, gInteriorScale.z / (gInteriorScale.x * gInteriorScale.y));
 		
 		// Move the room
-		// Number of rooms
-		half2 baseCoordinates = (i.baseTexCoord.xy + gInteriorOffset.xy) * gNumberRooms;
+		float2 baseCoordinates = i.baseTexCoord.xy - gInteriorOffset.xy;
+		
+		// Multiply number of rooms
+		baseCoordinates *= gNumberRooms;
 		
 		// Stretch the room
-		baseCoordinates.x /= gInteriorScale.x;
-		baseCoordinates.y /= gInteriorScale.y;
-		//coordinates.z /= gInteriorScale.x * gInteriorScale.y;
+		baseCoordinates /= gInteriorScale.xy;
 
 		half3 randomRoomValue = hash23(floor(baseCoordinates));
 		half3 randomRoomRounded = round(randomRoomValue);
@@ -656,81 +658,52 @@ HALF4 main( PS_INPUT i ) : COLOR
 		// Sample cubemap
 		interiorComponent = texCUBE(InteriormapSampler, finalCoordinates);
 
-		interiorComponent *= g_TintValuesAndLightmapScale.rgb;
-
 		// Lighting
-
-		// Uniform room light // NEO TODO read from gradient texture
+		
+		// Uniform room light
+#if INTERIORMAPLIGHT
+		interiorComponent *= tex1D(InteriormapLightSampler, randomRoomValue.x) * g_TintValuesAndLightmapScale.rgb;
+#else
+		interiorComponent *= g_TintValuesAndLightmapScale.rgb;
 		if (randomRoomValue.x < gLightThreshold)
 		{
 			interiorComponent *= 0.1;
 		}
-
-		//// Hard shadows (or hard rays of light?) from the window
-		//// This whole problem can be easily solved in 2D
-		//// Determine the origin of the shadow ray. Since
-		//// everything is axis-aligned, This is just the
-		//// XY coordinate of the earlier ray-box intersection.
-		//float2 sOri = (finalCoordinatesBeforeRotation.xy+1) / 2;
-
-		//// Determine a 2D ray direction. This is the
-		//// "XY per unit Z" of the light ray
-		////float2 sDir = (-IN.tLightVec.xy / IN.tLightVec.z) * _RoomSize.z;
-		//float2 sDir = normalize(-float2(1, 0) / -0.2);
-
-		//// Lastly, determine our shadow sample position. Since
-		//// our sDir is unit-length along the Z axis, we can
-		//// simply multiply by the depth of the fragment to
-		//// determine the 2D offset of the final shadow coord!
-		//float2 sPos = sOri + sDir;
-		//half4 baseTextureAtPos = tex2D(BaseTextureSampler, sPos.yx);
-		//interiorComponent += interiorComponent * (20 * (1 - baseTextureAtPos.a)); //LightMapSample(LightmapSampler, sOri);
+#endif // INTERIORMAPLIGHT
 
 		// INTERIOR SHADOWS
-
-		// Adapted from https://andrewgotow.com/2019/02/27/interior-mapping-part-3/
+		// Adapted from https://andrewgotow.com/2019/02/27/interior-mapping-part-3/ by Andrew Gotow
 
 		// Cast a ray backwards, from the point in the room opposite
 		// the direction of the light. Here, we're doing it in 2D,
 		// since the room is in unit-space.
+		// NEO NOTE have to undo the centering of the interior coordinates in uv space
 		finalCoordinatesBeforeRotation.xy = 1 - ((finalCoordinatesBeforeRotation.xy + 1) / 2);
 		finalCoordinatesBeforeRotation.z = ((finalCoordinatesBeforeRotation.z + 1) / 2);
 		float2 sOri = finalCoordinatesBeforeRotation.xy;
-		//float2 sOri = frac(i.baseTexCoord.xy);
 		float3 tLightVec = normalize(mul(i.tangentSpaceTranspose, float3(0.546, -0.566, -0.966)));
-		//float3 tLightVec = normalize(float3(1, 0, 0.5));
-		float2 sDir = (tLightVec.xy / tLightVec.z) * (gInteriorScale.z);
-		float2 sPos = sOri + sDir * finalCoordinatesBeforeRotation.z;
+		float2 sDir = (tLightVec.xy * gInteriorScale.z / tLightVec.z);
+		sDir /= gInteriorScale.xy;
+		float2 sPos = saturate(sOri + sDir * finalCoordinatesBeforeRotation.z);
 
-		// Now, calculate shadow UVs. This is remapping from the
-		// light ray's point of intersection on the near wall to the
-		// exterior map.
-		float2 shadowUV = saturate(sPos * half2(gInteriorScale.x / gNumberRooms, gInteriorScale.y / gNumberRooms));
-		float2 offset = floor(frac(i.baseTexCoord.xy) * gNumberRooms);
-		shadowUV += offset / gNumberRooms;
-		shadowUV = clamp(offset / gNumberRooms, (offset + 1) / gNumberRooms, shadowUV);
-		//shadowUV *= _Workaround_MainTex_ST.xy + _Workaround_MainTex_ST.zw;
-				
-		//// Finally, sample the shadow SDF, and simulate soft shadows
-		//// with a smooth threshold.
-		//fixed shadowDist = tex2D(_ShadowTex, shadowUV).a;
-		//fixed shadowThreshold = saturate(0.5 + _ShadowSoftness * (-roomPos.z * _RoomSize.z));
-		//float shadow = smoothstep(0.5, shadowThreshold, shadowDist);
-
-		//// Make sure we don't illuminate rooms facing opposite the light.
-		//shadow = lerp(shadow, 1, step(0, IN.tLightVec.z));
+		// Without saturate we get some values here which are like 0.99999 even if they're way past the bounds of the local coordinates, and > and < checks don't work to discard the lightmap properly
+		if (sPos.x != 0.0f && sPos.x != 1.0f && sPos.y != 0.0f && sPos.y != 1.0f)
+		{
+			// Now, calculate shadow UVs. This is remapping from the
+			// light ray's point of intersection on the near wall to the
+			// exterior map.
+			float2 shadowUV = ((floor((i.baseTexCoord.xy - gInteriorOffset.xy) * gNumberRooms / gInteriorScale.xy) / gNumberRooms) * gInteriorScale.xy) + gInteriorOffset.xy + (saturate(sPos) * gInteriorScale.xy / gNumberRooms);
+					
+			half4 baseTextureAtPos = tex2D(BaseTextureSampler, shadowUV);
 		
-		half4 baseTextureAtPos = tex2D(BaseTextureSampler, shadowUV);
-		
-		float3 lightColourAndIntensity = (2.0, 2.0, 2.0);
-		float3 shadow = baseTextureAtPos.rgb * lerp(1, 0, baseTextureAtPos.a);
-		shadow = lerp(shadow, 0, step(0, tLightVec.z));
+			float3 shadow = baseTextureAtPos.rgb * lerp(1, 0, baseTextureAtPos.a);
+			shadow = lerp(shadow, 0, step(0, tLightVec.z));
 
-		half3 projectedlightmapColor = LightMapSample( LightmapSampler, i.lightmapTexCoord1And2.xy );
+			half3 projectedlightmapColor = LightMapSample( LightmapSampler, i.lightmapTexCoord1And2.xy );
 
-		// Finally, modify the output albedo with the shadow constant.
-		interiorComponent.rgb *= lerp(1, 1024 * projectedlightmapColor, shadow);
-		//interiorComponent.rgb = projectedlightmapColor;
+			// Finally, modify the output albedo with the shadow constant.
+			interiorComponent.rgb *= lerp(1, 1024 * projectedlightmapColor, shadow);
+		}
 
 		interiorComponent *= (1 - albedo.a);
 		diffuseComponent *= albedo.a;

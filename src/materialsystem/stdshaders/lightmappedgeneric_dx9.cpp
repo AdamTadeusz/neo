@@ -81,6 +81,7 @@ BEGIN_VS_SHADER( LightmappedGeneric,
 		SHADER_PARAM( ENVMAPORIGIN, SHADER_PARAM_TYPE_VEC3, "[0 0 0]", "The world space position of the env_cubemap being corrected" )
 
 		SHADER_PARAM( INTERIORMAP, SHADER_PARAM_TYPE_TEXTURE, "", "Interior map" )
+		SHADER_PARAM( INTERIORMAPLIGHT, SHADER_PARAM_TYPE_TEXTURE, "", "Interior map light gradient" )
 		SHADER_PARAM( INTERIORMAPSCALE, SHADER_PARAM_TYPE_VEC3, "[1.0 1.0 1.0]", "room scale" )
 		SHADER_PARAM( INTERIORMAPTILE, SHADER_PARAM_TYPE_BOOL, "1", "Tile the interior map at higher scales" )
 		SHADER_PARAM( INTERIORMAPOFFSET, SHADER_PARAM_TYPE_VEC3, "[0.0 0.0 0.0]", "room offset" )
@@ -156,6 +157,7 @@ END_SHADER_PARAMS
 		info.m_nEnvmapOrigin = ENVMAPORIGIN;
 
 		info.m_nInteriormap = INTERIORMAP;
+		info.m_nInteriormaplight = INTERIORMAPLIGHT;
 		info.m_nInteriorScale = INTERIORMAPSCALE;
 		info.m_nInteriorTile = INTERIORMAPTILE;
 		info.m_nInteriorOffset = INTERIORMAPOFFSET;

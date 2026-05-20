@@ -94,6 +94,7 @@ struct LightmappedGeneric_DX9_Vars_t
 	int m_nEnvmapOrigin;
 
 	int m_nInteriormap;
+	int m_nInteriormaplight;
 	int m_nInteriorScale;
 	int m_nInteriorTile;
 	int m_nInteriorOffset;
