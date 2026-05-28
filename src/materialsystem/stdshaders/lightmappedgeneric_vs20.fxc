@@ -249,6 +249,8 @@ VS_OUTPUT main( const VS_INPUT v )
 	{
 		o.vertexBlendX_fogFactorW.r = v.vColor.a;
 	}
+
+	o.lightmapTexCoord3.rgb = mul( float4( 0, 0, 0, 1 ), cModel[0] ).xyz;
 	
 	return o;
 }

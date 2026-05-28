@@ -196,20 +196,7 @@ void InitParamsLightmappedGeneric_DX9( CBaseVSShader *pShader, IMaterialVar** pa
 	{
 		params[info.m_nSelfShadowedBumpFlag]->SetIntValue( 0 );
 	}
-	if (!params[info.m_nInteriorNumberOfRooms]->IsDefined())
-	{
-		params[info.m_nInteriorNumberOfRooms]->SetFloatValue(1.f); // Why do I have to do this here? I already defined the default
-	}
-//#ifdef NEO
-//	if (!params[info.m_nInteriorScale_m_nTileInteriorTextures]->IsDefined())
-//	{
-//		params[info.m_nInteriorScale_m_nTileInteriorTextures]->SetVecValue(kDefaultInteriorScale_kTileInteriorTextures, 4);
-//	}
-//	if (!params[info.m_nInteriorOffset_m_nLightsThreshold]->IsDefined())
-//	{
-//		params[info.m_nInteriorOffset_m_nLightsThreshold]->SetVecValue(kDefaultInteriorOffset_kLightsThreshold, 4);
-//	}
-//#endif // NEO
+
 	// handle line art parms
 	InitFloatParam( info.m_nEdgeSoftnessStart, params, 0.5 );
 	InitFloatParam( info.m_nEdgeSoftnessEnd, params, 0.5 );
@@ -302,15 +289,15 @@ void InitLightmappedGeneric_DX9( CBaseVSShader *pShader, IMaterialVar** params, 
 		params[info.m_nEnvmapMask]->SetUndefined();
 	}
 
-	if (params[info.m_nInteriormap]->IsDefined())
+	if (params[info.m_nInteriormap_RoomTexture]->IsDefined())
 	{
 		if (!IS_FLAG_SET(MATERIAL_VAR_ENVMAPSPHERE))
 		{
-			pShader->LoadCubeMap(info.m_nInteriormap, g_pHardwareConfig->GetHDRType() == HDR_TYPE_NONE ? TEXTUREFLAGS_SRGB : 0 );
+			pShader->LoadCubeMap(info.m_nInteriormap_RoomTexture, g_pHardwareConfig->GetHDRType() == HDR_TYPE_NONE ? TEXTUREFLAGS_SRGB : 0 );
 		}
 		else
 		{
-			pShader->LoadTexture( info.m_nInteriormap );
+			pShader->LoadTexture( info.m_nInteriormap_RoomTexture );
 		}
 
 		if ( !g_pHardwareConfig->SupportsCubeMaps() )
@@ -318,9 +305,14 @@ void InitLightmappedGeneric_DX9( CBaseVSShader *pShader, IMaterialVar** params, 
 			SET_FLAGS( MATERIAL_VAR_ENVMAPSPHERE );
 		}
 
-		if (params[info.m_nInteriormaplight]->IsDefined())
+		if (params[info.m_nInteriormap_FeaturesTexture]->IsDefined())
 		{
-			pShader->LoadTexture( info.m_nInteriormaplight );
+			pShader->LoadTexture( info.m_nInteriormap_FeaturesTexture );
+		}
+
+		if (params[info.m_nInteriormap_InteriorLightGradientTexture]->IsDefined())
+		{
+			pShader->LoadTexture( info.m_nInteriormap_InteriorLightGradientTexture );
 		}
 	}
 
@@ -366,8 +358,12 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 		bool hasNormalMapAlphaEnvmapMask = IS_FLAG_SET( MATERIAL_VAR_NORMALMAPALPHAENVMAPMASK );
 #ifdef NEO
 		bool hasParallaxCorrection = params[info.m_nEnvmap]->IsDefined() && params[info.m_nEnvmapParallaxObb1]->GetType() == MATERIAL_VAR_TYPE_VECTOR;
-		bool hasInteriorMap = params[info.m_nInteriormap]->IsTexture() && !(hasFlashlight && IsX360());
-		bool hasInteriorMapLight = hasInteriorMap && params[info.m_nInteriormaplight]->IsTexture();
+		
+		bool hasInteriormap = params[info.m_nInteriormap_RoomTexture]->IsTexture() && !(hasFlashlight && IsX360());
+		bool hasInteriormapLight = hasInteriormap && params[info.m_nInteriormap_InteriorLightGradientTexture]->IsTexture();
+		bool hasInteriormapFeatures = hasInteriormap && params[info.m_nInteriormap_FeaturesTexture]->IsTexture();
+		bool tileStretchedRooms = hasInteriormap && params[info.m_nInteriormap_TileStretchedRoom]->GetIntValue();
+		bool castLightFromExteriorLightOrigin = hasInteriormap && params[info.m_nInteriormap_CastLightFromExteriorLightOrigin]->GetIntValue();
 #endif
 
 		if ( hasFlashlight && !IsX360() )				
@@ -420,7 +416,7 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 			bool hasDiffuseBumpmap = hasBump && (params[info.m_nNoDiffuseBumpLighting]->GetIntValue() == 0);
 
 #ifdef NEO
-			bool hasEnvmap = params[info.m_nEnvmap]->IsTexture() || hasInteriorMap;
+			bool hasEnvmap = params[info.m_nEnvmap]->IsTexture() || hasInteriormap;
 #else
 			bool hasEnvmap = params[info.m_nEnvmap]->IsTexture();
 #endif // NEO
@@ -565,19 +561,27 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 					pShaderShadow->EnableTexture( SHADER_SAMPLER15, true );
 				}
 #ifdef NEO
-				else if (hasInteriorMap)
+				else if (hasInteriormap)
 				{
 					pShaderShadow->EnableTexture( SHADER_SAMPLER13, true );
 					if( g_pHardwareConfig->GetHDRType() == HDR_TYPE_NONE )
 					{
 						pShaderShadow->EnableSRGBRead( SHADER_SAMPLER13, true );
 					}
-					if (hasInteriorMapLight)
+					if (hasInteriormapLight)
 					{
 						pShaderShadow->EnableTexture( SHADER_SAMPLER14, true );
 						if( g_pHardwareConfig->GetHDRType() == HDR_TYPE_NONE )
 						{
 							pShaderShadow->EnableSRGBRead( SHADER_SAMPLER14, true );
+						}
+					}
+					if (hasInteriormapFeatures)
+					{
+						pShaderShadow->EnableTexture( SHADER_SAMPLER15, true );
+						if( g_pHardwareConfig->GetHDRType() == HDR_TYPE_NONE )
+						{
+							pShaderShadow->EnableSRGBRead( SHADER_SAMPLER15, true );
 						}
 					}
 				}
@@ -609,7 +613,7 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 				DECLARE_STATIC_VERTEX_SHADER( lightmappedgeneric_vs20 );
 				SET_STATIC_VERTEX_SHADER_COMBO( ENVMAP_MASK,  hasEnvmapMask );
 #ifdef NEO
-				SET_STATIC_VERTEX_SHADER_COMBO( TANGENTSPACE,  params[info.m_nEnvmap]->IsTexture() || hasInteriorMap );
+				SET_STATIC_VERTEX_SHADER_COMBO( TANGENTSPACE,  params[info.m_nEnvmap]->IsTexture() || hasInteriormap );
 #else
 				SET_STATIC_VERTEX_SHADER_COMBO( TANGENTSPACE,  params[info.m_nEnvmap]->IsTexture() );
 #endif // NEO
@@ -652,8 +656,11 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 					SET_STATIC_PIXEL_SHADER_COMBO( SOFTEDGES, bHasSoftEdges );
 #ifdef NEO
 					SET_STATIC_PIXEL_SHADER_COMBO( PARALLAXCORRECT, hasParallaxCorrection );
-					SET_STATIC_PIXEL_SHADER_COMBO( INTERIORMAP, hasInteriorMap );
-					SET_STATIC_PIXEL_SHADER_COMBO( INTERIORMAPLIGHT, hasInteriorMapLight );
+					SET_STATIC_PIXEL_SHADER_COMBO( INTERIORMAP, hasInteriormap );
+					SET_STATIC_PIXEL_SHADER_COMBO( INTERIORMAPINTERIORLIGHT, hasInteriormapLight );
+					SET_STATIC_PIXEL_SHADER_COMBO( INTERIORMAPFEATURES, hasInteriormapFeatures );
+					SET_STATIC_PIXEL_SHADER_COMBO( INTERIORMAPTILESTRETCHEDROOM, tileStretchedRooms );
+					SET_STATIC_PIXEL_SHADER_COMBO( INTERIORMAPCASTEXTERIORLIGHT, castLightFromExteriorLightOrigin );
 					// NEO NOTE DG: Put it before DETAIL_BLEND_MODE in the fxc or else you get a fun int overflow.
 #endif
 					SET_STATIC_PIXEL_SHADER_COMBO( DETAIL_BLEND_MODE, nDetailBlendMode );
@@ -968,27 +975,35 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 				matrix[3][3] = 1;
 				pContextData->m_SemiStaticCmdsOut.SetPixelShaderConstant( 22, &matrix[0][0], 4 );
 			}
-			if (hasInteriorMap)
+
+			if (hasInteriormap)
 			{
-				pContextData->m_SemiStaticCmdsOut.BindTexture( pShader, SHADER_SAMPLER13, info.m_nInteriormap, -1 );
-				
-				float gInteriorScale_gTileInteriorTextures[4] = {1,1,1,1};
-				params[info.m_nInteriorScale]->GetVecValue(gInteriorScale_gTileInteriorTextures, 3);
-				params[info.m_nInteriorTile]->GetVecValue(&gInteriorScale_gTileInteriorTextures[3], 1);
-				pContextData->m_SemiStaticCmdsOut.SetPixelShaderConstant( 26, gInteriorScale_gTileInteriorTextures, 1);
-				
-				float gInteriorOffset_gLightThreshold[4] = {0,0,0,0.5};
-				params[info.m_nInteriorOffset]->GetVecValue(gInteriorOffset_gLightThreshold, 3);
-				params[info.m_nInteriorLightThreshold]->GetVecValue(&gInteriorOffset_gLightThreshold[3], 1);
-				pContextData->m_SemiStaticCmdsOut.SetPixelShaderConstant( 27, gInteriorOffset_gLightThreshold, 1);
-
-				float numRooms[4] = {params[info.m_nInteriorNumberOfRooms]->GetFloatValue(), 0, 0, 0};
-				pContextData->m_SemiStaticCmdsOut.SetPixelShaderConstant( 28, numRooms, 1);
-
-				if (hasInteriorMapLight)
+				pContextData->m_SemiStaticCmdsOut.BindTexture( pShader, SHADER_SAMPLER13, info.m_nInteriormap_RoomTexture, -1 );
+				if (hasInteriormapLight)
 				{
-					pContextData->m_SemiStaticCmdsOut.BindTexture( pShader, SHADER_SAMPLER14, info.m_nInteriormaplight, -1 );
+					pContextData->m_SemiStaticCmdsOut.BindTexture( pShader, SHADER_SAMPLER14, info.m_nInteriormap_InteriorLightGradientTexture, -1 );
 				}
+				if (hasInteriormapFeatures)
+				{
+					pContextData->m_SemiStaticCmdsOut.BindTexture( pShader, SHADER_SAMPLER15, info.m_nInteriormap_FeaturesTexture, -1 );
+				}
+				
+				// invert room size
+				float gInteriorOffset_gInteriorRoomSize[4] = { 0.f, 0.f, 0.f, 1.f / params[info.m_nInteriormap_RoomSize]->GetFloatValue() };
+				params[info.m_nInteriormap_RoomOffset]->GetVecValue(gInteriorOffset_gInteriorRoomSize, 3);
+				pContextData->m_SemiStaticCmdsOut.SetPixelShaderConstant( 26, gInteriorOffset_gInteriorRoomSize, 1);
+								
+				float dimensions[] = { 0.0f, 0.0f, 0.0f, 0.0f };
+				pShader->GetTextureDimensions( &dimensions[0], &dimensions[1], info.m_nBaseTexture );
+
+				float gInteriorStretch[4] = { 1.f, 1.f, 1.f, dimensions[0]};
+				params[info.m_nInteriormap_RoomStretch]->GetVecValue(gInteriorStretch, 3);
+				pContextData->m_SemiStaticCmdsOut.SetPixelShaderConstant( 27, gInteriorStretch, 1);
+
+				float gExteriorLightOrigin[4] = { 0.f, 0.f, 0.f, dimensions[1]};
+				params[info.m_nInteriormap_ExteriorLightOrigin]->GetVecValue(gExteriorLightOrigin, 3);
+				pContextData->m_SemiStaticCmdsOut.SetPixelShaderConstant( 28, gExteriorLightOrigin, 1);
+
 			}
 #endif
 

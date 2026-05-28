@@ -80,13 +80,15 @@ BEGIN_VS_SHADER( LightmappedGeneric,
 		SHADER_PARAM( ENVMAPPARALLAXOBB3, SHADER_PARAM_TYPE_VEC4, "[0 0 1 0]", "The third line of the parallax correction OBB matrix" )
 		SHADER_PARAM( ENVMAPORIGIN, SHADER_PARAM_TYPE_VEC3, "[0 0 0]", "The world space position of the env_cubemap being corrected" )
 
-		SHADER_PARAM( INTERIORMAP, SHADER_PARAM_TYPE_TEXTURE, "", "Interior map" )
-		SHADER_PARAM( INTERIORMAPLIGHT, SHADER_PARAM_TYPE_TEXTURE, "", "Interior map light gradient" )
-		SHADER_PARAM( INTERIORMAPSCALE, SHADER_PARAM_TYPE_VEC3, "[1.0 1.0 1.0]", "room scale" )
-		SHADER_PARAM( INTERIORMAPTILE, SHADER_PARAM_TYPE_BOOL, "1", "Tile the interior map at higher scales" )
-		SHADER_PARAM( INTERIORMAPOFFSET, SHADER_PARAM_TYPE_VEC3, "[0.0 0.0 0.0]", "room offset" )
-		SHADER_PARAM( INTERIORMAPLIGHTTHRESHOLD, SHADER_PARAM_TYPE_FLOAT, "0.5", "Rooms with a random half (decimal) between 0 and 1 below this threshold will have their lights turned off" )
-		SHADER_PARAM( INTERIORMAPNUMBEROFROOMS, SHADER_PARAM_TYPE_INTEGER, "1.0", "Number of rooms in both the x and y axes" )
+		SHADER_PARAM( INTERIORMAPROOMTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "", "Interior map room texture" )
+		SHADER_PARAM( INTERIORMAPINTERIORLIGHTGRADIENTTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "", "Interior map interior light gradient texture. 1D texture containing all the colours used to light the room interior, including dark grey for unlit rooms." )
+		SHADER_PARAM( INTERIORMAPFEATURESTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "", "Interior map features texture. Curtains, sprites projected into the room" )
+		SHADER_PARAM( INTERIORMAPROOMOFFSET, SHADER_PARAM_TYPE_VEC3, "[0.0 0.0 0.0]", "Interior map room offset from facade" )
+		SHADER_PARAM( INTERIORMAPROOMSIZE, SHADER_PARAM_TYPE_FLOAT, "1.0", "Interior map room size. Uniformly scales the room dimensions in relation to the facade" )
+		SHADER_PARAM( INTERIORMAPROOMSTRETCH, SHADER_PARAM_TYPE_VEC3, "[1.0 1.0 1.0]", "Interior map room stretch. Stretches the room along three axes independently, can tile" )
+		SHADER_PARAM( INTERIORMAPTILESTRETCHEDROOM, SHADER_PARAM_TYPE_BOOL, "1", "Tile the interior map room when stretching/shrinking" )
+		SHADER_PARAM( INTERIORMAPEXTERIORLIGHTORIGIN, SHADER_PARAM_TYPE_VEC3, "[0.0 0.0 0.0]", "Exterior light origin" )
+		SHADER_PARAM( INTERIORMAPCASTEXTERIORLIGHT, SHADER_PARAM_TYPE_BOOL, "1", "Cast light from exterior light origin into the room" )
 #endif
 END_SHADER_PARAMS
 
@@ -155,14 +157,16 @@ END_SHADER_PARAMS
 		info.m_nEnvmapParallaxObb2 = ENVMAPPARALLAXOBB2;
 		info.m_nEnvmapParallaxObb3 = ENVMAPPARALLAXOBB3;
 		info.m_nEnvmapOrigin = ENVMAPORIGIN;
-
-		info.m_nInteriormap = INTERIORMAP;
-		info.m_nInteriormaplight = INTERIORMAPLIGHT;
-		info.m_nInteriorScale = INTERIORMAPSCALE;
-		info.m_nInteriorTile = INTERIORMAPTILE;
-		info.m_nInteriorOffset = INTERIORMAPOFFSET;
-		info.m_nInteriorLightThreshold = INTERIORMAPLIGHTTHRESHOLD;
-		info.m_nInteriorNumberOfRooms = INTERIORMAPNUMBEROFROOMS;
+		
+		info.m_nInteriormap_RoomTexture = INTERIORMAPROOMTEXTURE;
+		info.m_nInteriormap_InteriorLightGradientTexture = INTERIORMAPINTERIORLIGHTGRADIENTTEXTURE;
+		info.m_nInteriormap_FeaturesTexture = INTERIORMAPFEATURESTEXTURE;
+		info.m_nInteriormap_RoomOffset = INTERIORMAPROOMOFFSET;
+		info.m_nInteriormap_RoomSize = INTERIORMAPROOMSIZE;
+		info.m_nInteriormap_RoomStretch = INTERIORMAPROOMSTRETCH;
+		info.m_nInteriormap_TileStretchedRoom = INTERIORMAPTILESTRETCHEDROOM;
+		info.m_nInteriormap_ExteriorLightOrigin = INTERIORMAPEXTERIORLIGHTORIGIN;
+		info.m_nInteriormap_CastLightFromExteriorLightOrigin = INTERIORMAPCASTEXTERIORLIGHT;
 #endif
 	}
 

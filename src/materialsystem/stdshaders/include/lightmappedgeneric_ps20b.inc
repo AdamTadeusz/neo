@@ -16,7 +16,10 @@
 // ($DETAIL_BLEND_MODE == 5 ) || ($DETAIL_BLEND_MODE == 6 ) || ($DETAIL_BLEND_MODE == 7 )
 // ($DETAIL_BLEND_MODE == 8 ) || ($DETAIL_BLEND_MODE == 9 )
 // $PARALLAXCORRECT && !$CUBEMAP
-// $INTERIORMAPLIGHT && !$INTERIORMAP
+// (!$INTERIORMAP) && $INTERIORMAPINTERIORLIGHT
+// (!$INTERIORMAP) && $INTERIORMAPFEATURES
+// (!$INTERIORMAP) && $INTERIORMAPTILESTRETCHEDROOM
+// (!$INTERIORMAP) && $INTERIORMAPCASTEXTERIORLIGHT
 // $BUMPMAP2 && $WARPLIGHTING
 // $WARPLIGHTING && $DETAILTEXTURE
 // $ENVMAPMASK && $BUMPMAP
@@ -41,6 +44,10 @@
 // !$BUMPMAP && ($NORMAL_DECODE_MODE == 2)
 // !$BUMPMAP && ($NORMALMASK_DECODE_MODE == 1)
 // !$BUMPMAP && ($NORMALMASK_DECODE_MODE == 2)
+// INTERIORMAPINTERIORLIGHT && !$INTERIORMAP
+// INTERIORMAPFEATURES && !$INTERIORMAP
+// INTERIORMAPTILESTRETCHEDROOM && !$INTERIORMAP
+// INTERIORMAPCASTEXTERIORLIGHT && !$INTERIORMAP
 // defined $HDRTYPE && defined $HDRENABLED && !$HDRTYPE && $HDRENABLED
 // defined $PIXELFOGTYPE && defined $WRITEWATERFOGTODESTALPHA && ( $PIXELFOGTYPE != 1 ) && $WRITEWATERFOGTODESTALPHA
 // defined $LIGHTING_PREVIEW && defined $HDRTYPE && $LIGHTING_PREVIEW && $HDRTYPE != 0
@@ -84,7 +91,10 @@ class lightmappedgeneric_ps20b_Static_Index
 	unsigned int m_nNORMALMASK_DECODE_MODE : 1;
 	unsigned int m_nPARALLAXCORRECT : 2;
 	unsigned int m_nINTERIORMAP : 2;
-	unsigned int m_nINTERIORMAPLIGHT : 2;
+	unsigned int m_nINTERIORMAPINTERIORLIGHT : 2;
+	unsigned int m_nINTERIORMAPFEATURES : 1;
+	unsigned int m_nINTERIORMAPTILESTRETCHEDROOM : 1;
+	unsigned int m_nINTERIORMAPCASTEXTERIORLIGHT : 2;
 	unsigned int m_nDETAIL_BLEND_MODE : 1;
 #ifdef _DEBUG
 	bool m_bMASKEDBLENDING : 1;
@@ -111,7 +121,10 @@ class lightmappedgeneric_ps20b_Static_Index
 	bool m_bNORMALMASK_DECODE_MODE : 1;
 	bool m_bPARALLAXCORRECT : 1;
 	bool m_bINTERIORMAP : 1;
-	bool m_bINTERIORMAPLIGHT : 1;
+	bool m_bINTERIORMAPINTERIORLIGHT : 1;
+	bool m_bINTERIORMAPFEATURES : 1;
+	bool m_bINTERIORMAPTILESTRETCHEDROOM : 1;
+	bool m_bINTERIORMAPCASTEXTERIORLIGHT : 1;
 	bool m_bDETAIL_BLEND_MODE : 1;
 #endif	// _DEBUG
 public:
@@ -331,12 +344,39 @@ public:
 #endif	// _DEBUG
 	}
 
-	void SetINTERIORMAPLIGHT( int i )
+	void SetINTERIORMAPINTERIORLIGHT( int i )
 	{
 		Assert( i >= 0 && i <= 1 );
-		m_nINTERIORMAPLIGHT = i;
+		m_nINTERIORMAPINTERIORLIGHT = i;
 #ifdef _DEBUG
-		m_bINTERIORMAPLIGHT = true;
+		m_bINTERIORMAPINTERIORLIGHT = true;
+#endif	// _DEBUG
+	}
+
+	void SetINTERIORMAPFEATURES( int i )
+	{
+		Assert( i >= 0 && i <= 0 );
+		m_nINTERIORMAPFEATURES = i;
+#ifdef _DEBUG
+		m_bINTERIORMAPFEATURES = true;
+#endif	// _DEBUG
+	}
+
+	void SetINTERIORMAPTILESTRETCHEDROOM( int i )
+	{
+		Assert( i >= 0 && i <= 0 );
+		m_nINTERIORMAPTILESTRETCHEDROOM = i;
+#ifdef _DEBUG
+		m_bINTERIORMAPTILESTRETCHEDROOM = true;
+#endif	// _DEBUG
+	}
+
+	void SetINTERIORMAPCASTEXTERIORLIGHT( int i )
+	{
+		Assert( i >= 0 && i <= 1 );
+		m_nINTERIORMAPCASTEXTERIORLIGHT = i;
+#ifdef _DEBUG
+		m_bINTERIORMAPCASTEXTERIORLIGHT = true;
 #endif	// _DEBUG
 	}
 
@@ -375,7 +415,10 @@ public:
 		m_nNORMALMASK_DECODE_MODE = 0;
 		m_nPARALLAXCORRECT = 0;
 		m_nINTERIORMAP = 0;
-		m_nINTERIORMAPLIGHT = 0;
+		m_nINTERIORMAPINTERIORLIGHT = 0;
+		m_nINTERIORMAPFEATURES = 0;
+		m_nINTERIORMAPTILESTRETCHEDROOM = 0;
+		m_nINTERIORMAPCASTEXTERIORLIGHT = 0;
 		m_nDETAIL_BLEND_MODE = 0;
 #ifdef _DEBUG
 		m_bMASKEDBLENDING = false;
@@ -402,14 +445,17 @@ public:
 		m_bNORMALMASK_DECODE_MODE = false;
 		m_bPARALLAXCORRECT = false;
 		m_bINTERIORMAP = false;
-		m_bINTERIORMAPLIGHT = false;
+		m_bINTERIORMAPINTERIORLIGHT = false;
+		m_bINTERIORMAPFEATURES = false;
+		m_bINTERIORMAPTILESTRETCHEDROOM = false;
+		m_bINTERIORMAPCASTEXTERIORLIGHT = false;
 		m_bDETAIL_BLEND_MODE = false;
 #endif	// _DEBUG
 	}
 
 	int GetIndex() const
 	{
-		Assert( m_bMASKEDBLENDING && m_bBASETEXTURE2 && m_bDETAILTEXTURE && m_bBUMPMAP && m_bBUMPMAP2 && m_bCUBEMAP && m_bENVMAPMASK && m_bBASEALPHAENVMAPMASK && m_bSELFILLUM && m_bNORMALMAPALPHAENVMAPMASK && m_bDIFFUSEBUMPMAP && m_bBASETEXTURENOENVMAP && m_bBASETEXTURE2NOENVMAP && m_bWARPLIGHTING && m_bFANCY_BLENDING && m_bRELIEF_MAPPING && m_bSEAMLESS && m_bOUTLINE && m_bSOFTEDGES && m_bBUMPMASK && m_bNORMAL_DECODE_MODE && m_bNORMALMASK_DECODE_MODE && m_bPARALLAXCORRECT && m_bINTERIORMAP && m_bINTERIORMAPLIGHT && m_bDETAIL_BLEND_MODE );
+		Assert( m_bMASKEDBLENDING && m_bBASETEXTURE2 && m_bDETAILTEXTURE && m_bBUMPMAP && m_bBUMPMAP2 && m_bCUBEMAP && m_bENVMAPMASK && m_bBASEALPHAENVMAPMASK && m_bSELFILLUM && m_bNORMALMAPALPHAENVMAPMASK && m_bDIFFUSEBUMPMAP && m_bBASETEXTURENOENVMAP && m_bBASETEXTURE2NOENVMAP && m_bWARPLIGHTING && m_bFANCY_BLENDING && m_bRELIEF_MAPPING && m_bSEAMLESS && m_bOUTLINE && m_bSOFTEDGES && m_bBUMPMASK && m_bNORMAL_DECODE_MODE && m_bNORMALMASK_DECODE_MODE && m_bPARALLAXCORRECT && m_bINTERIORMAP && m_bINTERIORMAPINTERIORLIGHT && m_bINTERIORMAPFEATURES && m_bINTERIORMAPTILESTRETCHEDROOM && m_bINTERIORMAPCASTEXTERIORLIGHT && m_bDETAIL_BLEND_MODE );
 		AssertMsg( !( m_nSEAMLESS && m_nRELIEF_MAPPING ), "Invalid combo combination ( SEAMLESS && RELIEF_MAPPING )" );
 		AssertMsg( !( !m_nDETAILTEXTURE && ( m_nDETAIL_BLEND_MODE != 0 ) ), "Invalid combo combination ( !DETAILTEXTURE && ( DETAIL_BLEND_MODE != 0 ) )" );
 		AssertMsg( !( m_nSEAMLESS && ( m_nOUTLINE || m_nSOFTEDGES ) ), "Invalid combo combination ( SEAMLESS && ( OUTLINE || SOFTEDGES ) )" );
@@ -425,7 +471,10 @@ public:
 		AssertMsg( !( ( m_nDETAIL_BLEND_MODE == 5 ) || ( ( m_nDETAIL_BLEND_MODE == 6 ) || ( m_nDETAIL_BLEND_MODE == 7 ) ) ), "Invalid combo combination ( ( DETAIL_BLEND_MODE == 5 ) || ( ( DETAIL_BLEND_MODE == 6 ) || ( DETAIL_BLEND_MODE == 7 ) ) )" );
 		AssertMsg( !( ( m_nDETAIL_BLEND_MODE == 8 ) || ( m_nDETAIL_BLEND_MODE == 9 ) ), "Invalid combo combination ( ( DETAIL_BLEND_MODE == 8 ) || ( DETAIL_BLEND_MODE == 9 ) )" );
 		AssertMsg( !( m_nPARALLAXCORRECT && !m_nCUBEMAP ), "Invalid combo combination ( PARALLAXCORRECT && !CUBEMAP )" );
-		AssertMsg( !( m_nINTERIORMAPLIGHT && !m_nINTERIORMAP ), "Invalid combo combination ( INTERIORMAPLIGHT && !INTERIORMAP )" );
+		AssertMsg( !( !m_nINTERIORMAP && m_nINTERIORMAPINTERIORLIGHT ), "Invalid combo combination ( !INTERIORMAP && INTERIORMAPINTERIORLIGHT )" );
+		AssertMsg( !( !m_nINTERIORMAP && m_nINTERIORMAPFEATURES ), "Invalid combo combination ( !INTERIORMAP && INTERIORMAPFEATURES )" );
+		AssertMsg( !( !m_nINTERIORMAP && m_nINTERIORMAPTILESTRETCHEDROOM ), "Invalid combo combination ( !INTERIORMAP && INTERIORMAPTILESTRETCHEDROOM )" );
+		AssertMsg( !( !m_nINTERIORMAP && m_nINTERIORMAPCASTEXTERIORLIGHT ), "Invalid combo combination ( !INTERIORMAP && INTERIORMAPCASTEXTERIORLIGHT )" );
 		AssertMsg( !( m_nBUMPMAP2 && m_nWARPLIGHTING ), "Invalid combo combination ( BUMPMAP2 && WARPLIGHTING )" );
 		AssertMsg( !( m_nWARPLIGHTING && m_nDETAILTEXTURE ), "Invalid combo combination ( WARPLIGHTING && DETAILTEXTURE )" );
 		AssertMsg( !( m_nENVMAPMASK && m_nBUMPMAP ), "Invalid combo combination ( ENVMAPMASK && BUMPMAP )" );
@@ -447,11 +496,11 @@ public:
 		AssertMsg( !( !m_nBUMPMAP && ( m_nNORMAL_DECODE_MODE == 2 ) ), "Invalid combo combination ( !BUMPMAP && ( NORMAL_DECODE_MODE == 2 ) )" );
 		AssertMsg( !( !m_nBUMPMAP && ( m_nNORMALMASK_DECODE_MODE == 1 ) ), "Invalid combo combination ( !BUMPMAP && ( NORMALMASK_DECODE_MODE == 1 ) )" );
 		AssertMsg( !( !m_nBUMPMAP && ( m_nNORMALMASK_DECODE_MODE == 2 ) ), "Invalid combo combination ( !BUMPMAP && ( NORMALMASK_DECODE_MODE == 2 ) )" );
-		return ( 288 * m_nMASKEDBLENDING ) + ( 288 * m_nBASETEXTURE2 ) + ( 288 * m_nDETAILTEXTURE ) + ( 288 * m_nBUMPMAP ) + ( 288 * m_nBUMPMAP2 ) + ( 288 * m_nCUBEMAP ) + ( 576 * m_nENVMAPMASK ) + ( 1152 * m_nBASEALPHAENVMAPMASK ) + ( 1152 * m_nSELFILLUM ) + ( 1152 * m_nNORMALMAPALPHAENVMAPMASK ) + ( 1152 * m_nDIFFUSEBUMPMAP ) + ( 1152 * m_nBASETEXTURENOENVMAP ) + ( 1152 * m_nBASETEXTURE2NOENVMAP ) + ( 1152 * m_nWARPLIGHTING ) + ( 1152 * m_nFANCY_BLENDING ) + ( 1152 * m_nRELIEF_MAPPING ) + ( 1152 * m_nSEAMLESS ) + ( 1152 * m_nOUTLINE ) + ( 1152 * m_nSOFTEDGES ) + ( 1152 * m_nBUMPMASK ) + ( 1152 * m_nNORMAL_DECODE_MODE ) + ( 1152 * m_nNORMALMASK_DECODE_MODE ) + ( 1152 * m_nPARALLAXCORRECT ) + ( 2304 * m_nINTERIORMAP ) + ( 4608 * m_nINTERIORMAPLIGHT ) + ( 9216 * m_nDETAIL_BLEND_MODE ) + 0;
+		return ( 288 * m_nMASKEDBLENDING ) + ( 288 * m_nBASETEXTURE2 ) + ( 288 * m_nDETAILTEXTURE ) + ( 288 * m_nBUMPMAP ) + ( 288 * m_nBUMPMAP2 ) + ( 288 * m_nCUBEMAP ) + ( 576 * m_nENVMAPMASK ) + ( 1152 * m_nBASEALPHAENVMAPMASK ) + ( 1152 * m_nSELFILLUM ) + ( 1152 * m_nNORMALMAPALPHAENVMAPMASK ) + ( 1152 * m_nDIFFUSEBUMPMAP ) + ( 1152 * m_nBASETEXTURENOENVMAP ) + ( 1152 * m_nBASETEXTURE2NOENVMAP ) + ( 1152 * m_nWARPLIGHTING ) + ( 1152 * m_nFANCY_BLENDING ) + ( 1152 * m_nRELIEF_MAPPING ) + ( 1152 * m_nSEAMLESS ) + ( 1152 * m_nOUTLINE ) + ( 1152 * m_nSOFTEDGES ) + ( 1152 * m_nBUMPMASK ) + ( 1152 * m_nNORMAL_DECODE_MODE ) + ( 1152 * m_nNORMALMASK_DECODE_MODE ) + ( 1152 * m_nPARALLAXCORRECT ) + ( 2304 * m_nINTERIORMAP ) + ( 4608 * m_nINTERIORMAPINTERIORLIGHT ) + ( 9216 * m_nINTERIORMAPFEATURES ) + ( 9216 * m_nINTERIORMAPTILESTRETCHEDROOM ) + ( 9216 * m_nINTERIORMAPCASTEXTERIORLIGHT ) + ( 18432 * m_nDETAIL_BLEND_MODE ) + 0;
 	}
 };
 
-#define shaderStaticTest_lightmappedgeneric_ps20b psh_forgot_to_set_static_MASKEDBLENDING + psh_forgot_to_set_static_BASETEXTURE2 + psh_forgot_to_set_static_DETAILTEXTURE + psh_forgot_to_set_static_BUMPMAP + psh_forgot_to_set_static_BUMPMAP2 + psh_forgot_to_set_static_CUBEMAP + psh_forgot_to_set_static_ENVMAPMASK + psh_forgot_to_set_static_BASEALPHAENVMAPMASK + psh_forgot_to_set_static_SELFILLUM + psh_forgot_to_set_static_NORMALMAPALPHAENVMAPMASK + psh_forgot_to_set_static_DIFFUSEBUMPMAP + psh_forgot_to_set_static_BASETEXTURENOENVMAP + psh_forgot_to_set_static_BASETEXTURE2NOENVMAP + psh_forgot_to_set_static_WARPLIGHTING + psh_forgot_to_set_static_FANCY_BLENDING + psh_forgot_to_set_static_RELIEF_MAPPING + psh_forgot_to_set_static_SEAMLESS + psh_forgot_to_set_static_OUTLINE + psh_forgot_to_set_static_SOFTEDGES + psh_forgot_to_set_static_BUMPMASK + psh_forgot_to_set_static_NORMAL_DECODE_MODE + psh_forgot_to_set_static_NORMALMASK_DECODE_MODE + psh_forgot_to_set_static_PARALLAXCORRECT + psh_forgot_to_set_static_INTERIORMAP + psh_forgot_to_set_static_INTERIORMAPLIGHT + psh_forgot_to_set_static_DETAIL_BLEND_MODE
+#define shaderStaticTest_lightmappedgeneric_ps20b psh_forgot_to_set_static_MASKEDBLENDING + psh_forgot_to_set_static_BASETEXTURE2 + psh_forgot_to_set_static_DETAILTEXTURE + psh_forgot_to_set_static_BUMPMAP + psh_forgot_to_set_static_BUMPMAP2 + psh_forgot_to_set_static_CUBEMAP + psh_forgot_to_set_static_ENVMAPMASK + psh_forgot_to_set_static_BASEALPHAENVMAPMASK + psh_forgot_to_set_static_SELFILLUM + psh_forgot_to_set_static_NORMALMAPALPHAENVMAPMASK + psh_forgot_to_set_static_DIFFUSEBUMPMAP + psh_forgot_to_set_static_BASETEXTURENOENVMAP + psh_forgot_to_set_static_BASETEXTURE2NOENVMAP + psh_forgot_to_set_static_WARPLIGHTING + psh_forgot_to_set_static_FANCY_BLENDING + psh_forgot_to_set_static_RELIEF_MAPPING + psh_forgot_to_set_static_SEAMLESS + psh_forgot_to_set_static_OUTLINE + psh_forgot_to_set_static_SOFTEDGES + psh_forgot_to_set_static_BUMPMASK + psh_forgot_to_set_static_NORMAL_DECODE_MODE + psh_forgot_to_set_static_NORMALMASK_DECODE_MODE + psh_forgot_to_set_static_PARALLAXCORRECT + psh_forgot_to_set_static_INTERIORMAP + psh_forgot_to_set_static_INTERIORMAPINTERIORLIGHT + psh_forgot_to_set_static_INTERIORMAPFEATURES + psh_forgot_to_set_static_INTERIORMAPTILESTRETCHEDROOM + psh_forgot_to_set_static_INTERIORMAPCASTEXTERIORLIGHT + psh_forgot_to_set_static_DETAIL_BLEND_MODE
 
 
 class lightmappedgeneric_ps20b_Dynamic_Index

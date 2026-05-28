@@ -24,6 +24,10 @@
 //	SKIP: !$BUMPMAP && ($NORMALMASK_DECODE_MODE == 1)
 //	SKIP: !$BUMPMAP && ($NORMALMASK_DECODE_MODE == 2)
 //  NOSKIP: $FANCY_BLENDING && (!$FASTPATH)
+//  SKIP: INTERIORMAPINTERIORLIGHT && !$INTERIORMAP
+//  SKIP: INTERIORMAPFEATURES && !$INTERIORMAP
+//  SKIP: INTERIORMAPTILESTRETCHEDROOM && !$INTERIORMAP
+//  SKIP: INTERIORMAPCASTEXTERIORLIGHT && !$INTERIORMAP
 
 // 360 compiler fails on some combo in this family.  Content doesn't use blendmode 10 anyway
 //  SKIP: $FASTPATH && $PIXELFOGTYPE && $BASETEXTURE2 && $DETAILTEXTURE && $CUBEMAP && ($DETAIL_BLEND_MODE == 10 ) [XBOX]
@@ -160,13 +164,20 @@ const float4 g_ShadowTweaks					: register( c19 );
 const float3 g_CubemapPos					: register( c21 );
 const float4x4 g_ObbMatrix					: register( c22 ); // Through c25
 #endif
-const float4 gInteriorScale_gTileInteriorTextures : register(c26);
-#define gInteriorScale gInteriorScale_gTileInteriorTextures.xyz
-#define gTileInteriorTextures gInteriorScale_gTileInteriorTextures.w
-const float4 gInteriorOffset_gLightThreshold : register(c27);
-#define gInteriorOffset gInteriorOffset_gLightThreshold.xyz
-#define gLightThreshold gInteriorOffset_gLightThreshold.w
-const float gNumberRooms : register(c28);
+
+#if INTERIORMAP
+const float4 gInteriorOffset_gInteriorRoomSize : register(c26);
+#define gInteriorOffset gInteriorOffset_gInteriorRoomSize.xyz
+#define gInteriorRoomSize gInteriorOffset_gInteriorRoomSize.w
+
+const float3 gInteriorStretch : register(c27);
+//#define gInteriorStretch gInteriorStretch_.xyz
+//#define gTileStretchedRoom gInteriorStretch_.w
+
+const float3 gExteriorLightOrigin : register(c28);
+//#define gExteriorLightOrigin gExteriorLightOrigin_.xyz
+//#define gCastExteriorLight gExteriorLightOrigin_.w
+#endif // INTERIORMAP
 
 
 sampler BaseTextureSampler		: register( s0 );
@@ -218,8 +229,15 @@ sampler FlashlightSampler		: register( s13 );
 sampler ShadowDepthSampler		: register( s14 );
 sampler RandRotSampler			: register( s15 );
 #else
+#if INTERIORMAP
 sampler InteriormapSampler 		: register( s13 );
+#if INTERIORMAPINTERIORLIGHT
 sampler InteriormapLightSampler : register( s14 );
+#endif // INTERIORMAPINTERIORLIGHT
+#if INTERIORMAPFEATURES
+sampler InteriormapFeatureSampler : register( s15 );
+#endif // INTERIORMAPFEATURES
+#endif // INTERIORMAP
 #endif
 
 struct PS_INPUT
@@ -592,16 +610,16 @@ HALF4 main( PS_INPUT i ) : COLOR
 #if INTERIORMAP
 	{
 		// Interior mapping adapted from https://www.youtube.com/watch?v=HA0xXiqxA54&list=PL78XDi0TS4lFHEvvUXpOoTzV-IdCs1hNk Interior mapping playlist by Ben Cloward
-		float3 coordinates = float3( 0.0f, 0.0f, gInteriorScale.z / (gInteriorScale.x * gInteriorScale.y));
+		float3 coordinates = float3( 0.0f, 0.0f, gInteriorStretch.z / (gInteriorStretch.x * gInteriorStretch.y));
 		
 		// Move the room
 		float2 baseCoordinates = i.baseTexCoord.xy - gInteriorOffset.xy;
 		
-		// Multiply number of rooms
-		baseCoordinates *= gNumberRooms;
+		// Scale room size
+		baseCoordinates *= gInteriorRoomSize;
 		
 		// Stretch the room
-		baseCoordinates /= gInteriorScale.xy;
+		baseCoordinates /= gInteriorStretch.xy;
 
 		half3 randomRoomValue = hash23(floor(baseCoordinates));
 		half3 randomRoomRounded = round(randomRoomValue);
@@ -617,8 +635,8 @@ HALF4 main( PS_INPUT i ) : COLOR
 		// Translate eye vector from world space to tangent space
 		eyeVect = normalize(mul(i.tangentSpaceTranspose, eyeVect));
 		// Fixup camera vector for room stretch
-		eyeVect.y *= gInteriorScale.x;
-		eyeVect.x *= gInteriorScale.y;
+		eyeVect.y *= gInteriorStretch.x;
+		eyeVect.x *= gInteriorStretch.y;
 		
 		// This does our parallax correction I guess. Not sure how it works, but when drawing "magentaCyanThing" directly,
 		// we can see magenta colour tending towards white following the path of the floor and ceiling towards the back wall,
@@ -629,78 +647,91 @@ HALF4 main( PS_INPUT i ) : COLOR
 		float3 finalCoordinates = (smallestComponent * eyeVect) + coordinates;
 
 		// Fix z coordinates due to stretch
-		/*finalCoordinates.z *= gInteriorScale.x * gInteriorScale.y;
-		finalCoordinates.z -= (gInteriorScale.x * gInteriorScale.y) - 1;
-		finalCoordinates.z /= gInteriorScale.z;
-		finalCoordinates.z += 1 - (1 / (gInteriorScale.z));*/
-		float gInteriorScaleXY = gInteriorScale.x * gInteriorScale.y;
-		float gInteriorScaleXYZ = (gInteriorScale.x * gInteriorScale.y) / gInteriorScale.z;
-		finalCoordinates.z *= gInteriorScaleXYZ;
-		finalCoordinates.z += 1 - (1 / (gInteriorScale.z)) - ((gInteriorScaleXY - 1) /  gInteriorScale.z);
+		/*finalCoordinates.z *= gInteriorStretch.x * gInteriorStretch.y;
+		finalCoordinates.z -= (gInteriorStretch.x * gInteriorStretch.y) - 1;
+		finalCoordinates.z /= gInteriorStretch.z;
+		finalCoordinates.z += 1 - (1 / (gInteriorStretch.z));*/
+		float gInteriorStretchXY = gInteriorStretch.x * gInteriorStretch.y;
+		float gInteriorStretchXY_over_Z = (gInteriorStretch.x * gInteriorStretch.y) / gInteriorStretch.z;
+		finalCoordinates.z *= gInteriorStretchXY_over_Z;
+		finalCoordinates.z += 1 - (1 / (gInteriorStretch.z)) - ((gInteriorStretchXY - 1) /  gInteriorStretch.z);
 
 		float3 originInTangentSpace = finalCoordinates.xyz;
 
 		// Fixup cubemap rotation
 		finalCoordinates.xyz = float3(finalCoordinates.z, -finalCoordinates.x, finalCoordinates.y);
-
+		
+#if INTERIORMAPTILESTRETCHEDROOM
 		// Tile texture
-		// isEdge is used to fix the back, right and top walls when using non-integer scale values
+		// isEdge is used to fix the back, right and top walls when using non-integer scale values. max x y and z coordinate will jump from some value less than 1 to 1
 		half3 isEdge = (0, 0, 0);
 		modf(finalCoordinates + 0.000001, isEdge);
 		finalCoordinates++;
-		finalCoordinates.xyz *= gInteriorScale.zxy;
-		finalCoordinates += isEdge * (2, 2, 2) * (1 - fmod(gInteriorScale.zxy, 1));
+		finalCoordinates.xyz *= gInteriorStretch.zxy;
+		finalCoordinates += isEdge * (2, 2, 2) * (1 - fmod(gInteriorStretch.zxy, 1));
 		finalCoordinates %= 2 + 0.000001;
 		finalCoordinates--;
+#endif // INTERIORMAPTILESTRETCHEDROOM
 
-		// Random room reflection
+		// Random room reflection //. NEO TODO randomRotation can be replaced with finalCoordinates check
 		half3 randomRotation = finalCoordinates.xyz * (lerp(half3(-1, 1, 1), half3(1, -1, 1), randomRoomRounded.x) * lerp(half3(1, 1, 1), half3(-1, 1, 1), randomRoomRounded.y));
 		// Random room rotation
 		finalCoordinates.xyz = lerp(randomRotation.xyz, randomRotation.yxz, randomRoomRounded.z);
 
-		// Sample cubemap
 		interiorComponent = texCUBE(InteriormapSampler, finalCoordinates);
 
 		// Lighting
-		
-		// Uniform room light
-
-#if INTERIORMAPLIGHT
-		interiorComponent *= tex1D(InteriormapLightSampler, randomRoomValue.x) * g_TintValuesAndLightmapScale.rgb;
-#endif // INTERIORMAPLIGHT
-
-		// Interior shadows
-		// Adapted from https://andrewgotow.com/2019/02/27/interior-mapping-part-3/ by Andrew Gotow
-
-		// Cast a ray backwards, from the point in the room opposite
-		// the direction of the light. Here, we're doing it in 2D,
-		// since the room is in unit-space.
-		// 
-		// NEO NOTE have to undo the centering of the interior coordinates in uv space
-		originInTangentSpace.xy = 1 - ((originInTangentSpace.xy + 1) / 2);
-		originInTangentSpace.z = ((originInTangentSpace.z + 1) / 2);
-
-		float3 tLightVec = normalize(mul(i.tangentSpaceTranspose, float3(0.546, -0.566, -0.966)));
-		float2 sDir = (tLightVec.xy * gInteriorScale.z / tLightVec.z);
-		sDir /= gInteriorScale.xy;
-		float2 sPos = saturate(originInTangentSpace.xy + sDir * originInTangentSpace.z);
-
-		// Without saturate we get some values here which are like 0.99999 even if they're way past the bounds of the local coordinates, and > and < checks don't work to discard the lightmap properly
-		if (sPos.x != 0.0f && sPos.x != 1.0f && sPos.y != 0.0f && sPos.y != 1.0f)
 		{
-			// Now, calculate shadow UVs. This is remapping from the
-			// light ray's point of intersection on the near wall to the
-			// exterior map.
-			float2 shadowUV = ((floor((i.baseTexCoord.xy - gInteriorOffset.xy) * gNumberRooms / gInteriorScale.xy) / gNumberRooms) * gInteriorScale.xy) + gInteriorOffset.xy + (sPos * gInteriorScale.xy / gNumberRooms);
+#if INTERIORMAPINTERIORLIGHT
+			// Uniform room light
+			interiorComponent *= tex1D(InteriormapLightSampler, randomRoomValue.x) * g_TintValuesAndLightmapScale.rgb;
+#endif // INTERIORMAPINTERIORLIGHT
+
+#if INTERIORMAPCASTEXTERIORLIGHT
+			// Exterior light
+			// Adapted from https://andrewgotow.com/2019/02/27/interior-mapping-part-3/ by Andrew Gotow
+
+			// NEO NOTE (Adam) have to undo the centering of the interior coordinates in uv space
+			originInTangentSpace.xy = 1 - ((originInTangentSpace.xy + 1) / 2);
+			originInTangentSpace.z = ((originInTangentSpace.z + 1) / 2);
+
+			// NEO TODO (Adam) we could have the light spread around the room from a single point, passing a light origin instead of a light vector. Can't figure out how to map coordinates in tangent space into hu
+			float size = 128.f;
+			// direction from light to the point on the surface
+			float3 directionFromLightInTangentSpace = mul(i.tangentSpaceTranspose, i.worldPos_projPosZ.xyz - gExteriorLightOrigin);
+			// Add direction from point on the surface to the top left corner
+			directionFromLightInTangentSpace.xy -= frac(baseCoordinates).xy * size;
+			// Add direction from top left corner to the projected pixel
+			directionFromLightInTangentSpace += float3(originInTangentSpace.xy, -originInTangentSpace.z) * size;
+
+			// Cast a ray backwards, from the point in the room opposite
+			// the direction of the light. Here, we're doing it in 2D,
+			// since the room is in unit-space.
+
+			float3 tLightVec = normalize(directionFromLightInTangentSpace);
+			float2 sDir = (tLightVec.xy * gInteriorStretch.z / tLightVec.z);
+			sDir /= gInteriorStretch.xy;
+			float2 sPos = saturate(originInTangentSpace.xy + (sDir * originInTangentSpace.z));
+
+			// Without saturate we get some values here which are like 0.99999 even if they're way past the bounds of the local coordinates, and > and < checks don't work to discard the lightmap properly
+			if (sPos.x != 0.0f && sPos.x != 1.0f && sPos.y != 0.0f && sPos.y != 1.0f)
+			{
+				// Now, calculate shadow UVs. This is remapping from the
+				// light ray's point of intersection on the near wall to the
+				// exterior map.
+				float2 shadowUV = ((floor((i.baseTexCoord.xy - gInteriorOffset.xy) * gInteriorRoomSize / gInteriorStretch.xy) / gInteriorRoomSize) * gInteriorStretch.xy) + gInteriorOffset.xy + (sPos * gInteriorStretch.xy / gInteriorRoomSize);
 					
-			half4 baseTextureAtPos = tex2D(BaseTextureSampler, shadowUV);
-			half3 shadow = normalize(baseTextureAtPos.rgb) * (1 - baseTextureAtPos.a);
-			shadow = lerp(shadow, 0, step(0, tLightVec.z));
+				half4 baseTextureAtPos = tex2D(BaseTextureSampler, shadowUV);
+				half3 shadow = normalize(baseTextureAtPos.rgb) * (1 - baseTextureAtPos.a);
+				shadow = lerp(shadow, 0, step(0, tLightVec.z));
 
-			half3 projectedlightmapColor = LightMapSample( LightmapSampler, i.lightmapTexCoord1And2.xy ) * g_TintValuesAndLightmapScale.rgb;
+				half3 projectedlightmapColor = LightMapSample( LightmapSampler, i.lightmapTexCoord1And2.xy ) * g_TintValuesAndLightmapScale.rgb;
 
-			// Finally, modify the output albedo with the shadow constant.
-			interiorComponent.rgb += projectedlightmapColor * shadow;
+				// Finally, modify the output albedo with the shadow constant.
+				interiorComponent.rgb += projectedlightmapColor * shadow;
+			}
+			//diffuseComponent.rgb = i.lightmapTexCoord3.xyz;
+#endif // INTERIORMAPCASTEXTERIORLIGHT
 		}
 
 		interiorComponent *= (1 - albedo.a);

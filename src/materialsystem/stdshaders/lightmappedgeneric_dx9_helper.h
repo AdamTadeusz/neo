@@ -93,13 +93,15 @@ struct LightmappedGeneric_DX9_Vars_t
 	int m_nEnvmapParallaxObb3;
 	int m_nEnvmapOrigin;
 
-	int m_nInteriormap;
-	int m_nInteriormaplight;
-	int m_nInteriorScale;
-	int m_nInteriorTile;
-	int m_nInteriorOffset;
-	int m_nInteriorLightThreshold;
-	int m_nInteriorNumberOfRooms;
+	int m_nInteriormap_RoomTexture;
+	int m_nInteriormap_InteriorLightGradientTexture;
+	int m_nInteriormap_FeaturesTexture;
+	int m_nInteriormap_RoomOffset;
+	int m_nInteriormap_RoomSize;
+	int m_nInteriormap_RoomStretch;
+	int m_nInteriormap_TileStretchedRoom;
+	int m_nInteriormap_ExteriorLightOrigin;
+	int m_nInteriormap_CastLightFromExteriorLightOrigin;
 #endif
 };
 
