@@ -50,6 +50,10 @@ public:
 
 	void	RemoveAllPlayers();
 
+#ifdef NEO
+	// Team Handling
+	virtual int GetNumNEOClass(int neoClass);
+#endif // NEO
 
 // IClientThinkable overrides.
 public:

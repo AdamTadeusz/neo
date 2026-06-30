@@ -28,6 +28,7 @@
 #endif
 
 #include "c_neo_player.h"
+#include "c_team.h"
 
 #include <vgui_controls/TextEntry.h>
 #include <vgui_controls/Panel.h>
@@ -103,7 +104,7 @@ CNeoClassMenu::CNeoClassMenu(IViewPort *pViewPort)
 	//SetKeyBoardInputEnabled(true); // Leaving here to highlight menu navigation with keyboard is possible atm
 	SetTitleBarVisible(false);
 
-	FindButtons();
+	FindControls();
 	ListenForGameEvent("player_team");
 }
 
@@ -112,6 +113,9 @@ CNeoClassMenu::~CNeoClassMenu()
 	m_pSkin1_Button->SetAutoDelete(true);
 	m_pSkin2_Button->SetAutoDelete(true);
 	m_pSkin3_Button->SetAutoDelete(true);
+	m_pRecon_Label->SetAutoDelete(true);
+	m_pAssault_Label->SetAutoDelete(true);
+	m_pSupport_Label->SetAutoDelete(true);
 	m_pRecon_Button->SetAutoDelete(true);
 	m_pAssault_Button->SetAutoDelete(true);
 	m_pSupport_Button->SetAutoDelete(true);
@@ -136,7 +140,7 @@ void CNeoClassMenu::FireGameEvent(IGameEvent* event)
 	}
 }
 
-void CNeoClassMenu::FindButtons()
+void CNeoClassMenu::FindControls()
 {
 	m_pSkin1_Button = FindControl<CNeoImageButton>("Skin1_Button");
 	if (m_pSkin1_Button)
@@ -155,6 +159,10 @@ void CNeoClassMenu::FindButtons()
 	{
 		m_pSkin3_Button->SetButtonTexture("vgui/cm/jinrai_assault03");
 	}
+	
+	m_pRecon_Label = FindControl<Label>("Recon_Label");
+	m_pAssault_Label = FindControl<Label>("Assault_Label");
+	m_pSupport_Label = FindControl<Label>("Support_Label");
 
 	m_pRecon_Button = FindControl<CNeoButton>("Scout_Button");
 	m_pAssault_Button = FindControl<CNeoButton>("Assault_Button");
@@ -326,7 +334,7 @@ void CNeoClassMenu::ApplySchemeSettings(vgui::IScheme *pScheme)
 	SetPaintBackgroundEnabled(false);
 	SetBorder(NULL);
 
-	FindButtons();
+	FindControls();
 
     m_pRecon_Button->SetUseCaptureMouse(true);
     m_pRecon_Button->SetMouseInputEnabled(true);
@@ -402,7 +410,32 @@ void CNeoClassMenu::ShowPanel( bool bShow )
     }
 }
 
+extern ConVar sv_neo_class_limit;
 void CNeoClassMenu::OnThink()
 {
 	BaseClass::OnThink();
+
+	const int iLocalPlayerTeam = GetLocalPlayerTeam();
+	if (iLocalPlayerTeam != TEAM_JINRAI && iLocalPlayerTeam != TEAM_NSF)
+		return;
+
+	C_Team* localPlayerTeam = GetGlobalTeam(iLocalPlayerTeam);
+	if (!localPlayerTeam)
+		return;
+
+	auto updateClassLabel = [&localPlayerTeam](vgui::Label *pClassLabel, int neoClass)
+		{
+			if (!pClassLabel)
+				return;
+
+			const int numClassPlayers = localPlayerTeam->GetNumNEOClass(neoClass);
+			char textBuff[9 + 1];
+			!sv_neo_class_limit.GetBool()	? V_sprintf_safe(textBuff, "%d", numClassPlayers)
+											: V_sprintf_safe(textBuff, "%d/%d", numClassPlayers, sv_neo_class_limit.GetInt());
+			pClassLabel->SetText(textBuff);
+		};
+
+	updateClassLabel(m_pRecon_Label, NEO_CLASS_RECON);
+	updateClassLabel(m_pAssault_Label, NEO_CLASS_ASSAULT);
+	updateClassLabel(m_pSupport_Label, NEO_CLASS_SUPPORT);
 }

@@ -78,6 +78,11 @@ public:
 
 	virtual int GetAliveMembers( void ) const;
 
+#ifdef NEO
+	// NEO TODO (Adam) the functions above are all virtual, and CSDKTeam exists, maybe make a CNEOTeam?
+	virtual int GetNumNEOClass(int neoClass) const;
+#endif // NEO
+
 public:
 	CUtlVector< CTeamSpawnPoint * > m_aSpawnPoints;
 	CUtlVector< CBasePlayer * >		m_aPlayers;

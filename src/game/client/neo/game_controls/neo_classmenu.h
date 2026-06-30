@@ -9,11 +9,14 @@
 #include <vgui_controls/Frame.h>
 #include <vgui_controls/EditablePanel.h>
 #include <vgui_controls/Button.h>
+#include <vgui_controls/Label.h>
 #include "neo/game_controls/neo_button.h"
 #include "neo/game_controls/neo_image_button.h"
 #include <vgui_controls/ComboBox.h>
 #include <igameevents.h>
 #include "GameEventListener.h"
+#include "convar.h"
+#include "neo_enums.h"
 
 #include <game/client/iviewport.h>
 
@@ -78,7 +81,7 @@ protected:
     void SetLabelText(const char *textEntryName, const char *text);
 	void SetLabelText(const char *textEntryName, wchar_t *text);
 	void MoveLabelToFront(const char *textEntryName);
-	void FindButtons();
+	void FindControls();
 	void UpdateSkinImages(int classNumber = -1, int overrideTeamNumber = -1);
 	void UpdateTimer() { }
 
@@ -98,6 +101,11 @@ protected:
 	vgui::CNeoImageButton *m_pSkin2_Button;
 	vgui::CNeoImageButton *m_pSkin3_Button;
     vgui::CNeoButton *m_pBack_Button;
+
+    // Labels
+    vgui::Label *m_pRecon_Label = nullptr;
+    vgui::Label *m_pAssault_Label = nullptr;
+    vgui::Label *m_pSupport_Label = nullptr;
 
     bool m_bClassMenu;
 

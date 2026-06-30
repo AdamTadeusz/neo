@@ -2,7 +2,7 @@ add_library(server SHARED)
 
 set_target_properties(server PROPERTIES
     PREFIX ""
-    UNITY_BUILD ON
+    UNITY_BUILD OFF
     UNITY_BUILD_MODE GROUP
 )
 

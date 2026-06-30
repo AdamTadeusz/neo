@@ -357,3 +357,24 @@ int CTeam::GetAliveMembers( void ) const
 
 	return iAlive;
 }
+
+#ifdef NEO
+int CTeam::GetNumNEOClass(int neoClass) const
+{
+	int iNumClass = 0;
+
+	const int iNumPlayers = GetNumPlayers();
+	for (int i = 0; i < iNumPlayers; i++)
+	{
+		if (auto pNeoPlayer = static_cast<CNEO_Player*>(GetPlayer(i)))
+		{
+			if (neoClass == pNeoPlayer->GetClass())
+			{
+				iNumClass++;
+			}
+		}
+	}
+
+	return iNumClass;
+}
+#endif // NEO

@@ -6,6 +6,9 @@
 //=============================================================================//
 #include "cbase.h"
 #include "c_team.h"
+#ifdef NEO
+#include "c_playerresource.h"
+#endif // NEO
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -257,3 +260,25 @@ int GetNumberOfTeams( void )
 {
 	return g_Teams.Size();
 }
+
+#ifdef NEO
+int C_Team::GetNumNEOClass(int neoClass)
+{
+	// C_Team is always networked, but individual players not necessarily, grab from g_PR instead
+	if (!g_PR)
+		return 0;
+
+	int iNumClass = 0;
+
+	const int iNumPlayers = GetNumPlayers();
+	for (int i = 0; i < iNumPlayers; i++)
+	{
+		if (neoClass == g_PR->GetClass(m_aPlayers[i]))
+		{
+			iNumClass++;
+		}
+	}
+
+	return iNumClass;
+}
+#endif // NEO

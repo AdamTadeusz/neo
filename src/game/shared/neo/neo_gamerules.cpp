@@ -163,6 +163,8 @@ ConVar sv_neo_reject_opengl_mesa_check("sv_neo_reject_opengl_mesa_check", "0", 0
 									, true, 0.0f, true, 1.0f);
 #endif
 
+ConVar sv_neo_class_limit("sv_neo_class_limit", "0", FCVAR_REPLICATED, "Class limits", true, 0.0f, false, 0.0f);
+
 extern ConVar sv_neo_comp;
 static void neoSvCompCallback(IConVar* var, const char* pOldValue, float flOldValue)
 {
