@@ -52,7 +52,8 @@ public:
 
 #ifdef NEO
 	// Team Handling
-	virtual int GetNumNEOClass(int neoClass);
+	virtual int GetClassCount(int neoClass);
+	virtual bool IsClassFull(int neoClass) const;
 #endif // NEO
 
 // IClientThinkable overrides.
@@ -74,6 +75,12 @@ public:
 	int		m_iPing;
 	int		m_iPacketloss;
 	int		m_iTeamNum;
+
+#ifdef NEO
+	int		m_iReconCount;
+	int		m_iAssaultCount;
+	int		m_iSupportCount;
+#endif // NEO
 };
 
 

@@ -46,6 +46,11 @@ IMPLEMENT_SERVERCLASS_ST_NOBASE(CTeam, DT_Team)
 	SendPropInt( SENDINFO(m_iScore), 0 ),
 	SendPropInt( SENDINFO(m_iRoundsWon), 8 ),
 	SendPropString( SENDINFO( m_szTeamname ) ),
+#ifdef NEO
+	SendPropInt( SENDINFO(m_iReconCount), NumBitsForCount(MAX_PLAYERS) ),
+	SendPropInt( SENDINFO(m_iAssaultCount), NumBitsForCount(MAX_PLAYERS) ),
+	SendPropInt( SENDINFO(m_iSupportCount), NumBitsForCount(MAX_PLAYERS) ),
+#endif // NEO
 
 	SendPropArray2( 
 		SendProxyArrayLength_PlayerArray,
@@ -359,22 +364,99 @@ int CTeam::GetAliveMembers( void ) const
 }
 
 #ifdef NEO
-int CTeam::GetNumNEOClass(int neoClass) const
+int CTeam::GetClassCount(int neoClass) const
 {
 	int iNumClass = 0;
 
 	const int iNumPlayers = GetNumPlayers();
 	for (int i = 0; i < iNumPlayers; i++)
 	{
-		if (auto pNeoPlayer = static_cast<CNEO_Player*>(GetPlayer(i)))
+		if (auto pNeoPlayer = static_cast<CNEO_Player*>(GetPlayer(i));
+			pNeoPlayer && neoClass == pNeoPlayer->GetClass())
 		{
-			if (neoClass == pNeoPlayer->GetClass())
-			{
-				iNumClass++;
-			}
+			iNumClass++;
 		}
 	}
 
 	return iNumClass;
+}
+
+extern ConVar sv_neo_class_limit;
+bool CTeam::IsClassFull(int neoClass) const
+{
+	if (sv_neo_class_limit.GetInt() == 0)
+		return false;
+
+	switch (neoClass)
+	{
+	case NEO_CLASS_RECON:
+		return m_iReconCount >= sv_neo_class_limit.GetInt();
+	case NEO_CLASS_ASSAULT:
+		return m_iAssaultCount >= sv_neo_class_limit.GetInt();
+	case NEO_CLASS_SUPPORT:
+		return m_iSupportCount >= sv_neo_class_limit.GetInt();
+	}
+
+	return false;
+}
+
+int CTeam::GetAppropriateClass(int neoClass) const
+{
+	switch (neoClass)
+	{
+		case NEO_CLASS_RANDOM:
+			neoClass = RandomInt(NEO_CLASS_RECON, NEO_CLASS_SUPPORT);
+			[[fallthrough]];
+		case NEO_CLASS_RECON:
+		case NEO_CLASS_ASSAULT:
+		case NEO_CLASS_SUPPORT:
+			if (IsClassFull(neoClass))
+			{
+				for (int c = NEO_CLASS_RECON; c <= NEO_CLASS_SUPPORT; c++)
+				{
+					if (c == neoClass)
+					{
+						continue; // Skip the class that was full/banned
+					}
+
+					if (!IsClassFull(c))
+					{
+						return c;
+					}
+				}
+			}
+	}
+
+	return neoClass;
+}
+
+void CTeam::UpdateClassCounts()
+{
+	const int iNumPlayers = GetNumPlayers();
+	int iNumRecon = 0;
+	int iNumAssault = 0;
+	int iNumSupport = 0;
+	for (int i = 0; i < iNumPlayers; i++)
+	{
+		if (auto pNeoPlayer = static_cast<CNEO_Player*>(GetPlayer(i));
+			pNeoPlayer)
+		{
+			switch (pNeoPlayer->GetClass())
+			{
+			case NEO_CLASS_RECON:
+				iNumRecon++;
+				break;
+			case NEO_CLASS_ASSAULT:
+				iNumAssault++;
+				break;
+			case NEO_CLASS_SUPPORT:
+				iNumSupport++;
+				break;
+			}
+		}
+	}
+	m_iReconCount = iNumRecon;
+	m_iAssaultCount = iNumAssault;
+	m_iSupportCount = iNumSupport;
 }
 #endif // NEO

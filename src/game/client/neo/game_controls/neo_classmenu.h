@@ -84,6 +84,7 @@ protected:
 	void FindControls();
 	void UpdateSkinImages(int classNumber = -1, int overrideTeamNumber = -1);
 	void UpdateTimer() { }
+	void UpdateClassButtons();
 
     // vgui overrides
 	virtual void PerformLayout() { }

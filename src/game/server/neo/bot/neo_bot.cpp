@@ -139,12 +139,8 @@ CON_COMMAND_F(neo_bot_add, "Add a bot.", FCVAR_GAMEDLL)
 		}
 	}
 
-	const CNEOBotProfileFilter botFilter = {
-		.flagTargetDifficulty = (1 << skill),
-	};
 
 	int iTeam = Bot_GetTeamByName(teamname);
-
 	if (NEORules()->IsTeamplay() && iTeam == TEAM_UNASSIGNED)
 	{
 		CTeam* pJinrai = GetGlobalTeam(TEAM_JINRAI);
@@ -154,6 +150,21 @@ CON_COMMAND_F(neo_bot_add, "Add a bot.", FCVAR_GAMEDLL)
 
 		iTeam = numJinrai < numNSF ? TEAM_JINRAI : numNSF < numJinrai ? TEAM_NSF : RandomInt(TEAM_JINRAI, TEAM_NSF);
 	}
+
+	CTeam* team = GetGlobalTeam(iTeam);
+	int classFlag = 0;
+	for (int i = NEO_CLASS_RECON; i <= NEO_CLASS_SUPPORT; i++)
+	{
+		if (!team->IsClassFull(i))
+		{
+			classFlag += 1 << i;
+		}
+	}
+
+	const CNEOBotProfileFilter botFilter = {
+		.flagTargetDifficulty = (1 << skill),
+		.flagTargetClass = classFlag
+	};
 
 	int iNumAdded = 0;
 	for (i = 0; i < botCount; ++i)
@@ -579,7 +590,7 @@ void CNEOBot::Spawn()
 	// CNEOBot do m_iNeoClass a bit earlier
 	if ((m_iNextSpawnClassChoice != NEO_CLASS_RANDOM) && (m_iNeoClass != m_iNextSpawnClassChoice))
 	{
-		m_iNeoClass = m_iNextSpawnClassChoice;
+		RequestSetClass(m_iNextSpawnClassChoice);
 	}
 
 	const ENeoRank eRank = static_cast<ENeoRank>(GetRank(m_iXP) - 1);
@@ -2672,17 +2683,43 @@ NeoClass CNEOBot::ChooseRandomClass() const
 		}
 	}
 
+	CTeam *team = GetTeam();
+	if (!team)
+	{
+		Assert(false);
+		return NEO_CLASS_ASSAULT;
+	}
+
 	bool bValidClasses[NEO_CLASS__ENUM_COUNT] = {};
 	int iClassCounts = 0;
 	for (int i = 0; i <= NEO_CLASS_SUPPORT; ++i)
 	{
 		bValidClasses[i] = (m_profile.flagClass & (1 << i));
+		// Check class limits
+		if (bValidClasses[i] && team->IsClassFull(i))
+		{
+			bValidClasses[i] = false;
+		}
 		if (bValidClasses[i])
 		{
 			++iClassCounts;
 		}
 	}
 
+	if (iClassCounts == 0)
+	{
+		// If all profile classes are full/banned, allow any class that isn't full
+		for (int i = 0; i <= NEO_CLASS_SUPPORT; ++i)
+		{
+			if (!team->IsClassFull(i))
+			{
+				bValidClasses[i] = true;
+				++iClassCounts;
+			}
+		}
+	}
+
+	// NEO JANK: If still no valid classes (all full), allow any class as fallback
 	if (iClassCounts == 0)
 	{
 		for (int i = 0; i <= NEO_CLASS_SUPPORT; ++i)

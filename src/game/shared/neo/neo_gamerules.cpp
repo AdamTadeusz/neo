@@ -675,7 +675,7 @@ void CNEORules::Precache()
 {
 	BaseClass::Precache();
 }
-#endif
+#endif // GAME_DLL
 
 ConVar	sk_max_neo_ammo("sk_max_neo_ammo", "10000", FCVAR_REPLICATED);
 ConVar	sk_plr_dmg_neo("sk_plr_dmg_neo", "0", FCVAR_REPLICATED);

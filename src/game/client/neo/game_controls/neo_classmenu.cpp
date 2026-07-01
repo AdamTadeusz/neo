@@ -204,6 +204,14 @@ void CNeoClassMenu::OnCommand(const char *command)
 		// No command
 		return;
 	}
+	
+	C_NEO_Player* player = C_NEO_Player::GetLocalNEOPlayer();
+	if (!player)
+		return;
+
+	C_Team* team = player->GetTeam();
+	if (!team)
+		return;
 
 	char commandBuffer[20]; // Needs to be large enough to hold longest command sent from this menu
 	V_strcpy_safe(commandBuffer, command);
@@ -211,6 +219,9 @@ void CNeoClassMenu::OnCommand(const char *command)
 	if (Q_stristr(commandBuffer, "setclass") != 0)
 	{ // Picking class, stay on this screen
 		int classNumber = commandBuffer[9] - '1'; // Needed for skin images, 0 indexed, recon class is 1
+		if (team->IsClassFull(classNumber))
+			return;
+
 		UpdateSkinImages(classNumber);
 		engine->ClientCmd(commandBuffer);
 		return;
@@ -256,18 +267,35 @@ void CNeoClassMenu::OnKeyCodeReleased(vgui::KeyCode code)
 		return;
 	}
 
+	C_NEO_Player* player = C_NEO_Player::GetLocalNEOPlayer();
+	if (!player)
+		return;
+
+	C_Team* team = player->GetTeam();
+	if (!team)
+		return;
+
 	switch (code) {
 	case KEY_1:
-		UpdateSkinImages(0);
-		engine->ClientCmd("setclass 1");
+		if (!NEORules() || !team->IsClassFull(NEO_CLASS_RECON))
+		{
+			UpdateSkinImages(0);
+			engine->ClientCmd("setclass 1");
+		}
 		break;
 	case KEY_2:
-		UpdateSkinImages(1);
-		engine->ClientCmd("setclass 2");
+		if (!NEORules() || !team->IsClassFull(NEO_CLASS_ASSAULT))
+		{
+			UpdateSkinImages(1);
+			engine->ClientCmd("setclass 2");
+		}
 		break;
 	case KEY_3:
-		UpdateSkinImages(2);
-		engine->ClientCmd("setclass 3");
+		if (!NEORules() || !team->IsClassFull(NEO_CLASS_SUPPORT))
+		{
+			UpdateSkinImages(2);
+			engine->ClientCmd("setclass 3");
+		}
 		break;
 	case KEY_SPACE: // Continue with currently selected class and skin
 		ChangeMenu("loadoutmenu");
@@ -415,7 +443,11 @@ void CNeoClassMenu::OnThink()
 {
 	BaseClass::OnThink();
 
-	const int iLocalPlayerTeam = GetLocalPlayerTeam();
+	C_NEO_Player* pLocalPlayer = C_NEO_Player::GetLocalNEOPlayer();
+	if (!pLocalPlayer)
+		return;
+
+	const int iLocalPlayerTeam = pLocalPlayer->GetTeamNumber();
 	if (iLocalPlayerTeam != TEAM_JINRAI && iLocalPlayerTeam != TEAM_NSF)
 		return;
 
@@ -423,19 +455,39 @@ void CNeoClassMenu::OnThink()
 	if (!localPlayerTeam)
 		return;
 
-	auto updateClassLabel = [&localPlayerTeam](vgui::Label *pClassLabel, int neoClass)
+	auto updateClassButtonAndLabel = [&pLocalPlayer, &localPlayerTeam](vgui::Label *pClassLabel, vgui::Button *pClassButton, int neoClass)
 		{
-			if (!pClassLabel)
+			if (!pClassLabel || !pClassButton)
 				return;
 
-			const int numClassPlayers = localPlayerTeam->GetNumNEOClass(neoClass);
+			const int numClassPlayers = localPlayerTeam->GetClassCount(neoClass);
 			char textBuff[9 + 1];
-			!sv_neo_class_limit.GetBool()	? V_sprintf_safe(textBuff, "%d", numClassPlayers)
-											: V_sprintf_safe(textBuff, "%d/%d", numClassPlayers, sv_neo_class_limit.GetInt());
+
+			if (sv_neo_class_limit.GetBool())
+			{
+				V_sprintf_safe(textBuff, "%d/%d", numClassPlayers, sv_neo_class_limit.GetInt());
+				pClassButton->SetEnabled(numClassPlayers < sv_neo_class_limit.GetInt());
+			}
+			else
+			{
+				V_sprintf_safe(textBuff, "%d", numClassPlayers);
+				pClassButton->SetEnabled(true);
+			}
 			pClassLabel->SetText(textBuff);
+
+			if (pLocalPlayer->GetClass() == neoClass)
+			{
+				pClassButton->SetBlink(true);
+				pClassButton->SetEnabled(true);
+				pClassButton->InvalidateLayout(); // NEO JANK (Adam) When this is the only enabled button, the button doesn't blink without invalidating the layout
+			}
+			else
+			{
+				pClassButton->SetBlink(false);
+			}
 		};
 
-	updateClassLabel(m_pRecon_Label, NEO_CLASS_RECON);
-	updateClassLabel(m_pAssault_Label, NEO_CLASS_ASSAULT);
-	updateClassLabel(m_pSupport_Label, NEO_CLASS_SUPPORT);
+	updateClassButtonAndLabel(m_pRecon_Label, m_pRecon_Button, NEO_CLASS_RECON);
+	updateClassButtonAndLabel(m_pAssault_Label, m_pAssault_Button, NEO_CLASS_ASSAULT);
+	updateClassButtonAndLabel(m_pSupport_Label, m_pSupport_Button, NEO_CLASS_SUPPORT);
 }
