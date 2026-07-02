@@ -269,6 +269,16 @@ int GetNumberOfTeams( void )
 #ifdef NEO
 int C_Team::GetClassCount(int neoClass)
 {
+	switch (neoClass)
+	{
+	case NEO_CLASS_RECON:
+		return m_iReconCount;
+	case NEO_CLASS_ASSAULT:
+		return m_iAssaultCount;
+	case NEO_CLASS_SUPPORT:
+		return m_iSupportCount;
+	}
+
 	// C_Team is always networked, but individual players not necessarily, grab from g_PR instead
 	if (!g_PR)
 		return 0;
