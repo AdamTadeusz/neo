@@ -255,6 +255,8 @@ void CNEO_Player::RequestSetClass(int newClass)
 	if (CTeam *team = GetTeam())
 	{
 		newClass = team->GetAppropriateClass(newClass);
+		if (newClass == -1)
+			return;
 	}
 
 	const bool bIsTypeDM = (NEORules()->GetGameType() == NEO_GAME_TYPE_TDM || NEORules()->GetGameType() == NEO_GAME_TYPE_DM);
@@ -710,7 +712,10 @@ void CNEO_Player::Spawn(void)
 		// Enforce class limits for Recon/Assault/Support
 		if (CTeam *team = GetTeam())
 		{
-			desiredClass = team->GetAppropriateClass(desiredClass);
+			if (team->GetTeamNumber() == TEAM_JINRAI || team->GetTeamNumber() == TEAM_NSF)
+			{
+				desiredClass = team->GetAppropriateClass(desiredClass);
+			}
 		}
 
 		SetClass(desiredClass);

@@ -253,6 +253,9 @@ void CTeam::InitializePlayers( void )
 void CTeam::AddPlayer( CBasePlayer *pPlayer )
 {
 	m_aPlayers.AddToTail( pPlayer );
+#ifdef NEO
+	UpdateClassCounts();
+#endif // NEO
 	NetworkStateChanged();
 }
 
@@ -262,6 +265,9 @@ void CTeam::AddPlayer( CBasePlayer *pPlayer )
 void CTeam::RemovePlayer( CBasePlayer *pPlayer )
 {
 	m_aPlayers.FindAndRemove( pPlayer );
+#ifdef NEO
+	UpdateClassCounts();
+#endif // NEO
 	NetworkStateChanged();
 }
 
@@ -424,6 +430,9 @@ int CTeam::GetAppropriateClass(int neoClass) const
 						return c;
 					}
 				}
+
+				// All classes full. Do not switch classes
+				return -1;
 			}
 	}
 
