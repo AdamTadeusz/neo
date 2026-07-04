@@ -455,7 +455,10 @@ void SetClass(const CCommand &command)
 			nextClass = team->GetAppropriateClass(nextClass);
 		}
 
-		player->RequestSetClass(nextClass);
+		if (nextClass != -1)
+		{
+			player->RequestSetClass(nextClass);
+		}
 	}
 }
 

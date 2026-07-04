@@ -297,20 +297,19 @@ int C_Team::GetClassCount(int neoClass)
 	return iNumClass;
 }
 
-extern ConVar sv_neo_class_limit;
+extern ConVar sv_neo_class_limit_recon;
+extern ConVar sv_neo_class_limit_assault;
+extern ConVar sv_neo_class_limit_support;
 bool C_Team::IsClassFull(int neoClass) const
 {
-	if (sv_neo_class_limit.GetInt() == 0)
-		return false;
-
 	switch (neoClass)
 	{
 	case NEO_CLASS_RECON:
-		return m_iReconCount >= sv_neo_class_limit.GetInt();
+		return sv_neo_class_limit_recon.GetInt() == -1 ? false : m_iReconCount >= sv_neo_class_limit_recon.GetInt();
 	case NEO_CLASS_ASSAULT:
-		return m_iAssaultCount >= sv_neo_class_limit.GetInt();
+		return sv_neo_class_limit_assault.GetInt() == -1 ? false : m_iAssaultCount >= sv_neo_class_limit_assault.GetInt();
 	case NEO_CLASS_SUPPORT:
-		return m_iSupportCount >= sv_neo_class_limit.GetInt();
+		return sv_neo_class_limit_support.GetInt() == -1 ? false : m_iSupportCount >= sv_neo_class_limit_support.GetInt();
 	}
 
 	return false;

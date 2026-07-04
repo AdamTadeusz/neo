@@ -167,8 +167,6 @@ ConVar sv_neo_reject_opengl_mesa_check("sv_neo_reject_opengl_mesa_check", "0", 0
 									, true, 0.0f, true, 1.0f);
 #endif
 
-ConVar sv_neo_class_limit("sv_neo_class_limit", "0", FCVAR_REPLICATED, "Class limits", true, 0.0f, false, 0.0f);
-
 extern ConVar sv_neo_comp;
 static void neoSvCompCallback(IConVar* var, const char* pOldValue, float flOldValue)
 {
@@ -710,17 +708,6 @@ void CNEORules::Precache()
 }
 #endif // GAME_DLL
 
-		if (!IsClassFull(team, c))
-		{
-			return c;
-		}
-	}
-
-	// All classes are full/banned, return the preferred class anyway
-	// The caller will need to handle this case
-	return preferredClass;
-}
-
 ConVar	sk_max_neo_ammo("sk_max_neo_ammo", "10000", FCVAR_REPLICATED);
 ConVar	sk_plr_dmg_neo("sk_plr_dmg_neo", "0", FCVAR_REPLICATED);
 ConVar	sk_npc_dmg_neo("sk_npc_dmg_neo", "0", FCVAR_REPLICATED);
@@ -1120,8 +1107,6 @@ void CNEORules::Think(void)
 {
 #ifdef GAME_DLL
 	CheckGameConfig();
-	UpdateClassLimitsFromConVars();
-	UpdateClassCounts();
 	if (CheckShouldNotThink())
 	{
 		// This is kind of wonky, but we only need it for the tutorial, in order to play the dummy beacon sounds...

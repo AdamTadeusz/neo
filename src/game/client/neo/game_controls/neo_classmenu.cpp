@@ -207,11 +207,17 @@ void CNeoClassMenu::OnCommand(const char *command)
 	
 	C_NEO_Player* player = C_NEO_Player::GetLocalNEOPlayer();
 	if (!player)
+	{
+		Assert(false);
 		return;
+	}
 
 	C_Team* team = player->GetTeam();
 	if (!team)
+	{
+		Assert(false);
 		return;
+	}
 
 	char commandBuffer[20]; // Needs to be large enough to hold longest command sent from this menu
 	V_strcpy_safe(commandBuffer, command);
@@ -269,29 +275,35 @@ void CNeoClassMenu::OnKeyCodeReleased(vgui::KeyCode code)
 
 	C_NEO_Player* player = C_NEO_Player::GetLocalNEOPlayer();
 	if (!player)
+	{
+		Assert(false);
 		return;
+	}
 
 	C_Team* team = player->GetTeam();
 	if (!team)
+	{
+		Assert(false);
 		return;
+	}
 
 	switch (code) {
 	case KEY_1:
-		if (!NEORules() || !team->IsClassFull(NEO_CLASS_RECON))
+		if (!team->IsClassFull(NEO_CLASS_RECON))
 		{
 			UpdateSkinImages(0);
 			engine->ClientCmd("setclass 1");
 		}
 		break;
 	case KEY_2:
-		if (!NEORules() || !team->IsClassFull(NEO_CLASS_ASSAULT))
+		if (!team->IsClassFull(NEO_CLASS_ASSAULT))
 		{
 			UpdateSkinImages(1);
 			engine->ClientCmd("setclass 2");
 		}
 		break;
 	case KEY_3:
-		if (!NEORules() || !team->IsClassFull(NEO_CLASS_SUPPORT))
+		if (!team->IsClassFull(NEO_CLASS_SUPPORT))
 		{
 			UpdateSkinImages(2);
 			engine->ClientCmd("setclass 3");
@@ -438,7 +450,9 @@ void CNeoClassMenu::ShowPanel( bool bShow )
     }
 }
 
-extern ConVar sv_neo_class_limit;
+extern ConVar sv_neo_class_limit_recon;
+extern ConVar sv_neo_class_limit_assault;
+extern ConVar sv_neo_class_limit_support;
 void CNeoClassMenu::OnThink()
 {
 	BaseClass::OnThink();
@@ -455,7 +469,7 @@ void CNeoClassMenu::OnThink()
 	if (!localPlayerTeam)
 		return;
 
-	auto updateClassButtonAndLabel = [&pLocalPlayer, &localPlayerTeam](vgui::Label *pClassLabel, vgui::Button *pClassButton, int neoClass)
+	auto updateClassButtonAndLabel = [&pLocalPlayer, &localPlayerTeam](vgui::Label *pClassLabel, vgui::Button *pClassButton, int neoClass, ConVar *classLimit)
 		{
 			if (!pClassLabel || !pClassButton)
 				return;
@@ -463,10 +477,15 @@ void CNeoClassMenu::OnThink()
 			const int numClassPlayers = localPlayerTeam->GetClassCount(neoClass);
 			char textBuff[9 + 1];
 
-			if (sv_neo_class_limit.GetBool())
+			if (classLimit->GetInt() == 0)
 			{
-				V_sprintf_safe(textBuff, "%d/%d", numClassPlayers, sv_neo_class_limit.GetInt());
-				pClassButton->SetEnabled(numClassPlayers < sv_neo_class_limit.GetInt());
+				V_sprintf_safe(textBuff, "DISABLED");
+				pClassButton->SetEnabled(false);
+			}
+			else if (classLimit->GetInt() > 0)
+			{
+				V_sprintf_safe(textBuff, "%d/%d", numClassPlayers, classLimit->GetInt());
+				pClassButton->SetEnabled(numClassPlayers < classLimit->GetInt());
 			}
 			else
 			{
@@ -487,7 +506,7 @@ void CNeoClassMenu::OnThink()
 			}
 		};
 
-	updateClassButtonAndLabel(m_pRecon_Label, m_pRecon_Button, NEO_CLASS_RECON);
-	updateClassButtonAndLabel(m_pAssault_Label, m_pAssault_Button, NEO_CLASS_ASSAULT);
-	updateClassButtonAndLabel(m_pSupport_Label, m_pSupport_Button, NEO_CLASS_SUPPORT);
+	updateClassButtonAndLabel(m_pRecon_Label, m_pRecon_Button, NEO_CLASS_RECON, &sv_neo_class_limit_recon);
+	updateClassButtonAndLabel(m_pAssault_Label, m_pAssault_Button, NEO_CLASS_ASSAULT, &sv_neo_class_limit_assault);
+	updateClassButtonAndLabel(m_pSupport_Label, m_pSupport_Button, NEO_CLASS_SUPPORT, &sv_neo_class_limit_support);
 }
