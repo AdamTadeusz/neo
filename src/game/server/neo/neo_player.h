@@ -172,6 +172,14 @@ public:
 
 	int GetSkin() const { return m_iNeoSkin; }
 	int GetClass() const { return m_iNeoClass; }
+	void SetClass(int neoClass) {
+		if (neoClass <= NEO_CLASS_RANDOM || neoClass >= NEO_CLASS__ENUM_COUNT)
+			return;
+
+		m_iNeoClass.Set(neoClass);
+		if (CTeam* team = GetTeam())
+			team->UpdateClassCounts();
+	}
 	int GetStar() const { return m_iNeoStar; }
 	bool IsInAim() const { return m_bInAim; }
 	int GetBotDetectableBleedingInjuryEvents() const { return m_iBotDetectableBleedingInjuryEvents; }

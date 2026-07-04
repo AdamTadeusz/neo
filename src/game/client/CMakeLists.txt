@@ -2,7 +2,7 @@ add_library(client SHARED)
 
 set_target_properties(client PROPERTIES
     PREFIX ""
-    UNITY_BUILD ON
+    UNITY_BUILD OFF
     UNITY_BUILD_MODE GROUP
 )
 

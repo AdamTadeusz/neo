@@ -167,6 +167,8 @@ ConVar sv_neo_reject_opengl_mesa_check("sv_neo_reject_opengl_mesa_check", "0", 0
 									, true, 0.0f, true, 1.0f);
 #endif
 
+ConVar sv_neo_class_limit("sv_neo_class_limit", "0", FCVAR_REPLICATED, "Class limits", true, 0.0f, false, 0.0f);
+
 extern ConVar sv_neo_comp;
 static void neoSvCompCallback(IConVar* var, const char* pOldValue, float flOldValue)
 {
@@ -706,113 +708,7 @@ void CNEORules::Precache()
 {
 	BaseClass::Precache();
 }
-
-int CNEORules::GetClassCount(int team, int classId) const
-{
-	if (team != TEAM_JINRAI && team != TEAM_NSF)
-	{
-		return 0;
-	}
-
-	if (classId < NEO_CLASS_RECON || classId > NEO_CLASS_SUPPORT)
-	{
-		return 0;
-	}
-
-	int count = 0;
-	for (int i = 1; i <= gpGlobals->maxClients; i++)
-	{
-		CNEO_Player *player = ToNEOPlayer(UTIL_PlayerByIndex(i));
-		if (player && player->GetTeamNumber() == team && player->GetClass() == classId)
-		{
-			count++;
-		}
-	}
-	return count;
-}
-
-void CNEORules::UpdateClassLimitsFromConVars()
-{
-	m_iClassLimitRecon = sv_neo_class_limit_recon.GetInt();
-	m_iClassLimitAssault = sv_neo_class_limit_assault.GetInt();
-	m_iClassLimitSupport = sv_neo_class_limit_support.GetInt();
-}
-
-void CNEORules::UpdateClassCounts()
-{
-	m_iJinraiReconCount = GetClassCount(TEAM_JINRAI, NEO_CLASS_RECON);
-	m_iJinraiAssaultCount = GetClassCount(TEAM_JINRAI, NEO_CLASS_ASSAULT);
-	m_iJinraiSupportCount = GetClassCount(TEAM_JINRAI, NEO_CLASS_SUPPORT);
-	m_iNsfReconCount = GetClassCount(TEAM_NSF, NEO_CLASS_RECON);
-	m_iNsfAssaultCount = GetClassCount(TEAM_NSF, NEO_CLASS_ASSAULT);
-	m_iNsfSupportCount = GetClassCount(TEAM_NSF, NEO_CLASS_SUPPORT);
-}
-#endif
-
-bool CNEORules::IsClassFull(int team, int classId) const
-{
-	if (classId < NEO_CLASS_RECON || classId > NEO_CLASS_SUPPORT)
-	{
-		return false;
-	}
-
-	int limit = -1;
-	switch (classId)
-	{
-	case NEO_CLASS_RECON:
-		limit = m_iClassLimitRecon;
-		break;
-	case NEO_CLASS_ASSAULT:
-		limit = m_iClassLimitAssault;
-		break;
-	case NEO_CLASS_SUPPORT:
-		limit = m_iClassLimitSupport;
-		break;
-	}
-
-	if (limit < 0)
-		return false;
-
-	if (limit == 0)
-		return true;
-
-	// Use networked class counts for client, server counts for server
-	int count = 0;
-#ifdef GAME_DLL
-	count = GetClassCount(team, classId);
-#else
-	switch (team)
-	{
-	case TEAM_JINRAI:
-		switch (classId)
-		{
-		case NEO_CLASS_RECON: count = m_iJinraiReconCount; break;
-		case NEO_CLASS_ASSAULT: count = m_iJinraiAssaultCount; break;
-		case NEO_CLASS_SUPPORT: count = m_iJinraiSupportCount; break;
-		}
-		break;
-	case TEAM_NSF:
-		switch (classId)
-		{
-		case NEO_CLASS_RECON: count = m_iNsfReconCount; break;
-		case NEO_CLASS_ASSAULT: count = m_iNsfAssaultCount; break;
-		case NEO_CLASS_SUPPORT: count = m_iNsfSupportCount; break;
-		}
-		break;
-	}
-#endif
-	return count >= limit;
-}
-
-int CNEORules::GetFallbackClass(int team, int preferredClass) const
-{
-	// Only consider Recon/Assault/Support for fallback
-	for (int c = NEO_CLASS_RECON; c <= NEO_CLASS_SUPPORT; c++)
-	{
-		if (c == preferredClass)
-		{
-			continue; // Skip the class that was full/banned
-		}
+#endif // GAME_DLL
 
 		if (!IsClassFull(team, c))
 		{
