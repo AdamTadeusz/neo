@@ -31,12 +31,12 @@ void CNeoButton::GetButtonTextures()
 		m_iTextureMouseOver = vgui::surface()->CreateNewTextureID();
 		vgui::surface()->DrawSetTextureFile(m_iTextureMouseOver, "vgui/buttons/button_mouseover", true, false);
 	}
-	m_iTextureNormal = vgui::surface()->DrawGetTextureId("vgui/buttons/button_normal");
-	if (m_iTextureNormal == -1) // we didn't find it, so create a new one
-	{
-		m_iTextureNormal = vgui::surface()->CreateNewTextureID();
-		vgui::surface()->DrawSetTextureFile(m_iTextureNormal, "vgui/buttons/button_normal", true, false);
-	}
+	//m_iTextureNormal = vgui::surface()->DrawGetTextureId("vgui/buttons/button_normal");
+	//if (m_iTextureNormal == -1) // we didn't find it, so create a new one
+	//{
+	//	m_iTextureNormal = vgui::surface()->CreateNewTextureID();
+	//	vgui::surface()->DrawSetTextureFile(m_iTextureNormal, "vgui/buttons/button_normal", true, false);
+	//}
 	m_iTexturePressed = vgui::surface()->DrawGetTextureId("vgui/buttons/button_pressed");
 	if (m_iTexturePressed == -1) // we didn't find it, so create a new one
 	{

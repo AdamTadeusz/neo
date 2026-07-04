@@ -145,20 +145,33 @@ CON_COMMAND_F(neo_bot_add, "Add a bot.", FCVAR_GAMEDLL)
 	{
 		CTeam* pJinrai = GetGlobalTeam(TEAM_JINRAI);
 		CTeam* pNSF = GetGlobalTeam(TEAM_NSF);
-		const int numJinrai = pJinrai->GetNumPlayers();
-		const int numNSF = pNSF->GetNumPlayers();
+		if (pJinrai && pNSF)
+		{
+			const int numJinrai = pJinrai->GetNumPlayers();
+			const int numNSF = pNSF->GetNumPlayers();
 
-		iTeam = numJinrai < numNSF ? TEAM_JINRAI : numNSF < numJinrai ? TEAM_NSF : RandomInt(TEAM_JINRAI, TEAM_NSF);
+			iTeam = numJinrai < numNSF ? TEAM_JINRAI : numNSF < numJinrai ? TEAM_NSF : RandomInt(TEAM_JINRAI, TEAM_NSF);
+		}
+		else
+		{
+			Assert(false);
+		}
 	}
 
-	CTeam* team = GetGlobalTeam(iTeam);
-	int classFlag = 0;
-	for (int i = NEO_CLASS_RECON; i <= NEO_CLASS_SUPPORT; i++)
+	int classFlag = BOT_CLASS_FLAG_NONE;
+	if (CTeam* team = GetGlobalTeam(iTeam))
 	{
-		if (!team->IsClassFull(i))
+		for (int i = NEO_CLASS_RECON; i <= NEO_CLASS_SUPPORT; i++)
 		{
-			classFlag += 1 << i;
+			if (!team->IsClassFull(i))
+			{
+				classFlag += 1 << i;
+			}
 		}
+	}
+	else
+	{
+		Assert(false);
 	}
 
 	const CNEOBotProfileFilter botFilter = {

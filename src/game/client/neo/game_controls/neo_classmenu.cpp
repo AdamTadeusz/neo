@@ -459,7 +459,10 @@ void CNeoClassMenu::OnThink()
 
 	C_NEO_Player* pLocalPlayer = C_NEO_Player::GetLocalNEOPlayer();
 	if (!pLocalPlayer)
+	{
+		Assert(false);
 		return;
+	}
 
 	const int iLocalPlayerTeam = pLocalPlayer->GetTeamNumber();
 	if (iLocalPlayerTeam != TEAM_JINRAI && iLocalPlayerTeam != TEAM_NSF)
@@ -467,12 +470,18 @@ void CNeoClassMenu::OnThink()
 
 	C_Team* localPlayerTeam = GetGlobalTeam(iLocalPlayerTeam);
 	if (!localPlayerTeam)
+	{
+		Assert(false);
 		return;
+	}
 
 	auto updateClassButtonAndLabel = [&pLocalPlayer, &localPlayerTeam](vgui::Label *pClassLabel, vgui::Button *pClassButton, int neoClass, ConVar *classLimit)
 		{
 			if (!pClassLabel || !pClassButton)
+			{
+				Assert(false);
 				return;
+			}
 
 			const int numClassPlayers = localPlayerTeam->GetClassCount(neoClass);
 			char textBuff[9 + 1];

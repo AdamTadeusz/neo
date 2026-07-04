@@ -1924,6 +1924,18 @@ void CNEO_Player::SetClientWantNeoName(const bool b)
 	m_bClientWantNeoName = b;
 }
 
+void CNEO_Player::SetClass(int neoClass)
+{
+	if (neoClass <= NEO_CLASS_RANDOM || neoClass >= NEO_CLASS__ENUM_COUNT)
+		return;
+
+	m_iNeoClass.Set(neoClass);
+	if (CTeam* team = GetTeam())
+	{
+		team->UpdateClassCounts();
+	}
+}
+
 void CNEO_Player::Weapon_SetZoom(const bool bZoomIn)
 {
 	if (bZoomIn == m_bInAim)

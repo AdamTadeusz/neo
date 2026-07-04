@@ -15,8 +15,6 @@
 #include <vgui_controls/ComboBox.h>
 #include <igameevents.h>
 #include "GameEventListener.h"
-#include "convar.h"
-#include "neo_enums.h"
 
 #include <game/client/iviewport.h>
 

@@ -45,7 +45,7 @@ protected:
 	int					m_iTextureArmed;
 	int					m_iTextureDisabled;
 	int					m_iTextureMouseOver;
-	int					m_iTextureNormal;
+	//int					m_iTextureNormal;
 	int					m_iTexturePressed;
 };
 
