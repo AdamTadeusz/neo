@@ -405,6 +405,21 @@ bool CTeam::IsClassFull(int neoClass) const
 	return false;
 }
 
+bool CTeam::IsClassOverThreshold(int neoClass) const
+{
+	switch (neoClass)
+	{
+	case NEO_CLASS_RECON:
+		return sv_neo_class_limit_recon.GetInt() == -1 ? false : m_iReconCount > sv_neo_class_limit_recon.GetInt();
+	case NEO_CLASS_ASSAULT:
+		return sv_neo_class_limit_assault.GetInt() == -1 ? false : m_iAssaultCount > sv_neo_class_limit_assault.GetInt();
+	case NEO_CLASS_SUPPORT:
+		return sv_neo_class_limit_support.GetInt() == -1 ? false : m_iSupportCount > sv_neo_class_limit_support.GetInt();
+	}
+
+	return false;
+}
+
 int CTeam::GetAppropriateClass(int neoClass) const
 {
 	switch (neoClass)

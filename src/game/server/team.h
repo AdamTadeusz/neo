@@ -82,6 +82,7 @@ public:
 	// NEO TODO (Adam) the functions above are all virtual, and CSDKTeam exists, maybe make a CNEOTeam?
 	virtual int GetClassCount(int neoClass) const;
 	virtual bool IsClassFull(int neoClass) const;
+	virtual bool IsClassOverThreshold(int neoClass) const;
 	virtual int GetAppropriateClass(int neoClass) const;
 	virtual void UpdateClassCounts();
 #endif // NEO
