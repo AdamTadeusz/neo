@@ -25,7 +25,7 @@ endif()
 
 option(CMAKE_COMPILE_WARNING_AS_ERROR "Treat compile warnings as errors" ${DEFAULT_WARN_AS_ERR})
 option(NEO_CI_BUILD "CI build mode" OFF)
-option(NEO_USE_CCACHE "Use ccache" ${OS_LINUX})
+option(NEO_USE_CCACHE "Use ccache" OFF)
 option(NEO_STAGING_ONLY "Staging mode (STAGING_ONLY)" OFF)
 option(NEO_RELEASE_ASSERTS "Release asserts (RELEASEASSERTS)" OFF)
 option(NEO_RETAIL "Retail mode" OFF)
@@ -412,20 +412,20 @@ elseif(COMPILER_CLANG)
     add_compile_definitions(COMPILER_CLANG)
 endif()
 
-if(NEO_USE_CCACHE)
-    find_program(CCACHE_PATH
-        NAMES ccache
-        REQUIRED
-    )
+#if(NEO_USE_CCACHE)
+#    find_program(CCACHE_PATH
+#        NAMES ccache
+#        REQUIRED
+#    )
 
-    set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PATH})
+#    set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PATH})
 
     # http://petereisentraut.blogspot.com/2011/05/ccache-and-clang.html
-    add_compile_options(
+#    add_compile_options(
         #-Qunused-arguments
         #-fcolor-diagnostics
-    )
-endif()
+#    )
+#endif()
 
 add_subdirectory(lib)
 

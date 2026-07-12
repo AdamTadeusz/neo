@@ -38,6 +38,8 @@ if(OS_WINDOWS)
         winmm.lib
     )
 elseif(OS_LINUX)
+    find_package(SDL2 REQUIRED)
+    include_directories(${SDL2_INCLUDE_DIRS})
 
 elseif(OS_MACOS)
 
