@@ -451,6 +451,7 @@ if(NOT NEO_DEDICATED)
 endif()
 
 add_subdirectory(game/server)
+add_subdirectory(launcher_main)
 
 if(NEO_COPY_LIBRARIES)
     set(COPY_ALL_LIBS_FLAG ALL)
@@ -461,7 +462,7 @@ endif()
 if(NOT NEO_DEDICATED)
     add_custom_target(
         copy_all_libs ${COPY_ALL_LIBS_FLAG}
-        DEPENDS client_copy_lib server_copy_lib game_shader_dx9_copy_lib
+        DEPENDS client_copy_lib server_copy_lib game_shader_dx9_copy_lib launcher_copy_lib
         VERBATIM
     )
 endif()
@@ -521,7 +522,7 @@ if(NEO_INSTALL_LIBRARIES)
 
             if(OS_WINDOWS)
                 install(
-                    TARGETS client game_shader_dx9 server
+                    TARGETS client game_shader_dx9 server launcher
                     LIBRARY DESTINATION "${LIBRARY_INSTALL_PATH}/x64"
                     RUNTIME DESTINATION "${LIBRARY_INSTALL_PATH}/x64"
                 )
@@ -531,34 +532,39 @@ if(NEO_INSTALL_LIBRARIES)
                         $<TARGET_PDB_FILE:client>
                         $<TARGET_PDB_FILE:game_shader_dx9>
                         $<TARGET_PDB_FILE:server>
+                        $<TARGET_PDB_FILE:launcher>
                     DESTINATION "${SPLIT_DEBUG_INFO_INSTALL_PATH}/x64"
                 )
             else()
                 get_target_property(CLIENT_STRIPPED_FILE client STRIPPED_FILE)
                 get_target_property(SHADER_STRIPPED_FILE game_shader_dx9 STRIPPED_FILE)
                 get_target_property(SERVER_STRIPPED_FILE server STRIPPED_FILE)
+                get_target_property(LAUNCHER_STRIPPED_FILE launcher STRIPPED_FILE)
                 install(
                     FILES
                         ${CLIENT_STRIPPED_FILE}
                         ${SHADER_STRIPPED_FILE}
                         ${SERVER_STRIPPED_FILE}
+                        ${LAUNCHER_STRIPPED_FILE}
                     DESTINATION "${LIBRARY_INSTALL_PATH}/linux64"
                 )
 
                 get_target_property(CLIENT_SPLIT_DEBUG_INFO_FILE client SPLIT_DEBUG_INFO_FILE)
                 get_target_property(SHADER_SPLIT_DEBUG_INFO_FILE game_shader_dx9 SPLIT_DEBUG_INFO_FILE)
                 get_target_property(SERVER_SPLIT_DEBUG_INFO_FILE server SPLIT_DEBUG_INFO_FILE)
+                get_target_property(LAUNCHER_SPLIT_DEBUG_INFO_FILE launcher SPLIT_DEBUG_INFO_FILE)
                 install(
                     FILES
                         ${CLIENT_SPLIT_DEBUG_INFO_FILE}
                         ${SHADER_SPLIT_DEBUG_INFO_FILE}
                         ${SERVER_SPLIT_DEBUG_INFO_FILE}
+                        ${LAUNCHER_SPLIT_DEBUG_INFO_FILE}
                     DESTINATION "${SPLIT_DEBUG_INFO_INSTALL_PATH}/linux64"
                 )
             endif()
         else()
             install(
-                TARGETS client game_shader_dx9 server
+                TARGETS client game_shader_dx9 server launcher
                 LIBRARY DESTINATION "${LIBRARY_INSTALL_PATH}/${PLATSUBDIR}"
                 RUNTIME DESTINATION "${LIBRARY_INSTALL_PATH}/${PLATSUBDIR}"
             )

@@ -4,6 +4,10 @@
 //
 //=====================================================================================//
 
+#if defined( fopen )
+#undef fopen
+#endif
+
 #if defined( _WIN32 )
 #include <windows.h>
 #include <stdio.h>

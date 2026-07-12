@@ -10,6 +10,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <utlsymbol.h>
 
 //
 // Max size (in bytes of UTF-8 data, not in characters) of server fields, including null terminator.
