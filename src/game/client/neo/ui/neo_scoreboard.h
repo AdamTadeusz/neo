@@ -44,6 +44,7 @@ struct CNEOScoreBoardPlayer
 	int iDeaths;
 	int iXP;
 	int iClass;
+	float flPercentDamageDone;
 	bool bReady;
 
 	// Damage info

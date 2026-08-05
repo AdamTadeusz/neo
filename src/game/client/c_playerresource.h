@@ -62,6 +62,7 @@ public : // IGameResources interface
 	const char *GetClanTag(int index);
 	virtual int		GetMaxHealth(int index);
 	virtual int		GetDisplayedHealth(int index, int mode);
+	virtual float	GetPercentDamageDone(int index);
 	virtual bool	IsAfk(int index);
 	const char *GetNeoCrosshair(int index);
 	bool			IsReady(int index);
@@ -96,6 +97,7 @@ protected:
 	bool	m_bAfk[MAX_PLAYERS_ARRAY_SAFE];
 	char	m_szNeoCrosshair[MAX_PLAYERS_ARRAY_SAFE][NEO_XHAIR_SEQMAX];
 	bool	m_bReady[MAX_PLAYERS_ARRAY_SAFE];
+	float	m_flPercentDamageDone[MAX_PLAYERS_ARRAY_SAFE];
 #endif
 	int		m_iScore[MAX_PLAYERS_ARRAY_SAFE];
 	int		m_iDeaths[MAX_PLAYERS_ARRAY_SAFE];

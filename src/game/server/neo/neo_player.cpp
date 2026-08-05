@@ -619,6 +619,8 @@ CNEO_Player::CNEO_Player()
 	m_szNameDupePos = 0;
 	
 	m_flNextPingTime = 0;
+	m_flPercentDamageDone = 0;
+
 	ResetBotCommandState();
 
 	// set default values for convars only present on the client and read by the server
@@ -3480,6 +3482,12 @@ int	CNEO_Player::OnTakeDamage_Alive(const CTakeDamageInfo& info)
 						return 0;
 					}
 				}
+			}
+			else
+			{
+				// NEO TODO (Adam) Show jug damage separately?
+				pImpersonated ? pImpersonated->AddPercentDamageDone((info.GetDamage() / (float)GetMaxHealth())*100.f)
+					: attacker->AddPercentDamageDone((info.GetDamage() / (float)GetMaxHealth())*100.f);
 			}
 
 			// Apply damages/hits numbers

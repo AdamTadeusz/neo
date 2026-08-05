@@ -890,6 +890,7 @@ void CNEORules::ResetMapSessionCommon()
 		{
 			pPlayer->m_iTeamDamageInflicted = 0;
 			pPlayer->m_iTeamKillsInflicted = 0;
+			pPlayer->m_flPercentDamageDone = 0;
 			pPlayer->m_bIsPendingTKKick = false;
 			pPlayer->m_bKilledInflicted = false;
 		}
@@ -2885,6 +2886,7 @@ void CNEORules::StartNextRound()
 			pPlayer->m_iXP.Set(0);
 			pPlayer->m_iTeamDamageInflicted = 0;
 			pPlayer->m_iTeamKillsInflicted = 0;
+			pPlayer->m_flPercentDamageDone = 0;
 		}
 		else
 		{

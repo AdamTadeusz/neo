@@ -44,6 +44,7 @@ enum EColsPlayers
 	COLSPLAYERS_RANK,
 	COLSPLAYERS_XP,
 	COLSPLAYERS_DEATH,
+	COLSPLAYERS_PERCENT_DMG_DEALT,
 
 	COLSPLAYERS__TOTAL,
 };
@@ -394,6 +395,7 @@ void CNEOScoreBoard::Update()
 		{
 			pPlayerInfo->iXP = g_PR->GetXP(i);
 			pPlayerInfo->iDeaths = g_PR->GetDeaths(i);
+			pPlayerInfo->flPercentDamageDone = g_PR->GetPercentDamageDone(i);
 
 			// Damage infos
 			if (bShowDamageInfo)
@@ -530,18 +532,16 @@ void CNEOScoreBoard::Update()
 			[]([[maybe_unused]] void *vpCtx, const void *vpLeft, const void *vpRight) -> int {
 		auto *pLeft = static_cast<const CNEOScoreBoardPlayer *>(vpLeft);
 		auto *pRight = static_cast<const CNEOScoreBoardPlayer *>(vpRight);
-		if (pLeft->iXP == pRight->iXP)
-		{
-			if (pLeft->iDeaths == pRight->iDeaths)
-			{
-				// Alphabetical order
-				return V_wcscmp(pLeft->wszName, pRight->wszName);
-			}
-			// More deaths = lower
+		if (pLeft->flPercentDamageDone != pRight->flPercentDamageDone)
+			return pRight->flPercentDamageDone - pLeft->flPercentDamageDone;
+
+		if (pLeft->iXP != pRight->iXP)
+			return pRight->iXP - pLeft->iXP;
+
+		if (pLeft->iDeaths != pRight->iDeaths)
 			return pLeft->iDeaths - pRight->iDeaths;
-		}
-		// More XP = higher
-		return pRight->iXP - pLeft->iXP;
+
+		return V_wcscmp(pLeft->wszName, pRight->wszName);
 	}, nullptr);
 
 	// NEO JANK (nullsystem): FireGameEvent is unreliable for fetching
@@ -697,6 +697,7 @@ void CNEOScoreBoard::OnMainLoop(const NeoUI::Mode eMode)
 		iColsWidePlayersList[COLSPLAYERS_RANK] = NeoUI::SuitableWideByWStr(bHasRanklessDog ? L"Rankless Dog" : L"Lieutenant", NeoUI::SUITABLEWIDE_TABLE);
 		iColsWidePlayersList[COLSPLAYERS_XP] = NeoUI::SuitableWideByWStr(L"-99", NeoUI::SUITABLEWIDE_TABLE);
 		iColsWidePlayersList[COLSPLAYERS_DEATH] = NeoUI::SuitableWideByWStr(L"D#", NeoUI::SUITABLEWIDE_TABLE);
+		iColsWidePlayersList[COLSPLAYERS_PERCENT_DMG_DEALT] = NeoUI::SuitableWideByWStr(L"% Dmg", NeoUI::SUITABLEWIDE_TABLE);
 		int iColsWidePlayersTotalNonName = 0;
 		for (int i = 0; i < COLSPLAYERS__TOTAL; ++i)
 		{
@@ -842,6 +843,7 @@ void CNEOScoreBoard::OnMainLoop(const NeoUI::Mode eMode)
 					NeoUI::Label(L"Rank");
 					NeoUI::Label(L"XP");
 					NeoUI::Label(L"D");
+					NeoUI::Label(L"% Dmg");
 				}
 
 				if (NeoUI::MODE_PAINT == m_uiCtx.eMode)
@@ -1080,6 +1082,18 @@ void CNEOScoreBoard::OnMainLoop(const NeoUI::Mode eMode)
 						// Deaths count
 						V_swprintf_safe(wszText, L"%d", pPlayerInfo->iDeaths);
 						NeoUI::Label(wszText);
+						
+						static NeoUI::LabelExOpt opt = {
+							.eTextStyle = NeoUI::TEXTSTYLE_CENTER,
+							.eFont = m_uiCtx.eFont,
+						};
+
+						// Percent Damage Done
+						pPlayerInfo->flPercentDamageDone > 9999.f
+							? V_swprintf_safe(wszText, L"%.1fk", pPlayerInfo->flPercentDamageDone / 1000.f)
+							: V_swprintf_safe(wszText, L"%.0f", pPlayerInfo->flPercentDamageDone);
+
+						NeoUI::Label(wszText, opt);
 					}
 				}
 				NeoUI::EndTable();

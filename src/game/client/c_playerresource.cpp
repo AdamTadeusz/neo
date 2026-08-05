@@ -36,6 +36,7 @@ IMPLEMENT_CLIENTCLASS_DT_NOBASE(C_PlayerResource, DT_PlayerResource, CPlayerReso
 	RecvPropArray3(RECVINFO_ARRAY(m_bAfk), RecvPropInt(RECVINFO(m_bAfk[0]))),
 	RecvPropArray3(RECVINFO_ARRAY(m_szNeoCrosshair), RecvPropString(RECVINFO(m_szNeoCrosshair[0]))),
 	RecvPropArray3(RECVINFO_ARRAY(m_bReady), RecvPropInt(RECVINFO(m_bReady[0]))),
+	RecvPropArray3(RECVINFO_ARRAY(m_flPercentDamageDone), RecvPropFloat(RECVINFO(m_flPercentDamageDone[0]))),
 #endif
 	RecvPropArray3( RECVINFO_ARRAY(m_iScore), RecvPropInt( RECVINFO(m_iScore[0]))),
 	RecvPropArray3( RECVINFO_ARRAY(m_iDeaths), RecvPropInt( RECVINFO(m_iDeaths[0]))),
@@ -103,6 +104,7 @@ C_PlayerResource::C_PlayerResource()
 	memset(m_bAfk, 0, sizeof(m_bAfk));
 	memset(m_szNeoCrosshair, 0, sizeof(m_szNeoCrosshair));
 	memset(m_bReady, 0, sizeof(m_bReady));
+	memset(m_flPercentDamageDone, 0, sizeof(m_flPercentDamageDone));
 #endif
 	memset( m_iScore, 0, sizeof( m_iScore ) );
 	memset( m_iDeaths, 0, sizeof( m_iDeaths ) );
@@ -488,6 +490,14 @@ int C_PlayerResource::GetDisplayedHealth(int iIndex, int mode)
 	default:
 		return GetHealth(iIndex);
 	}
+}
+
+float C_PlayerResource::GetPercentDamageDone(int iIndex)
+{
+	if (!IsConnected(iIndex) && !IsValid(iIndex))
+		return 0;
+
+	return m_flPercentDamageDone[iIndex];
 }
 
 bool C_PlayerResource::IsAfk(int iIndex)

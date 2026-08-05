@@ -246,6 +246,10 @@ public:
 
 	bool IsAFK() const;
 	bool ValidTakeoverTargetFor(CNEO_Player* pPlayerTakingOver);
+	
+	void AddPercentDamageDone(float percentDamage) { m_flPercentDamageDone += percentDamage; };
+	float GetPercentDamageDone() { return m_flPercentDamageDone; };
+	void ClearPercentDamageDone() { m_flPercentDamageDone = 0.f; };
 
 private:
 	bool m_bAllowGibbing;
@@ -271,7 +275,7 @@ public:
 	CNetworkVar(int, m_iNeoSkin);
 	CNetworkVar(int, m_iNeoStar);
 	CNetworkVar(int, m_iClassBeforeTakeover);
-
+	
 	CNetworkVar(int, m_iXP);
 
 	struct NeoRestore
@@ -361,6 +365,8 @@ private:
 
 	// Cache for GetFogObscuredRatio for each player
 	mutable CNEO_Player_FogCacheEntry m_playerFogCache[MAX_PLAYERS_ARRAY_SAFE];
+
+	float m_flPercentDamageDone;
 
 private:
 	CNEO_Player(const CNEO_Player&);
