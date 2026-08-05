@@ -1,9 +1,11 @@
 #pragma once
 
 #include "Player/NextBotPlayer.h"
+
 #include "neo_bot_vision.h"
 #include "neo_bot_body.h"
 #include "neo_bot_locomotion.h"
+#include "neo_bot_path_cost.h"
 #include "neo_player.h"
 #include "neo_bot_squad.h"
 #include "map_entities/neo_bot_generator.h"
@@ -12,6 +14,8 @@
 #include "weapon_neobasecombatweapon.h"
 #include "nav_entities.h"
 #include "utlstack.h"
+#include "behavior/neo_bot_behavior.h"
+#include "neo_bot_profile.h"
 
 #define NEO_BOT_TYPE	1338
 
@@ -37,6 +41,31 @@ inline int GetEnemyTeam(int team)
 	return team;
 }
 
+class CNEOBotBehavior;
+
+// Not split off from neo_bot.h/cpp unless you want to deal with includes hell
+class CNEOBotIntention : public IIntention, public CNEOBotContextualQueryInterface
+{
+public:
+	CNEOBotIntention(CNEOBot *bot);
+	virtual ~CNEOBotIntention();
+
+	void Reset() override;
+	void Update() override;
+
+	INextBotEventResponder *FirstContainedResponder() const override;
+	INextBotEventResponder *NextContainedResponder(INextBotEventResponder *current) const override;
+
+	void OnStuck() override;
+	void OnMoveToFailure( const Path *path, MoveToFailureType reason ) override;
+
+	QueryResultType ShouldWalk(const CNEOBot *me, const QueryResultType qShouldAimQuery) const final;
+	QueryResultType ShouldAim(const CNEOBot *me, const bool bWepHasClip) const final;
+
+private:
+	CNEOBotBehavior *m_behavior;
+};
+
 //----------------------------------------------------------------------------
 
 #define NEOBOT_ALL_BEHAVIOR_FLAGS		0xFFFF
@@ -54,6 +83,7 @@ public:
 
 	virtual void		Spawn();
 	virtual void		FireGameEvent(IGameEvent* event);
+	void				Update() override;
 	virtual void		Event_Killed(const CTakeDamageInfo& info);
 	virtual void		PhysicsSimulate(void);
 	virtual void		Touch(CBaseEntity* pOther);
@@ -80,7 +110,7 @@ public:
 	virtual CNEOBotLocomotion* GetLocomotionInterface(void) const { return m_locomotor; }
 	virtual CNEOBotBody* GetBodyInterface(void) const { return m_body; }
 	virtual CNEOBotVision* GetVisionInterface(void) const { return m_vision; }
-	DECLARE_INTENTION_INTERFACE(CNEOBot);
+	CNEOBotIntention *GetIntentionInterface(void) const override { return m_intention; }
 
 	virtual bool IsDormantWhenDead(void) const;			// should this player-bot continue to update itself when dead (respawn logic, etc)
 
@@ -95,6 +125,11 @@ public:
 
 	bool IsAmmoLow(void) const;
 	bool IsAmmoFull(void) const;
+
+	bool IsCloakEnabled(void) const;
+	float GetCloakPower(void) const;
+	void EnableCloak(float threshold);
+	void DisableCloak(void);
 
 	void UpdateLookingAroundForEnemies(void);						// update our view to keep an eye on enemies, and where enemies come from
 
@@ -123,7 +158,11 @@ public:
 	float GetDesiredAttackRange(void) const;						// return the ideal range at which we can effectively attack
 
 	bool EquipRequiredWeapon(void);								// if we're required to equip a specific weapon, do it.
-	void EquipBestWeaponForThreat(const CKnownEntity* threat);	// equip the best weapon we have to attack the given threat
+	void EquipBestWeaponForThreat(const CKnownEntity* threat, const bool bNotPrimary = false);	// equip the best weapon we have to attack the given threat
+	void ReloadIfLowClip(bool bForceReload = false);
+	bool DropGhost();
+
+	void DropPrimaryWeapon(void);
 
 	void PushRequiredWeapon(CNEOBaseCombatWeapon* weapon);				// force us to equip and use this weapon until popped off the required stack
 	void PopRequiredWeapon(void);									// pop top required weapon off of stack and discard
@@ -138,6 +177,8 @@ public:
 	bool IsEnvironmentNoisy(void) const;							// return true if there are/have been loud noises (ie: non-quiet weapons) nearby very recently
 
 	bool IsEnemy(const CBaseEntity* them) const OVERRIDE;
+
+	bool IsBotOnLadder( ) const;
 
 	CNEOBaseCombatWeapon* GetBludgeonWeapon(void);
 
@@ -158,10 +199,32 @@ public:
 	bool IsWeaponRestricted(CNEOBaseCombatWeapon* weapon) const;
 	bool ScriptIsWeaponRestricted(HSCRIPT script) const;
 
-	bool IsLineOfFireClear(const Vector& where) const;			// return true if a weapon has no obstructions along the line from our eye to the given position
-	bool IsLineOfFireClear(CBaseEntity* who) const;				// return true if a weapon has no obstructions along the line from our eye to the given entity
-	bool IsLineOfFireClear(const Vector& from, const Vector& to) const;			// return true if a weapon has no obstructions along the line between the given points
-	bool IsLineOfFireClear(const Vector& from, CBaseEntity* who) const;			// return true if a weapon has no obstructions along the line between the given point and entity
+	enum LineOfFireFlags_
+	{
+		LINE_OF_FIRE_FLAGS_DEFAULT = 0,
+		LINE_OF_FIRE_FLAGS_SHOTGUN = 1 << 0,
+		LINE_OF_FIRE_FLAGS_PENETRATION = 1 << 1,
+	};
+	typedef int LineOfFireFlags;
+
+	enum ELineOfFirePenetrationMode
+	{
+		LINE_OF_FIRE_PENETRATION_MODE_DEFAULT = 0,
+		LINE_OF_FIRE_PENETRATION_MODE_GLASS,
+	};
+	bool IsLineOfFirePenetrationClear(const trace_t &tr, const Vector &from, const Vector &to,
+			const ELineOfFirePenetrationMode eMode) const;
+
+	using BaseClass::IsLineOfSightClear;
+	bool IsLineOfSightClear(CBaseEntity *entity, LineOfSightCheckType checkType = IGNORE_NOTHING) const override;
+
+	bool IsLineOfFireClear(const Vector& where, const LineOfFireFlags flags) const;			// return true if a weapon has no obstructions along the line from our eye to the given position
+	bool IsLineOfFireClear(CBaseEntity* who, const LineOfFireFlags flags) const;				// return true if a weapon has no obstructions along the line from our eye to the given entity
+	bool IsLineOfFireClear(const Vector& from, const Vector& to, const LineOfFireFlags flags) const;			// return true if a weapon has no obstructions along the line between the given points
+	bool IsLineOfFireClear(const Vector& from, CBaseEntity* who, const LineOfFireFlags flags) const;			// return true if a weapon has no obstructions along the line between the given point and entity
+	bool IsLineOfFireClearOfFriendlies(const Vector& from, CBaseEntity* who) const;
+	bool IsLineOfFireClearOfFriendlies(const Vector& from, const Vector& to) const;
+	void RepathIfFriendlyBlockingLineOfFire();
 
 	bool IsEntityBetweenTargetAndSelf(CBaseEntity* other, CBaseEntity* target);	// return true if "other" is positioned inbetween us and "target"
 
@@ -370,10 +433,28 @@ public:
 	const EventChangeAttributes_t* GetEventChangeAttributes(const char* pszEventName) const;
 	void OnEventChangeAttributes(const CNEOBot::EventChangeAttributes_t* pEvent);
 
+	static unsigned int LineOfFireMask(const LineOfFireFlags flags);
+
+	bool IsFiring() const;
+	bool m_bOnTarget = false;
+	QueryResultType m_qPrevShouldAim = ANSWER_NO;
+	float m_flLastShouldAimTime = 0.0f;
+
+	CNEOBotProfile m_profile = {};
+	NeoClass ChooseRandomClass() const;
+	void ChooseRandomWeapon();
+	int ChooseRandomWeaponIndex() const;
+	int m_iIntendTeam = 0;
+	int m_iProfileIdx = -1;
+
+	bool m_bWantsRespawn = false;
+	bool m_bRespawnCopyCorpse = false;
+
 private:
-	CNEOBotLocomotion* m_locomotor;
-	CNEOBotBody* m_body;
-	CNEOBotVision* m_vision;
+	CNEOBotLocomotion *m_locomotor;
+	CNEOBotBody *m_body;
+	CNEOBotVision *m_vision;
+	CNEOBotIntention *m_intention;
 
 	CountdownTimer m_lookAtEnemyInvasionAreasTimer;
 
@@ -437,11 +518,23 @@ private:
 	float m_flAutoJumpMax;
 	CountdownTimer m_autoJumpTimer;
 
+	CountdownTimer m_repathAroundFriendlyTimer;
+	PathFollower m_repathAroundFriendlyFollower;
+
 	float m_flPhyscannonPickupTime = 0.0f;
 
 	CUtlVector< const EventChangeAttributes_t* > m_eventChangeAttributes;
 };
 
+class CNEOBotBehavior : public Behavior<CNEOBot>, public CNEOBotContextualQueryInterface
+{
+public:
+	CNEOBotBehavior(CNEOBotMainAction *initialAction, const char *name = "") : Behavior<CNEOBot>(initialAction, name) {}
+	virtual ~CNEOBotBehavior() {}
+
+	QueryResultType ShouldWalk(const CNEOBot *me, const QueryResultType qShouldAimQuery) const final;
+	QueryResultType ShouldAim(const CNEOBot *me, const bool bWepHasClip) const final;
+};
 
 inline void CNEOBot::SetTeleportWhere(const CUtlStringList& teleportWhereName)
 {
@@ -728,122 +821,6 @@ inline const CNEOBot* ToNEOBot(const CBaseEntity* pEntity)
 }
 
 
-//--------------------------------------------------------------------------------------------------------------
-/**
- * Functor used with NavAreaBuildPath()
- */
-class CNEOBotPathCost : public IPathCost
-{
-public:
-	CNEOBotPathCost(CNEOBot* me, RouteType routeType)
-	{
-		m_me = me;
-		m_routeType = routeType;
-		m_stepHeight = me->GetLocomotionInterface()->GetStepHeight();
-		m_maxJumpHeight = me->GetLocomotionInterface()->GetMaxJumpHeight();
-		m_maxDropHeight = me->GetLocomotionInterface()->GetDeathDropHeight();
-	}
-
-	virtual float operator()(CNavArea* baseArea, CNavArea* fromArea, const CNavLadder* ladder, const CFuncElevator* elevator, float length) const
-	{
-		VPROF_BUDGET("CNEOBotPathCost::operator()", "NextBot");
-
-		CNavArea* area = (CNavArea*)baseArea;
-
-		if (fromArea == NULL)
-		{
-			// first area in path, no cost
-			return 0.0f;
-		}
-		else
-		{
-			if (!m_me->GetLocomotionInterface()->IsAreaTraversable(area))
-			{
-				return -1.0f;
-			}
-
-			// compute distance traveled along path so far
-			float dist;
-
-			if (ladder)
-			{
-				dist = ladder->m_length;
-			}
-			else if (length > 0.0)
-			{
-				dist = length;
-			}
-			else
-			{
-				dist = (area->GetCenter() - fromArea->GetCenter()).Length();
-			}
-
-
-			// check height change
-			float deltaZ = fromArea->ComputeAdjacentConnectionHeightChange(area);
-
-			if (deltaZ >= m_stepHeight)
-			{
-				if (deltaZ >= m_maxJumpHeight)
-				{
-					// too high to reach
-					return -1.0f;
-				}
-
-				// jumping is slower than flat ground
-				const float jumpPenalty = 2.0f;
-				dist *= jumpPenalty;
-			}
-			else if (deltaZ < -m_maxDropHeight)
-			{
-				// too far to drop
-				return -1.0f;
-			}
-
-			// add a random penalty unique to this character so they choose different routes to the same place
-			float preference = 1.0f;
-
-			if (m_routeType == DEFAULT_ROUTE)
-			{
-				// this term causes the same bot to choose different routes over time,
-				// but keep the same route for a period in case of repaths
-				int timeMod = (int)(gpGlobals->curtime / 10.0f) + 1;
-				preference = 1.0f + 50.0f * (1.0f + FastCos((float)(m_me->GetEntity()->entindex() * area->GetID() * timeMod)));
-			}
-
-			if (m_routeType == SAFEST_ROUTE)
-			{
-				// misyl: combat areas.
-#if 0
-				// avoid combat areas
-				if (area->IsInCombat())
-				{
-					const float combatDangerCost = 4.0f;
-					dist *= combatDangerCost * area->GetCombatIntensity();
-				}
-#endif
-			}
-
-			float cost = (dist * preference);
-
-			if (area->HasAttributes(NAV_MESH_FUNC_COST))
-			{
-				cost *= area->ComputeFuncNavCost(m_me);
-				DebuggerBreakOnNaN_StagingOnly(cost);
-			}
-
-			return cost + fromArea->GetCostSoFar();
-		}
-	}
-
-	CNEOBot* m_me;
-	RouteType m_routeType;
-	float m_stepHeight;
-	float m_maxJumpHeight;
-	float m_maxDropHeight;
-};
-
-
 //---------------------------------------------------------------------------------------------
 class CClosestNEOPlayer
 {
@@ -935,3 +912,4 @@ public:
 	int m_iIgnoreTeam;
 	bool m_bCallerIsProjectile;
 };
+

@@ -2,7 +2,9 @@
 
 #include "Path/NextBotPathFollow.h"
 
-class CNEOBotMainAction : public Action< CNEOBot >
+#include "../neo_bot_contextual_query_interface.h"
+
+class CNEOBotMainAction : public Action< CNEOBot >, public CNEOBotContextualQueryInterface
 {
 public:
 	virtual Action< CNEOBot > *InitialContainedAction( CNEOBot *me );
@@ -17,9 +19,14 @@ public:
 
 	virtual EventDesiredResult< CNEOBot > OnOtherKilled( CNEOBot *me, CBaseCombatCharacter *victim, const CTakeDamageInfo &info );
 
+	// IContextualQuery implementation
 	virtual QueryResultType ShouldAttack( const INextBot *me, const CKnownEntity *them ) const;
 	virtual QueryResultType	ShouldRetreat( const INextBot *me ) const;							// is it time to retreat?
 	virtual QueryResultType	ShouldHurry( const INextBot *me ) const;							// are we in a hurry?
+	
+	// CNEOBotContextualQueryInterface implementation
+	QueryResultType ShouldWalk(const CNEOBot *me, const QueryResultType qShouldAimQuery) const final;
+	QueryResultType ShouldAim(const CNEOBot *me, const bool bWepHasClip) const final;
 
 	virtual Vector SelectTargetPoint( const INextBot *me, const CBaseCombatCharacter *subject ) const;		// given a subject, return the world space position we should aim at
 	virtual QueryResultType IsPositionAllowed( const INextBot *me, const Vector &pos ) const;
@@ -33,6 +40,7 @@ public:
 
 private:
 	CountdownTimer m_reloadTimer;
+	CountdownTimer m_reconSuperJumpPathCheckTimer;
 	mutable CountdownTimer m_aimAdjustTimer;
 	mutable float m_aimErrorRadius;
 	mutable float m_aimErrorAngle;
@@ -44,6 +52,8 @@ private:
 	bool m_isWaitingForFullReload;
 
 	void FireWeaponAtEnemy( CNEOBot *me );
+	void FireBalcAtEnemy( CNEOBot *me, CNEOBaseCombatWeapon *myWeapon, const CKnownEntity *threat, float threatRange );
+	float GetFireDurationByDifficulty( CNEOBot *me ) const;
 
 	CHandle< CBaseEntity > m_lastTouch;
 	float m_lastTouchTime;
@@ -59,8 +69,7 @@ private:
 
 
 	void Dodge( CNEOBot *me );
+	void ReconConsiderSuperJump(CNEOBot *me);
 
 	IntervalTimer m_undergroundTimer;
-
-	CountdownTimer m_reevaluateClassTimer;
 };

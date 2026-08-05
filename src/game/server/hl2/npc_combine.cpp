@@ -101,7 +101,11 @@ Activity ACT_WALK_MARCH;
 // -----------------------------------------------
 //	> Squad slots
 // -----------------------------------------------
+#ifdef NEO // Unity build
+enum SquadSlotNpcCombine_T
+#else
 enum SquadSlot_T
+#endif
 {	
 	SQUAD_SLOT_GRENADE1 = LAST_SHARED_SQUADSLOT,
 	SQUAD_SLOT_GRENADE2,
@@ -122,9 +126,11 @@ enum PathfindingVariant_T
 };
 
 
+#ifndef NEO // Unity build
 #define bits_MEMORY_PAIN_LIGHT_SOUND		bits_MEMORY_CUSTOM1
 #define bits_MEMORY_PAIN_HEAVY_SOUND		bits_MEMORY_CUSTOM2
 #define bits_MEMORY_PLAYER_HURT				bits_MEMORY_CUSTOM3
+#endif
 
 LINK_ENTITY_TO_CLASS( npc_combine, CNPC_Combine );
 
@@ -2312,8 +2318,10 @@ void CNPC_Combine::OnStartSchedule( int scheduleType )
 //=========================================================
 void CNPC_Combine::HandleAnimEvent( animevent_t *pEvent )
 {
+#ifndef NEO
 	Vector vecShootDir;
 	Vector vecShootOrigin;
+#endif
 	bool handledEvent = false;
 
 	if (pEvent->type & AE_TYPE_NEWEVENTSYSTEM)

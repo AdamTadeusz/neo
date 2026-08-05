@@ -226,7 +226,11 @@ int ACT_STRIDER_SLEEP;
 // These bones have physics shadows
 // It allows a one-way interaction between the strider and
 // the physics world
+#ifdef NEO // Unity build
+static const char *pFollowerBoneNamesStrider[] =
+#else
 static const char *pFollowerBoneNames[] =
+#endif
 {
 	// Head
 	"Combine_Strider.Body_Bone",
@@ -635,7 +639,11 @@ void CNPC_Strider::InitBoneFollowers( void )
 		return;
 
 	// Init our followers
+#ifdef NEO // Unity build
+	m_BoneFollowerManager.InitBoneFollowers( this, ARRAYSIZE(pFollowerBoneNamesStrider), pFollowerBoneNamesStrider );
+#else
 	m_BoneFollowerManager.InitBoneFollowers( this, ARRAYSIZE(pFollowerBoneNames), pFollowerBoneNames );
+#endif
 }
 
 //---------------------------------------------------------
@@ -2739,7 +2747,9 @@ void CNPC_Strider::MakeTracer( const Vector &vecTracerSrc, const trace_t &tr, in
 {
 	float flTracerDist;
 	Vector vecDir;
+#ifndef NEO
 	Vector vecEndPos;
+#endif
 
 	vecDir = tr.endpos - vecTracerSrc;
 

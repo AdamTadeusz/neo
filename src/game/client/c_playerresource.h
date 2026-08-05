@@ -18,6 +18,7 @@
 
 #ifdef NEO
 #include "neo_player_shared.h"
+#include "neo_crosshair.h"
 #endif
 
 #define PLAYER_UNCONNECTED_NAME	"unconnected"
@@ -59,6 +60,11 @@ public : // IGameResources interface
 	virtual int     GetClass(int index);
 	virtual int		GetStar(int index);
 	const char *GetClanTag(int index);
+	virtual int		GetMaxHealth(int index);
+	virtual int		GetDisplayedHealth(int index, int mode);
+	virtual bool	IsAfk(int index);
+	const char *GetNeoCrosshair(int index);
+	bool			IsReady(int index);
 #endif
 	virtual int		GetFrags( int index );
 	virtual int		GetHealth( int index );
@@ -86,6 +92,10 @@ protected:
 	char    m_szDispNameWDupeIdx[MAX_PLAYERS_ARRAY_SAFE][MAX_PLAYER_NAME_LENGTH + 10];  // Non-networked, includes dupe index
 	int     m_iStar[MAX_PLAYERS_ARRAY_SAFE];
 	char    m_szNeoClantag[MAX_PLAYERS_ARRAY_SAFE][NEO_MAX_CLANTAG_LENGTH];
+	int		m_iMaxHealth[MAX_PLAYERS_ARRAY_SAFE];
+	bool	m_bAfk[MAX_PLAYERS_ARRAY_SAFE];
+	char	m_szNeoCrosshair[MAX_PLAYERS_ARRAY_SAFE][NEO_XHAIR_SEQMAX];
+	bool	m_bReady[MAX_PLAYERS_ARRAY_SAFE];
 #endif
 	int		m_iScore[MAX_PLAYERS_ARRAY_SAFE];
 	int		m_iDeaths[MAX_PLAYERS_ARRAY_SAFE];

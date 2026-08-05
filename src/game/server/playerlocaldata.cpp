@@ -33,6 +33,9 @@ BEGIN_SEND_TABLE_NOBASE( CPlayerLocalData, DT_Local )
 	SendPropFloat	(SENDINFO(m_flDucktime), 12, SPROP_ROUNDDOWN|SPROP_CHANGES_OFTEN, 0.0f, 2048.0f ),
 	SendPropFloat	(SENDINFO(m_flDuckJumpTime), 12, SPROP_ROUNDDOWN, 0.0f, 2048.0f ),
 	SendPropFloat	(SENDINFO(m_flJumpTime), 12, SPROP_ROUNDDOWN, 0.0f, 2048.0f ),
+#ifdef NEO
+	SendPropInt		(SENDINFO(m_nStepside),	1, SPROP_UNSIGNED ),
+#endif
 #if PREDICTION_ERROR_CHECK_LEVEL > 1 
 	SendPropFloat	(SENDINFO(m_flFallVelocity), 32, SPROP_NOSCALE ),
 
@@ -62,6 +65,10 @@ BEGIN_SEND_TABLE_NOBASE( CPlayerLocalData, DT_Local )
 	SendPropInt(SENDINFO_STRUCTELEM(m_skybox3d.scale), 12),
 	SendPropVector	(SENDINFO_STRUCTELEM(m_skybox3d.origin),      -1,  SPROP_COORD),
 	SendPropInt	(SENDINFO_STRUCTELEM(m_skybox3d.area),	8, SPROP_UNSIGNED ),
+#ifdef NEO
+	SendPropInt(SENDINFO_STRUCTELEM(m_skybox3d.reflectMode), 2, SPROP_UNSIGNED),
+	SendPropFloat(SENDINFO_STRUCTELEM(m_skybox3d.waterLevel), 14, SPROP_NOSCALE, MIN_COORD_FLOAT, MAX_COORD_FLOAT),
+#endif
 	SendPropInt( SENDINFO_STRUCTELEM( m_skybox3d.fog.enable ), 1, SPROP_UNSIGNED ),
 	SendPropInt( SENDINFO_STRUCTELEM( m_skybox3d.fog.blend ), 1, SPROP_UNSIGNED ),
 	SendPropInt( SENDINFO_STRUCTELEM( m_skybox3d.fog.radial ), 1, SPROP_UNSIGNED ),

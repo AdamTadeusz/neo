@@ -19,3 +19,10 @@ struct SZWSZTexts
 	const wchar_t *wszStr;
 };
 #define SZWSZ_INIT(STR) {.szStr = STR, .wszStr = L"" STR}
+#define X_SZWSZ_INIT(STR) SZWSZ_INIT(STR)
+
+bool StartAutoRecording();
+
+static constexpr float FL_SECSINMIN = 60.0f;
+static constexpr float FL_SECSINHRS = 60.0f * FL_SECSINMIN;
+

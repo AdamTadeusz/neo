@@ -48,8 +48,11 @@ void RegisterUserMessages( void )
 	usermessages->Register( "RoundResult", -1 );
 
 #ifdef NEO
-	usermessages->Register( "DamageInfo", -1 );
+	usermessages->Register( "KillerDamageInfo", -1 );
+	usermessages->Register( "KillerDamageInfoExtra", -1 );
 	usermessages->Register( "IdleRespawnShowMenu", -1 );
+	usermessages->Register( "CSpectatorTakeoverPlayer", -1 );
+	usermessages->Register( "AchievementMark", -1 );
 #endif
 
 #ifndef _X360

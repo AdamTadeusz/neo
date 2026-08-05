@@ -29,6 +29,9 @@ enum
 	CHAN_VOICE2		= 7,
 	CHAN_VOICE_BASE	= 8,		// allocate channel for network voice data
 	CHAN_USER_BASE	= (CHAN_VOICE_BASE+128)		// Anything >= this number is allocated to game code.
+#ifdef NEO
+	,CHAN_GHOST_PICKUP	= CHAN_USER_BASE,
+#endif // NEO
 };
 
 //-----------------------------------------------------------------------------
@@ -102,7 +105,11 @@ enum soundlevel_t
 #define MAX_SNDLVL_VALUE	((1<<MAX_SNDLVL_BITS)-1)
 
 
+#ifdef NEO
+#define ATTN_TO_SNDLVL( a ) (soundlevel_t)(int)((a!=0) ? (50 + 20 / ((float)a)) : 0 )
+#else
 #define ATTN_TO_SNDLVL( a ) (soundlevel_t)(int)((a) ? (50 + 20 / ((float)a)) : 0 )
+#endif
 #define SNDLVL_TO_ATTN( a ) ((a > 50) ? (20.0f / (float)(a - 50)) : 4.0 )
 
 // This is a limit due to network encoding.

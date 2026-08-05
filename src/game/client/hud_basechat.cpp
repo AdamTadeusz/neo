@@ -116,7 +116,14 @@ wchar_t* ConvertCRtoNL( wchar_t *str )
 
 void StripEndNewlineFromString( char *str )
 {
+#ifdef NEO
+	const auto len = strlen(str);
+	if (len == 0)
+		return;
+	int s = narrow_cast<int>(len - 1);
+#else
 	int s = strlen( str ) - 1;
+#endif
 	if ( s >= 0 )
 	{
 		if ( str[s] == '\n' || str[s] == '\r' )
@@ -126,7 +133,14 @@ void StripEndNewlineFromString( char *str )
 
 void StripEndNewlineFromString( wchar_t *str )
 {
+#ifdef NEO
+	const auto len = wcslen(str);
+	if (len == 0)
+		return;
+	int s = narrow_cast<int>(len - 1);
+#else
 	int s = wcslen( str ) - 1;
+#endif
 	if ( s >= 0 )
 	{
 		if ( str[s] == L'\n' || str[s] == L'\r' )
@@ -647,7 +661,11 @@ CBaseHudChat::CBaseHudChat( const char *pElementName )
 	}
 
 	m_pChatHistory = new CHudChatHistory( this, "HudChatHistory" );
-
+	
+#ifdef NEO
+	m_pFilterPanel = NULL;
+#endif
+	
 	CreateChatLines();
 	CreateChatInputLine();
 	GetChatFilterPanel();
@@ -947,7 +965,11 @@ void CBaseHudChat::MsgFunc_TextMsg( bf_read &msg )
 	case HUD_PRINTNOTIFY:
 		g_pVGuiLocalize->ConstructString_safe( outputBuf, szBuf[0], 4, szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
 		g_pVGuiLocalize->ConvertUnicodeToANSI( outputBuf, szString, sizeof(szString) );
+#ifdef NEO
+		len = narrow_cast<decltype(len)>(strlen(szString));
+#else
 		len = strlen( szString );
+#endif
 		if ( len && szString[len-1] != '\n' && szString[len-1] != '\r' )
 		{
 			Q_strncat( szString, "\n", sizeof(szString), 1 );
@@ -958,7 +980,11 @@ void CBaseHudChat::MsgFunc_TextMsg( bf_read &msg )
 	case HUD_PRINTTALK:
 		g_pVGuiLocalize->ConstructString_safe( outputBuf, szBuf[0], 4, szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
 		g_pVGuiLocalize->ConvertUnicodeToANSI( outputBuf, szString, sizeof(szString) );
+#ifdef NEO
+		len = narrow_cast<decltype(len)>(strlen(szString));
+#else
 		len = strlen( szString );
+#endif
 		if ( len && szString[len-1] != '\n' && szString[len-1] != '\r' )
 		{
 			Q_strncat( szString, "\n", sizeof(szString), 1 );
@@ -970,7 +996,11 @@ void CBaseHudChat::MsgFunc_TextMsg( bf_read &msg )
 	case HUD_PRINTCONSOLE:
 		g_pVGuiLocalize->ConstructString_safe( outputBuf, szBuf[0], 4, szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
 		g_pVGuiLocalize->ConvertUnicodeToANSI( outputBuf, szString, sizeof(szString) );
+#ifdef NEO
+		len = narrow_cast<decltype(len)>(strlen(szString));
+#else
 		len = strlen( szString );
+#endif
 		if ( len && szString[len-1] != '\n' && szString[len-1] != '\r' )
 		{
 			Q_strncat( szString, "\n", sizeof(szString), 1 );
@@ -1027,7 +1057,11 @@ void CBaseHudChat::MsgFunc_VoiceSubtitle( bf_read &msg )
 
 	int len;
 	g_pVGuiLocalize->ConvertUnicodeToANSI( szBuf, szString, sizeof(szString) );
+#ifdef NEO
+	len = narrow_cast<decltype(len)>(strlen(szString));
+#else
 	len = strlen( szString );
+#endif
 	if ( len && szString[len-1] != '\n' && szString[len-1] != '\r' )
 	{
 		Q_strncat( szString, "\n", sizeof(szString), 1 );
@@ -1465,7 +1499,11 @@ void CBaseHudChatLine::InsertAndColorizeText( wchar_t *buf, int clientIndex )
 		return;
 
 	wchar_t *txt = m_text;
+#ifdef NEO
+	int lineLen = narrow_cast<int>( wcslen( m_text ) );
+#else
 	int lineLen = wcslen( m_text );
+#endif
 	Color colCustom;
 
 	if ( m_text[0] == COLOR_PLAYERNAME || m_text[0] == COLOR_LOCATION || m_text[0] == COLOR_NORMAL || m_text[0] == COLOR_ACHIEVEMENT || m_text[0] == COLOR_CUSTOM || m_text[0] == COLOR_HEXCODE || m_text[0] == COLOR_HEXCODE_ALPHA )
@@ -1594,7 +1632,11 @@ void CBaseHudChatLine::InsertAndColorizeText( wchar_t *buf, int clientIndex )
 		m_textRanges.AddToTail(range);
 
 		range.start = range.end;
+#ifdef NEO
+		range.end = narrow_cast<decltype(range.end)>(wcslen(m_text));
+#else
 		range.end = wcslen(m_text);
+#endif
 		range.color = pChat->GetTextColorForClient(COLOR_NORMAL, clientIndex);
 		m_textRanges.AddToTail(range);
 	}
@@ -1623,7 +1665,11 @@ void CBaseHudChatLine::InsertAndColorizeText( wchar_t *buf, int clientIndex )
 	{
 		TextRange range;
 		range.start = 0;
+#ifdef NEO
+		range.end = narrow_cast<decltype(range.end)>(wcslen(m_text));
+#else
 		range.end = wcslen( m_text );
+#endif
 		range.color = pChat->GetTextColorForClient( COLOR_NORMAL, clientIndex );
 		m_textRanges.AddToTail( range );
 	}
@@ -1927,7 +1973,12 @@ void CBaseHudChat::ChatPrintf( int iPlayerIndex, int iFilter, const char *fmt, .
 		engine->GetPlayerInfo( iPlayerIndex, &sPlayerInfo );
 	}	
 
+#ifdef NEO
+	int bufSize = narrow_cast<int>( (strlen( pmsg ) + 1 ) * sizeof(wchar_t) );
+	Assert(bufSize <= sizeof(msg) + 1 + sizeof(wchar_t));
+#else
 	int bufSize = (strlen( pmsg ) + 1 ) * sizeof(wchar_t);
+#endif
 	wchar_t *wbuf = static_cast<wchar_t *>( _alloca( bufSize ) );
 	if ( wbuf )
 	{
@@ -1964,7 +2015,7 @@ void CBaseHudChat::ChatPrintf( int iPlayerIndex, int iFilter, const char *fmt, .
 			{
 				iNameStart = (nameInString - wbuf);
 #ifdef NEO
-				iNameLength = wcslen( wideName ) - 1;
+				iNameLength = V_wcslen( wideName ) - 1;
 #else
 				iNameLength = wcslen( wideName );
 #endif

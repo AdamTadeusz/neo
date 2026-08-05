@@ -31,7 +31,7 @@
 #define UPDATE_PLAYER_RADAR	2
 
 #ifdef NEO
-#define DEATH_ANIMATION_TIME	12.0f
+#define DEATH_ANIMATION_TIME	10.0f
 #else
 #define DEATH_ANIMATION_TIME	3.0f
 #endif
@@ -63,5 +63,9 @@ void CopySoundNameWithModifierToken( char *pchDest, const char *pchSource, int n
 #else
 #include "player.h"
 #endif
+
+#ifdef NEO
+float IntervalDistance(float x, float x0, float x1);
+#endif // NEO
 
 #endif // BASEPLAYER_SHARED_H

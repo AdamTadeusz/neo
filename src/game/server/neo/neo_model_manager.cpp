@@ -283,7 +283,7 @@ const char *viewModels[NEO_VM_ENUM_COUNT * numTeams] {
 	"models/weapons/v_nsf_zr68l.mdl",
 	"models/weapons/v_nsf_zr68s.mdl",
 	"models/gameplay/v_nsf_ghost.mdl",
-	#ifdef INCLUDE_WEP_PBK
+#ifdef INCLUDE_WEP_PBK
 	"models/weapons/v_nsf_pbk56.mdl",
 #endif
 
@@ -366,19 +366,34 @@ const char *weapons[NEO_WEP_MDL_ENUM_COUNT] {
 #endif
 };
 
+const char *dummyModels [numClasses] {
+	"models/tutorial/dummy_small.mdl",
+	"models/tutorial/dummy_medium.mdl",
+	"models/tutorial/dummy_large.mdl",
+};
+
 const char *vipModel = "models/player/vip.mdl";
 const char *vipModelDead = "models/player/vip_dead.mdl";
 const char *vipSmacViewModel = "models/weapons/v_vip_smac.mdl";
 
+const char *jgrModel = "models/player/jgr.mdl";
+
 static inline void PrecachePlayerModels( void )
 {
-	const int size = ARRAYSIZE(playerModels);
-	for (int i = 0; i < size; i++)
+	const int pmsize = ARRAYSIZE(playerModels);
+	for (int i = 0; i < pmsize; i++)
 	{
 		CBaseEntity::PrecacheModel(playerModels[i]);
 	}
 
+	const int dmsize = ARRAYSIZE(dummyModels);
+	for (int i = 0; i < dmsize; i++)
+	{
+		CBaseEntity::PrecacheModel(dummyModels[i]);
+	}
+
 	CBaseEntity::PrecacheModel(vipModel);
+	CBaseEntity::PrecacheModel(jgrModel);
 }
 
 static inline void PrecacheGibs( void )
@@ -454,11 +469,8 @@ void CNEOModelManager::Precache( void ) const
 
 	//PrecacheMaterial("water/ntwater_ivy");
 
-	PrecacheMaterial("dev/motion_third.vmt");
+	PrecacheMaterial("dev/motion_model.vmt");
 	PrecacheMaterial("dev/thermal_model.vmt");
-	PrecacheMaterial("dev/thermal_ragdoll_model.vmt");
-	PrecacheMaterial("dev/thermal_base_animating_model.vmt");
-	PrecacheMaterial("dev/thermal_view_model.vmt");
 	PrecacheMaterial("dev/thermal_weapon_model.vmt");
 	PrecacheMaterial("dev/thermal_grenade_projectile_model.vmt");
 }
@@ -533,6 +545,11 @@ const char *CNEOModelManager::GetPlayerModel(NeoSkin nSkin,
 		return vipModel;
 	}
 
+	if (nClass == NEO_CLASS_JUGGERNAUT)
+	{
+		return jgrModel;
+	}
+
 	// Unspecified skin number, give a skin randomly.
 	if ((int)nSkin == -1)
 	{
@@ -544,6 +561,11 @@ const char *CNEOModelManager::GetPlayerModel(NeoSkin nSkin,
 	if ((int)nClass == -1)
 	{
 		nClass = NEO_CLASS_ASSAULT;
+	}
+
+	if (NEORules()->IsCyberspace())
+	{
+		return dummyModels[nClass];
 	}
 
 	const int index =

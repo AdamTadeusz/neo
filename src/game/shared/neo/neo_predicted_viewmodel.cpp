@@ -3,10 +3,11 @@
 
 #include "in_buttons.h"
 #include "neo_gamerules.h"
-#include "weapon_hl2mpbase.h"
+#include "weapon_neobasecombatweapon.h"
 
 #ifdef CLIENT_DLL
 #include "c_neo_player.h"
+#include "weapon_neobasecombatweapon.h"
 
 #include "engine/ivdebugoverlay.h"
 #include "iinput.h"
@@ -19,6 +20,7 @@
 #include "in_main.h"
 #else
 #include "neo_player.h"
+#include "bot/neo_bot.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -223,7 +225,6 @@ void CNEOPredictedViewModel::ClientThink()
 	BaseClass::ClientThink();
 }
 
-extern ConVar mat_neo_toc_test;
 extern ConVar glow_outline_effect_enable;
 int CNEOPredictedViewModel::DrawModel(int flags)
 {
@@ -244,8 +245,6 @@ int CNEOPredictedViewModel::DrawModel(int flags)
 					Assert(pass->IsPrecached());
 				}
 
-				mat_neo_toc_test.SetValue(pPlayer->GetCloakFactor());
-
 				modelrender->ForcedMaterialOverride(pass);
 				int ret = BaseClass::DrawModel(flags);
 				modelrender->ForcedMaterialOverride(NULL);
@@ -254,9 +253,9 @@ int CNEOPredictedViewModel::DrawModel(int flags)
 
 			return 0;
 		}
-		if (pPlayer->GetClass() == NEO_CLASS_SUPPORT && pPlayer->IsInVision() && !glow_outline_effect_enable.GetBool())
+		if (pPlayer->GetClass() == NEO_CLASS_SUPPORT && pPlayer->IsInVision())
 		{
-			IMaterial* pass = materials->FindMaterial("dev/thermal_view_model", TEXTURE_GROUP_MODEL);
+			IMaterial* pass = materials->FindMaterial("dev/thermal_weapon_model", TEXTURE_GROUP_MODEL);
 			Assert(pass && !pass->IsErrorMaterial());
 
 			if (pass && !pass->IsErrorMaterial())
@@ -291,9 +290,19 @@ float EaseOut(float current, float target, float step)
 	return  RemapVal(remapped * remapped, 1.0f, 0.0f, start, target);
 }
 
+enum NeoAutoLean
+{
+	NEO_AUTOLEAN_OFF = 0, 		// Never auto lean
+	NEO_AUTOLEAN_AIM,			// Only auto lean on aim
+	NEO_AUTOLEAN_AIM_NORMSPEED,	// Auto lean on aim and normal speed/not sprinting
+
+	NEO_AUTOLEAN__TOTAL,
+	NEO_AUTOLEAN__MAXVAL = NEO_AUTOLEAN__TOTAL - 1,
+};
+
 #ifdef CLIENT_DLL
 ConVar cl_neo_lean_viewmodel_only("cl_neo_lean_viewmodel_only", "0", FCVAR_ARCHIVE, "Rotate view-model instead of camera when leaning", true, 0, true, 1);
-ConVar cl_neo_lean_automatic("cl_neo_lean_automatic", "0", FCVAR_ARCHIVE, "Automatic leaning around corners", true, 0, true, 2);
+ConVar cl_neo_lean_automatic("cl_neo_lean_automatic", "0", FCVAR_ARCHIVE, "Automatic leaning around corners", true, 0, true, NEO_AUTOLEAN__MAXVAL);
 #ifdef DEBUG
 ConVar cl_neo_lean_automatic_debug("cl_neo_lean_automatic_debug", "0", FCVAR_ARCHIVE | FCVAR_DEVELOPMENTONLY, "Show automatic leaning tracelines", true, 0, true, 1);
 #endif // DEBUG
@@ -309,64 +318,92 @@ float CNEOPredictedViewModel::lean(CNEO_Player *player){
 
 	if (player->IsAlive() && player->GetFlags() & FL_ONGROUND)
 	{
-#ifdef CLIENT_DLL
-		int cl_neo_lean_automatic_value = cl_neo_lean_automatic.GetInt();
-		if (cl_neo_lean_automatic_value)
+#ifdef GAME_DLL
+		if (player->IsBot() && !(player->GetNeoFlags() & NEO_FL_FREEZETIME))
+#endif
 		{
-			int total = 0;
-			if (cl_neo_lean_automatic_value == 2 || (cl_neo_lean_automatic_value == 1 && player->IsInAim()))
+#ifdef CLIENT_DLL
+			int cl_neo_lean_automatic_value = cl_neo_lean_automatic.GetInt();
+#else
+			const int cl_neo_lean_automatic_value = (player->GetClass() == NEO_CLASS_SUPPORT) ? NEO_AUTOLEAN_AIM : NEO_AUTOLEAN_AIM_NORMSPEED;
+#endif
+			if (cl_neo_lean_automatic_value)
 			{
-				Vector startPos = player->GetAbsOrigin();
-				startPos.z = player->EyePosition().z; // Ideally shouldn't move due to lean but this is a nice spot
-				constexpr float tracelineAngleChange = 15.f;
-				constexpr int startingDistance = 80;
-				int distance = startingDistance;
-				trace_t tr;
-				for (int i = 1; i <= 10; i++)
+				int total = 0;
+				if (cl_neo_lean_automatic_value == NEO_AUTOLEAN_AIM_NORMSPEED || (cl_neo_lean_automatic_value == NEO_AUTOLEAN_AIM && player->IsInAim()))
 				{
-					Vector endPos = startPos;
-					float offset = (i / (tracelineAngleChange - i));
-					endPos.x += cos(DEG2RAD(viewAng.y) + offset) * distance;
-					endPos.y += sin(DEG2RAD(viewAng.y) + offset) * distance;
-					UTIL_TraceLine(startPos, endPos, MASK_SHOT_HULL, player, COLLISION_GROUP_NONE, &tr);
-					if (tr.fraction != 1.0)
+					Vector startPos = player->GetAbsOrigin();
+					startPos.z = player->EyePosition().z; // Ideally shouldn't move due to lean but this is a nice spot
+					constexpr float tracelineAngleChange = 15.f;
+					constexpr int startingDistance = 80;
+					int distance = startingDistance;
+					trace_t tr;
+					for (int i = 1; i <= 10; i++)
 					{
-						total -= 1;
+						Vector endPos = startPos;
+						float offset = (i / (tracelineAngleChange - i));
+						endPos.x += cos(DEG2RAD(viewAng.y) + offset) * distance;
+						endPos.y += sin(DEG2RAD(viewAng.y) + offset) * distance;
+						UTIL_TraceLine(startPos, endPos, MASK_SHOT_HULL, player, COLLISION_GROUP_NONE, &tr);
+						if (tr.fraction != 1.0)
+						{
+							total -= 1;
+						}
+						distance = Max(20, distance - 5);
+#if defined(CLIENT_DLL) && defined(DEBUG)
+						if (cl_neo_lean_automatic_debug.GetBool())
+						{
+							DebugDrawLine(startPos, endPos, 0, tr.fraction == 1.0 ? 255 : 0, 255, 0, 0);
+						}
+#endif // defined(CLIENT_DLL) && defined(DEBUG)
 					}
-					distance = Max(20, distance - 5);
-	#ifdef DEBUG
-					if (cl_neo_lean_automatic_debug.GetBool())
+					distance = startingDistance;
+					for (int i = -1; i >= -10; i--)
 					{
-						DebugDrawLine(startPos, endPos, 0, tr.fraction == 1.0 ? 255 : 0, 255, 0, 0);
+						Vector endPos = startPos;
+						float offset = (i / (tracelineAngleChange + i));
+						endPos.x += cos(DEG2RAD(viewAng.y) + offset) * distance;
+						endPos.y += sin(DEG2RAD(viewAng.y) + offset) * distance;
+						UTIL_TraceLine(startPos, endPos, MASK_SHOT_HULL, player, COLLISION_GROUP_NONE, &tr);
+						if (tr.fraction != 1.0)
+						{
+							total += 1;
+						}
+						distance = Max(20, distance - 5);
+#if defined(CLIENT_DLL) && defined(DEBUG)
+						if (cl_neo_lean_automatic_debug.GetBool())
+						{
+							DebugDrawLine(startPos, endPos, 255, tr.fraction == 1.0 ? 255 : 0, 0, 0, 0);
+						}
+#endif // defined(CLIENT_DLL) && defined(DEBUG)
 					}
-	#endif // DEBUG
 				}
-				distance = startingDistance;
-				for (int i = -1; i >= -10; i--)
+#ifdef CLIENT_DLL
+				if (total < 0)	{ IN_LeanRight(); }
+				else if (total > 0) { IN_LeanLeft(); }
+				else { IN_LeanReset(); }
+#else
+				if (auto *botPlayer = dynamic_cast<CNEOBot *>(player))
 				{
-					Vector endPos = startPos;
-					float offset = (i / (tracelineAngleChange + i));
-					endPos.x += cos(DEG2RAD(viewAng.y) + offset) * distance;
-					endPos.y += sin(DEG2RAD(viewAng.y) + offset) * distance;
-					UTIL_TraceLine(startPos, endPos, MASK_SHOT_HULL, player, COLLISION_GROUP_NONE, &tr);
-					if (tr.fraction != 1.0)
+					if (total < 0)
 					{
-						total += 1;
+						botPlayer->ReleaseLeanLeftButton();
+						botPlayer->PressLeanRightButton();
 					}
-					distance = Max(20, distance - 5);
-	#ifdef DEBUG
-					if (cl_neo_lean_automatic_debug.GetBool())
+					else if (total > 0)
 					{
-						DebugDrawLine(startPos, endPos, 255, tr.fraction == 1.0 ? 255 : 0, 0, 0, 0);
+						botPlayer->ReleaseLeanRightButton();
+						botPlayer->PressLeanLeftButton();
 					}
-	#endif // DEBUG
+					else
+					{
+						botPlayer->ReleaseLeanLeftButton();
+						botPlayer->ReleaseLeanRightButton();
+					}
 				}
+#endif
 			}
-			if (total < 0)	{ IN_LeanRight(); }
-			else if (total > 0) { IN_LeanLeft(); }
-			else { IN_LeanReset(); }
 		}
-#endif // CLIENT_DLL
 
 		switch (player->m_bInLean.Get())
 		{
@@ -400,18 +437,31 @@ float CNEOPredictedViewModel::lean(CNEO_Player *player){
 	player->m_vecLean = Vector(0, viewOffset.y, -(neo_lean_fp_lower_eyes.GetFloat() * absLeanRatio));
 	player->SetViewOffset(viewOffset);
 
-#ifdef CLIENT_DLL
-	viewAng.z = -m_flLeanRatio * neo_lean_fp_angle.GetFloat();
-	engine->SetViewAngles(viewAng);
+#ifdef GAME_DLL
+	if (player->IsBot())
 #endif
+	{
+		viewAng.z = AngleNormalize(-m_flLeanRatio * ((player->GetClass() == NEO_CLASS_JUGGERNAUT) ? 15.0f : neo_lean_fp_angle.GetFloat()));
+#ifdef CLIENT_DLL
+		engine->SetViewAngles(viewAng);
+#else
+		player->PlayerData()->v_angle = viewAng;
+#endif
+	}
 
 #ifdef GAME_DLL
 	SetSimulationTime(gpGlobals->curtime);
 	SetNextThink(gpGlobals->curtime);
 #endif
 
-	return -m_flLeanRatio * neo_lean_tp_angle.GetFloat();
+	return -m_flLeanRatio * ((player->GetClass() == NEO_CLASS_JUGGERNAUT) ? 20.0f : neo_lean_tp_angle.GetFloat());
 }
+
+#ifdef CLIENT_DLL
+static constexpr int HALF_HULL_SIZE = 12; // is this defined globally somewhere?
+ConVar cl_neo_viewmodel_bump("cl_neo_viewmodel_bump", "1", FCVAR_ARCHIVE, "Bump viewmodel against solids", true, 0, true, 1);
+ConVar cl_neo_viewmodel_bump_amount("cl_neo_viewmodel_bump_amount", "24", FCVAR_ARCHIVE, "How far back to bump the viewmodel", true, HALF_HULL_SIZE, true, 36);
+#endif
 
 extern ConVar cl_righthand;
 void CNEOPredictedViewModel::CalcViewModelView(CBasePlayer *pOwner,
@@ -430,14 +480,14 @@ void CNEOPredictedViewModel::CalcViewModelView(CBasePlayer *pOwner,
 	}
 
 	// Is there a nicer way to do this?
-	auto weapon = static_cast<CWeaponHL2MPBase*>(GetOwningWeapon());
+	auto weapon = static_cast<CNEOBaseCombatWeapon*>(GetOwningWeapon());
 
 	if (!weapon)
 	{
 		return;
 	}
 
-	CHL2MPSWeaponInfo data = weapon->GetHL2MPWpnData();
+	CNEOWeaponInfo data = weapon->GetNEOWpnData();
 
 	Vector vForward, vRight, vUp, newPos, vOffset;
 	QAngle newAng, angOffset;
@@ -503,35 +553,42 @@ void CNEOPredictedViewModel::CalcViewModelView(CBasePlayer *pOwner,
 			m_angOffset = angOffset;
 		}
 
-		constexpr int VIEWMODEL_MOVE_DISTANCE = 24; // max distance viewmodel can move is actually VIEWMODEL_MOVE_DISTANCE - HALF_HULL_SIZE
-		constexpr int HALF_HULL_SIZE = 12; // is this defined globally somewhere?
-		constexpr float VIEWMODEL_MOVE_FRACTION_MIN = (VIEWMODEL_MOVE_DISTANCE - HALF_HULL_SIZE) / VIEWMODEL_MOVE_DISTANCE;
-		if (m_flGunPushLastChangeTime < gpGlobals->curtime) // Why is this value sometimes greater than current time? Also this fixes gun moving back much slower around some corners, maybe weird prediction stuff?
+#ifdef CLIENT_DLL
+		Vector finalGunPush = vec3_origin;
+		if (cl_neo_viewmodel_bump.GetBool())
 		{
-			constexpr float MAX_GUN_PUSH_FRACTION_CHANGE_PER_SECOND = 2.5f;
-			float maxFractionChange = (gpGlobals->curtime - m_flGunPushLastChangeTime) * MAX_GUN_PUSH_FRACTION_CHANGE_PER_SECOND;
-			m_flGunPushLastChangeTime = gpGlobals->curtime;
-
-			trace_t tr;
-			Vector startPos = pOwner->EyePosition();
-			Vector endPos = pOwner->EyePosition() + (vForward * VIEWMODEL_MOVE_DISTANCE);
-			// NEO NOTE (Adam) the hull generated by tracehull is fixed to the axis, using a non square cube shape will give varying results depending on player orientation to the obstacle in front of them (already the case to an extent since not using a sphere)
-			UTIL_TraceHull(startPos, endPos, Vector(-4,-4,-4), Vector(4,4,4), MASK_PLAYERSOLID &~ CONTENTS_MONSTER, pOwner, COLLISION_GROUP_NONE, &tr);
-			tr.fraction = max(VIEWMODEL_MOVE_FRACTION_MIN, tr.fraction); // The smallest value tr.fraction can have given the size of the player hull
-		
-			if (abs(tr.fraction - m_flGunPush) < (maxFractionChange + 0.01)) // float math, don't want the gun to move when in its resting position
+			const int VIEWMODEL_MOVE_DISTANCE = cl_neo_viewmodel_bump_amount.GetInt(); // max distance viewmodel can move is actually VIEWMODEL_MOVE_DISTANCE - HALF_HULL_SIZE
+			const float VIEWMODEL_MOVE_FRACTION_MIN = (VIEWMODEL_MOVE_DISTANCE - HALF_HULL_SIZE) / VIEWMODEL_MOVE_DISTANCE;
+			if (m_flGunPushLastChangeTime < gpGlobals->curtime) // Why is this value sometimes greater than current time? Also this fixes gun moving back much slower around some corners, maybe weird prediction stuff?
 			{
-				m_flGunPush = tr.fraction;
-			}
-			else
-			{
-				m_flGunPush += tr.fraction > m_flGunPush ? maxFractionChange : -maxFractionChange;
-			}
+				constexpr float MAX_GUN_PUSH_FRACTION_CHANGE_PER_SECOND = 2.5f;
+				float maxFractionChange = (gpGlobals->curtime - m_flGunPushLastChangeTime) * MAX_GUN_PUSH_FRACTION_CHANGE_PER_SECOND;
+				m_flGunPushLastChangeTime = gpGlobals->curtime;
 
+				trace_t tr;
+				Vector startPos = pOwner->EyePosition();
+				Vector endPos = pOwner->EyePosition() + (vForward * VIEWMODEL_MOVE_DISTANCE);
+				// NEO NOTE (Adam) the hull generated by tracehull is fixed to the axis, using a non square cube shape will give varying results depending on player orientation to the obstacle in front of them (already the case to an extent since not using a sphere)
+				UTIL_TraceHull(startPos, endPos, Vector(-4, -4, -4), Vector(4, 4, 4), MASK_SOLID & ~CONTENTS_MONSTER, pOwner, COLLISION_GROUP_NONE, &tr);
+				tr.fraction = Max(VIEWMODEL_MOVE_FRACTION_MIN, tr.fraction); // The smallest value tr.fraction can have given the size of the player hull
+
+				if (abs(tr.fraction - m_flGunPush) < (maxFractionChange + 0.01)) // float math, don't want the gun to move when in its resting position
+				{
+					m_flGunPush = tr.fraction;
+				}
+				else
+				{
+					m_flGunPush += tr.fraction > m_flGunPush ? maxFractionChange : -maxFractionChange;
+				}
+
+			}
+			finalGunPush = vForward * ((1 - m_flGunPush) * VIEWMODEL_MOVE_DISTANCE);
 		}
-		Vector finalGunPush = vForward * ((1 - m_flGunPush) * VIEWMODEL_MOVE_DISTANCE);
 
 		newPos += (vForward * vOffset.x) - finalGunPush;
+#else
+		newPos += vForward * vOffset.x;
+#endif
 		newPos += vRight * vOffset.y;
 		newPos += vUp * vOffset.z;
 	}
@@ -569,10 +626,9 @@ void CNEOPredictedViewModel::ProcessMuzzleFlashEvent()
 
 RenderGroup_t CNEOPredictedViewModel::GetRenderGroup()
 {
-	auto pPlayer = static_cast<C_NEO_Player*>(GetOwner());
-	if (pPlayer)
+	if (auto pPlayer = static_cast<C_NEO_Player*>(GetOwner()))
 	{
-		return pPlayer->IsCloaked() ? RENDER_GROUP_VIEW_MODEL_TRANSLUCENT : RENDER_GROUP_VIEW_MODEL_OPAQUE;
+		return pPlayer->IsDrawnTransparent() ? RENDER_GROUP_VIEW_MODEL_TRANSLUCENT : RENDER_GROUP_VIEW_MODEL_OPAQUE;
 	}
 
 	return BaseClass::GetRenderGroup();
@@ -580,10 +636,9 @@ RenderGroup_t CNEOPredictedViewModel::GetRenderGroup()
 
 bool CNEOPredictedViewModel::UsesPowerOfTwoFrameBufferTexture()
 {
-	auto pPlayer = static_cast<C_NEO_Player*>(GetOwner());
-	if (pPlayer)
+	if (auto pPlayer = static_cast<C_NEO_Player*>(GetOwner()))
 	{
-		return pPlayer->IsCloaked() ? true : false;
+		return pPlayer->IsDrawnTransparent() ? true : false;
 	}
 
 	return BaseClass::UsesPowerOfTwoFrameBufferTexture();

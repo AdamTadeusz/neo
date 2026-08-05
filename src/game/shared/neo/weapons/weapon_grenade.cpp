@@ -24,8 +24,8 @@
 
 ConVar sv_neo_infinite_frag_grenades("sv_neo_infinite_frag_grenades", "0", FCVAR_REPLICATED | FCVAR_CHEAT, "Should frag grenades use up ammo.", true, 0.0, true, 1.0);
 ConVar sv_neo_grenade_throw_intensity("sv_neo_grenade_throw_intensity", "750.0", FCVAR_REPLICATED | FCVAR_CHEAT, "How strong should regular grenade throws be.", true, 0.0, true, 9999.9);
-ConVar sv_neo_grenade_blast_damage("sv_neo_grenade_blast_damage", "200.0", FCVAR_REPLICATED | FCVAR_CHEAT, "How much damage should a grenade blast deal.", true, 0.0, true, 999.9);
-ConVar sv_neo_grenade_blast_radius("sv_neo_grenade_blast_radius", "250.0", FCVAR_REPLICATED | FCVAR_CHEAT, "How large should the grenade blast radius be.", true, 0.0, true, 9999.9);
+ConVar sv_neo_grenade_blast_damage("sv_neo_grenade_blast_damage", "270.0", FCVAR_REPLICATED | FCVAR_CHEAT, "How much damage should a grenade blast deal.", true, 0.0, true, 999.9);
+ConVar sv_neo_grenade_blast_radius("sv_neo_grenade_blast_radius", "270.0", FCVAR_REPLICATED | FCVAR_CHEAT, "How large should the grenade blast radius be.", true, 0.0, true, 9999.9);
 ConVar sv_neo_grenade_fuse_timer("sv_neo_grenade_fuse_timer", "2.16", FCVAR_REPLICATED | FCVAR_CHEAT, "How long in seconds until a frag grenade explodes.", true, 0.1, true, 60.0); // Measured as 2.15999... in NT, ie. < 2.16
 ConVar sv_neo_grenade_cor("sv_neo_grenade_cor", "0.45", FCVAR_CHEAT | FCVAR_REPLICATED, "Neotokyo frag coefficient of restitution", true, 0.0, true, 1.0);
 ConVar sv_neo_grenade_gravity("sv_neo_grenade_gravity", "0.4", FCVAR_CHEAT | FCVAR_REPLICATED, "Grenade gravity", true, 0, true, 1);
@@ -218,20 +218,6 @@ void CWeaponGrenade::ItemPostFrame(void)
 	BaseClass::ItemPostFrame();
 }
 
-// Check a throw from vecSrc.  If not valid, move the position back along the line to vecEye
-void CWeaponGrenade::CheckThrowPosition(CBasePlayer *pPlayer, const Vector &vecEye, Vector &vecSrc)
-{
-	trace_t tr;
-
-	UTIL_TraceHull(vecEye, vecSrc, -Vector(GRENADE_RADIUS + 2, GRENADE_RADIUS + 2, GRENADE_RADIUS + 2), Vector(GRENADE_RADIUS + 2, GRENADE_RADIUS + 2, GRENADE_RADIUS + 2),
-		pPlayer->PhysicsSolidMaskForEntity(), pPlayer, pPlayer->GetCollisionGroup(), &tr);
-
-	if (tr.DidHit())
-	{
-		vecSrc = tr.endpos;
-	}
-}
-
 void CWeaponGrenade::ThrowGrenade(CNEO_Player *pPlayer, bool isAlive, CBaseEntity *pAttacker)
 {
 	if (!sv_neo_infinite_frag_grenades.GetBool())
@@ -244,26 +230,24 @@ void CWeaponGrenade::ThrowGrenade(CNEO_Player *pPlayer, bool isAlive, CBaseEntit
 #ifndef CLIENT_DLL
 	QAngle angThrow = pPlayer->LocalEyeAngles();
 
-	Vector vForward, vRight, vUp;
-
-	if (angThrow.x < 90)
+	if (angThrow.x >= 0)
+		// Below horizon
 		angThrow.x = -10 + angThrow.x * ((90 + 10) / 90.0);
 	else
-	{
-		angThrow.x = 360.0f - angThrow.x;
-		angThrow.x = -10 + angThrow.x * -((90 - 10) / 90.0);
-	}
+		// Above horizon
+		angThrow.x = -10 + angThrow.x * ((90 - 10) / 90.0);
 
 	float flVel = (90 - angThrow.x) * 6;
 
 	if (flVel > sv_neo_grenade_throw_intensity.GetFloat())
 		flVel = sv_neo_grenade_throw_intensity.GetFloat();
 
-	AngleVectors(angThrow, &vForward, &vRight, &vUp);
+	Vector vForward;
+	AngleVectors(angThrow, &vForward, nullptr, nullptr);
 
 	Vector vecSrc = pPlayer->GetAbsOrigin() + pPlayer->GetViewOffset();
 
-	vecSrc += vForward * 16;
+	GetThrowPos(vForward, vecSrc);
 
 	Vector vecThrow = vForward * flVel + pPlayer->GetAbsVelocity();
 
@@ -294,6 +278,11 @@ bool CWeaponGrenade::CanDrop()
 void CWeaponGrenade::Drop(const Vector& vecVelocity)
 {
 	BaseClass::Drop(vecVelocity);
+}
+
+bool CWeaponGrenade::CanBePickedUpByClass(int classId)
+{
+	return classId != NEO_CLASS_JUGGERNAUT;
 }
 
 #ifndef CLIENT_DLL

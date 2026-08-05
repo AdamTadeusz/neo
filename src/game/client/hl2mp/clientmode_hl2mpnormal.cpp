@@ -121,8 +121,21 @@ ClientModeHL2MPNormal::ClientModeHL2MPNormal()
 {
 	m_pViewport = new CHudViewport();
 	m_pViewport->Start(gameuifuncs, gameeventmanager);
-	m_flStartAimingChange = 0.0f;
-	m_bViewAim = false;
+#ifdef NEO
+	ConVarRef cl_software_cursor( "cl_software_cursor" );
+	Assert(cl_software_cursor.IsValid());
+	if (cl_software_cursor.IsValid())
+	{
+		if (auto* surface = vgui::surface())
+		{
+			surface->SetSoftwareCursor(cl_software_cursor.GetBool());
+		}
+		else
+		{
+			Assert(false);
+		}
+	}
+#endif
 }
 
 
@@ -218,34 +231,16 @@ float ClientModeHL2MPNormal::GetViewModelFOV()
 		return BaseClass::GetViewModelFOV();
 	}
 
-	Assert(!GetActiveWeapon() || dynamic_cast<C_NEOBaseCombatWeapon*>(GetActiveWeapon()));
-	auto pWeapon = static_cast<C_NEOBaseCombatWeapon*>(GetActiveWeapon());
+	const auto* pWeapon = assert_cast<C_NEOBaseCombatWeapon*>(GetActiveWeapon());
 	if (!pWeapon)
 	{
 		return BaseClass::GetViewModelFOV();
 	}
 
-	auto pOwner = static_cast<C_NEO_Player*>(pWeapon->GetOwner());
+	const auto* pOwner = assert_cast<C_NEO_Player*>(pWeapon->GetOwner());
 	if (!pOwner)
 	{
 		return BaseClass::GetViewModelFOV();
-	}
-
-	auto pVm = pOwner->GetViewModel();
-	if (pVm)
-	{
-		// Toggle sniper viewmodel rendering according to scoped status.
-		if (pWeapon->GetNeoWepBits() & NEO_WEP_SCOPEDWEAPON)
-		{
-			if (pOwner->IsInAim())
-			{
-				pVm->AddEffects(EF_NODRAW);
-			}
-			else
-			{
-				pVm->RemoveEffects(EF_NODRAW);
-			}
-		}
 	}
 
 	float flTargetFov = m_flVMFOV;
@@ -266,7 +261,7 @@ float ClientModeHL2MPNormal::GetViewModelFOV()
 			m_bViewAim = true;
 		}
 
-		const CHL2MPSWeaponInfo* pWepInfo = &pWeapon->GetHL2MPWpnData();
+		const CNEOWeaponInfo* pWepInfo = &pWeapon->GetNEOWpnData();
 		Assert(pWepInfo);
 
 		const float endAimingChange = m_flStartAimingChange + NEO_ZOOM_SPEED;

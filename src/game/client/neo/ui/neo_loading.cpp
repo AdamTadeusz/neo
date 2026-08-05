@@ -4,13 +4,18 @@
 #include "ienginevgui.h"
 #include "ui/neo_root.h"
 #include "vgui/ISurface.h"
+#include "vgui/IInput.h"
 #include "vgui_controls/ProgressBar.h"
 #include "vgui_controls/Label.h"
 #include "vgui_controls/TextImage.h"
 #include "vgui_controls/Frame.h"
+#include "vgui_controls/Button.h"
+#include "neo_theme.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
+
+extern NeoUI::Context g_uiCtx;
 
 CNeoLoading::CNeoLoading()
 	: vgui::EditablePanel(nullptr, "NeoLoadingPanel")
@@ -19,21 +24,17 @@ CNeoLoading::CNeoLoading()
 	InvalidateLayout(false, true);
 	SetVisible(false);
 	MakePopup(false);
+	SetupNTRETheme(&m_uiCtx);
 
 	vgui::HScheme neoscheme = vgui::scheme()->LoadSchemeFromFileEx(
 		enginevgui->GetPanel(PANEL_CLIENTDLL), "resource/ClientScheme.res", "ClientScheme");
 	SetScheme(neoscheme);
 
 	SetMouseInputEnabled(true);
-	// NEO TODO (nullsystem): Don't need to handle KB input since ESC already does that
-	// Unless console controller the concern?
-	//SetKeyBoardInputEnabled(true);
+	SetKeyBoardInputEnabled(true);
 
 	vgui::IScheme *pScheme = vgui::scheme()->GetIScheme(neoscheme);
 	ApplySchemeSettings(pScheme);
-
-	m_pHostMap = g_pCVar->FindVar("host_map");
-	Assert(m_pHostMap != nullptr);
 }
 
 CNeoLoading::~CNeoLoading()
@@ -71,7 +72,6 @@ void CNeoLoading::ResetSizes(const int wide, const int tall)
 	m_iRowsInScreen = (tall * 0.85f) / m_uiCtx.layout.iDefRowTall;
 	m_uiCtx.iMarginX = wide / 192;
 	m_uiCtx.iMarginY = tall / 108;
-	m_uiCtx.selectBgColor = COLOR_NEOPANELACCENTBG;
 	const float flWide = static_cast<float>(wide);
 	float flWideAs43 = static_cast<float>(tall) * (4.0f / 3.0f);
 	if (flWideAs43 > flWide) flWideAs43 = flWide;
@@ -87,10 +87,18 @@ void CNeoLoading::OnMessage(const KeyValues *params, vgui::VPANEL fromPanel)
 	{
 		FetchGameUIPanels();
 		g_pNeoRoot->m_bOnLoadingScreen = true;
+		// The loading screen blocks software cursor render updates, so always use OS cursor for better responsiveness here.
+		vgui::surface()->SetSoftwareCursor(false);
 	}
 	else if (V_strcmp(pSzMsgName, "deactivate") == 0)
 	{
 		g_pNeoRoot->m_bOnLoadingScreen = false;
+		static ConVarRef cl_software_cursor( "cl_software_cursor" );
+
+		// Revert the software cursor option back to user preference once we exit the loading screen.
+		Assert(cl_software_cursor.IsValid());
+		vgui::surface()->SetSoftwareCursor(cl_software_cursor.GetBool());
+
 		if (engine->IsConnected() && !engine->IsLevelMainMenuBackground())
 		{
 			g_pNeoRoot->m_flTimeLoadingScreenTransition -= (NEO_MENU_SECONDS_DELAY + NEO_MENU_SECONDS_TILL_FULLY_OPAQUE); // Don't fade in the menu on disconnect
@@ -149,7 +157,9 @@ void CNeoLoading::FetchGameUIPanels()
 	{
 		const vgui::VPANEL curLoadChPanel = vgui::ipanel()->GetChild(loadingPanel, i);
 		const char *curLoadChPanelName = vgui::ipanel()->GetName(curLoadChPanel);
+#ifdef DBGFLAG_ASSERT
 		const char *curLoadChPanelClass = vgui::ipanel()->GetClassName(curLoadChPanel);
+#endif
 		Panel *pPanel = vgui::ipanel()->GetPanel(curLoadChPanel, "GAMEUI");
 		if (!pPanel)
 		{
@@ -165,10 +175,14 @@ void CNeoLoading::FetchGameUIPanels()
 			Assert(V_strcmp(curLoadChPanelClass, "Label") == 0);
 			m_pLabelInfo = static_cast<vgui::Label *>(pPanel);
 		}
+		else if (V_strcmp(curLoadChPanelName, "CancelButton") == 0)
+		{
+			Assert(V_strcmp(curLoadChPanelClass, "Button") == 0);
+			m_pButtonCancel = static_cast<vgui::Button *>(pPanel);
+		}
 		// NEO NOTE (nullsystem): Unused panels:
 		//    "Progress2" - Don't seem utilized
 		//    "TimeRemainingLabel" - Don't seem utilized
-		//    "CancelButton" - Can't do mouse input proper/workaround doesn't work well
 	}
 }
 
@@ -187,15 +201,9 @@ void CNeoLoading::OnMainLoop(const NeoUI::Mode eMode)
 
 	static bool bStaticInitNeoUI = false;
 	bool bSkipRender = false;
-	if (iStrIdx == m_aStrIdxMap[LOADINGSTATE_LOADING] && m_pHostMap)
+	if (iStrIdx == m_aStrIdxMap[LOADINGSTATE_LOADING])
 	{
-		auto hostMapName = m_pHostMap->GetString();
-		if (V_strlen(hostMapName) == 0)
-		{
-			bSkipRender = true;
-		}
-
-		if (Q_stristr(hostMapName, "background_"))
+		if (engine->IsLevelMainMenuBackground())
 		{
 			bSkipRender = true;
 		}
@@ -223,7 +231,11 @@ void CNeoLoading::OnMainLoop(const NeoUI::Mode eMode)
 	m_uiCtx.dPanel.wide = m_iRootSubPanelWide;
 	m_uiCtx.dPanel.tall = (m_iRowsInScreen - BOTTOM_ROWS) * m_uiCtx.layout.iRowTall;
 	m_uiCtx.dPanel.y = (tall / 2) - ((m_iRowsInScreen * m_uiCtx.layout.iRowTall) / 2);
-	m_uiCtx.bgColor = COLOR_TRANSPARENT;
+	m_uiCtx.colors.sectionBg = COLOR_TRANSPARENT;
+
+	// Make the eKeyHints be in sync with the root's one so we can display
+	// either keyboard or controller input message
+	m_uiCtx.eKeyHints = g_uiCtx.eKeyHints;
 
 	NeoUI::BeginContext(&m_uiCtx, eMode, pTITitle ? pTITitle->GetUText() : L"Loading...", "NeoLoadingMainCtx");
 	if (bSkipRender)
@@ -245,10 +257,10 @@ void CNeoLoading::OnMainLoop(const NeoUI::Mode eMode)
 			NeoUI::EndSection();
 			m_uiCtx.dPanel.y += m_uiCtx.dPanel.tall;
 			m_uiCtx.dPanel.tall = BOTTOM_ROWS * m_uiCtx.layout.iRowTall;
-			m_uiCtx.bgColor = COLOR_NEOPANELFRAMEBG;
-			NeoUI::BeginSection(true);
+			m_uiCtx.colors.sectionBg = COLOR_BLACK_TRANSPARENT;
+			NeoUI::BeginSection(NeoUI::SECTIONFLAG_DEFAULTFOCUS);
 			{
-				NeoUI::Label(L"Press ESC to cancel");
+				NeoUI::Label(NeoUI::HintAlt(L"Press ESC to cancel", L"Press SELECT to cancel"));
 				if (m_pLabelInfo) NeoUI::Label(m_pLabelInfo->GetTextImage()->GetUText());
 				if (m_pProgressBarMain) NeoUI::Progress(m_pProgressBarMain->GetProgress(), 0.0f, 1.0f);
 			}
@@ -258,15 +270,25 @@ void CNeoLoading::OnMainLoop(const NeoUI::Mode eMode)
 		{
 			m_uiCtx.dPanel.tall = (m_iRowsInScreen / 2) * m_uiCtx.layout.iRowTall;
 			m_uiCtx.dPanel.y = (tall / 2) - (m_uiCtx.dPanel.tall / 2);
-			m_uiCtx.bgColor = COLOR_NEOPANELFRAMEBG;
-			NeoUI::BeginSection(true);
+			m_uiCtx.colors.sectionBg = COLOR_BLACK_TRANSPARENT;
+			NeoUI::BeginSection(NeoUI::SECTIONFLAG_DEFAULTFOCUS);
 			{
 				if (m_pLabelInfo) NeoUI::LabelWrap(m_pLabelInfo->GetTextImage()->GetUText());
 				NeoUI::Pad();
-				NeoUI::Label(L"Press ESC to go back");
+				NeoUI::Label(NeoUI::HintAlt(L"Press ESC to go back", L"Press SELECT to go back"));
 			}
 			NeoUI::EndSection();
 		}
 	}
 	NeoUI::EndContext();
+
+	// NEO JANK (nullsystem): A hack to try to get the controller SELECT key to be recognized
+	// The usual OnKey... functions doesn't work so will have to do this. The ESC key is already
+	// handled by the SDK.
+	if (vgui::input()->WasKeyPressed(KEY_XBUTTON_BACK) || vgui::input()->IsKeyDown(KEY_XBUTTON_BACK) ||
+			vgui::input()->WasKeyPressed(STEAMCONTROLLER_SELECT) || vgui::input()->IsKeyDown(STEAMCONTROLLER_SELECT))
+	{
+		g_pNeoRoot->m_bOnLoadingScreen = false;
+		m_pButtonCancel->DoClick();
+	}
 }

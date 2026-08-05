@@ -204,7 +204,11 @@ char *GetBspFilename( const char *navFilename )
 
 	Q_snprintf( bspFilename, sizeof( bspFilename ), FORMAT_BSPFILE, STRING( gpGlobals->mapname ) );
 
+#ifdef NEO
+	int len = V_strlen( bspFilename );
+#else
 	int len = strlen( bspFilename );
+#endif
 	if (len < 3)
 		return NULL;
 
@@ -1642,6 +1646,14 @@ NavErrorType CNavMesh::PostLoad( unsigned int version )
 		CNavArea *area = TheNavAreas[ pit ];
 		area->PostLoad();
 	}
+
+#ifdef NEO
+	FOR_EACH_VEC( TheNavAreas, vit )
+	{
+		CNavArea *area = TheNavAreas[ vit ];
+		area->ComputePotentiallyVisibleAreaCount();
+	}
+#endif
 
 	// allow hiding spots to compute information
 	FOR_EACH_VEC( TheHidingSpots, hit )

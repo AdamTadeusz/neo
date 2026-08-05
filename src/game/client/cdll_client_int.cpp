@@ -150,6 +150,11 @@
 
 #endif
 
+#ifdef NEO
+#include <vgui_controls/Button.h>
+#include <vgui_controls/MenuButton.h>
+#include "neo_mp3player.h"
+#endif
 
 extern vgui::IInputInternal *g_InputInternal;
 
@@ -174,9 +179,14 @@ extern vgui::IInputInternal *g_InputInternal;
 #endif
 
 #ifdef NEO
+#include "../../common/neo/test_bit_cast.h"
+
 #include "neo_version.h"
+#include "neo_version_number.h"
 #include "ui/neo_loading.h"
+#include "ui/neo_root_serverbrowser.h"
 #include "neo_player_shared.h"
+#include "neo_crosshair.h"
 extern bool NeoRootCaptureESC();
 extern CNeoLoading *g_pNeoLoading;
 extern ConVar cl_neo_streamermode_autodetect_obs;
@@ -366,6 +376,12 @@ static ConVar s_cl_load_hl1_content("cl_load_hl1_content", "0", FCVAR_ARCHIVE, "
 
 ConVar r_lightmap_bicubic_set( "r_lightmap_bicubic_set", "0", FCVAR_ARCHIVE | FCVAR_HIDDEN, "Hack to get this convar to be re-set on first launch." );
 
+#ifdef NEO
+// Don't set current version as default here, handle it in version update check
+ConVar cl_neo_cfg_version_major("cl_neo_cfg_version_major", "0", FCVAR_ARCHIVE | FCVAR_HIDDEN, "NT;RE configuration version (major)");
+ConVar cl_neo_cfg_version_minor("cl_neo_cfg_version_minor", "0", FCVAR_ARCHIVE | FCVAR_HIDDEN, "NT;RE configuration version (minor)");
+#endif // NEO
+
 // Physics system
 bool g_bLevelInitialized;
 bool g_bTextMode = false;
@@ -474,6 +490,8 @@ class CClientDLLSharedAppSystems : public IClientDLLSharedAppSystems
 public:
 	CClientDLLSharedAppSystems()
 	{
+		#define DLL_EXT_STRING DLLExtTokenPaste2( _DLL_EXT )
+		
 		AddAppSystem( "soundemittersystem" DLL_EXT_STRING, SOUNDEMITTERSYSTEM_INTERFACE_VERSION );
 		AddAppSystem( "scenefilecache" DLL_EXT_STRING, SCENE_FILE_CACHE_INTERFACE_VERSION );
 	}
@@ -891,6 +909,38 @@ extern IGameSystem *ViewportClientSystem();
 //-----------------------------------------------------------------------------
 ISourceVirtualReality *g_pSourceVR = NULL;
 
+#ifdef NEO
+// Restrict external cheaty ConVars or ConCommands, where we don't have ctor access to set the flags.
+static void RestrictNeoClientCheats()
+{
+	if (!g_pCVar)
+	{
+		Assert(false);
+		return;
+	}
+
+	// NEO TODO (Rain): list currently incomplete...
+	// These cheat names can be either ConVars or ConCommands
+	constexpr const char* cheats[]{
+		"building_cubemaps",
+		"cl_showerror",
+		"net_showmsg",
+	};
+
+	constexpr auto flags = FCVAR_CHEAT;
+	for (int i = 0; i < ARRAYSIZE(cheats); ++i)
+	{
+		const char* cheatName = cheats[i];
+		if (auto* var = g_pCVar->FindVar(cheatName))
+			var->AddFlags(flags);
+		else if (auto* cmd = g_pCVar->FindCommand(cheatName))
+			cmd->AddFlags(flags);
+		else
+			AssertMsg1(false, "convar or concmd named \"%s\" was not found\n", cheatName);
+	}
+}
+#endif
+
 // Purpose: Called when the DLL is first loaded.
 // Input  : engineFactory - 
 // Output : int
@@ -899,6 +949,12 @@ int CHLClient::Init( CreateInterfaceFn appSystemFactory, CreateInterfaceFn physi
 {
 	InitCRTMemDebug();
 	MathLib_Init( 2.2f, 2.2f, 0.0f, 2.0f );
+#if defined(NEO)
+#if defined(ACTUALLY_COMPILER_MSVC) && defined(DBGFLAG_ASSERT)
+	Assert(s_bMathlibInitialized);
+	ValidateFastFuncs();
+#endif
+#endif
 
 
 #ifdef SIXENSE
@@ -989,9 +1045,13 @@ int CHLClient::Init( CreateInterfaceFn appSystemFactory, CreateInterfaceFn physi
 		return false;
 
 
-#if defined(NEO) && defined(DEBUG)
+#ifdef NEO
+	InitializeNeoClRenderer();
+	InitializeClNeoCrosshair();
+#ifdef DEBUG
 	InitializeDbgNeoClGitHashEdit();
-#endif
+#endif // DEBUG
+#endif // NEO
 
 	// it's ok if this is NULL. That just means the sourcevr.dll wasn't found
 	if ( CommandLine()->CheckParm( "-vr" ) )
@@ -1149,6 +1209,10 @@ int CHLClient::Init( CreateInterfaceFn appSystemFactory, CreateInterfaceFn physi
 		RegisterSecureLaunchProcessFunc( pfnUnsafeCmdLineProcessor );
 	}
 
+#ifdef NEO
+	VerifyValidDxLevel();
+#endif
+
 	return true;
 }
 
@@ -1187,103 +1251,8 @@ bool CHLClient::ReplayPostInit()
 #endif
 }
 
-static inline void UpdateBgm(ConVar *volCvar)
-{
-	if (!volCvar)
-	{
-		Assert(false);
-		return;
-	}
-
-#ifdef LINUX
-#define DIR_SLASH "/"
-#elif defined(_WIN32)
-#define DIR_SLASH "\\"
-#else
-#error Unimplemented!
-#endif
-	const char* bgmFiles[] = {
-		"ui"		DIR_SLASH "gamestartup1.mp3", // main menu bgm should be at first index
-		"gameplay"	DIR_SLASH "draw.mp3",
-		"gameplay"	DIR_SLASH "jinrai.mp3",
-		"gameplay"	DIR_SLASH "nsf.mp3",
-	};
-
-	CUtlVector<SndInfo_t> sounds;
-	enginesound->GetActiveSounds(sounds);
-
-	// If we are playing a music track, update its current volume.
-	char filename[MAX_PATH];
-	for (int i = 0; i < sounds.Size(); i++)
-	{
-		if (!g_pFullFileSystem->String(sounds[i].m_filenameHandle, filename, sizeof(filename)))
-		{
-			continue;
-		}
-		else if (!*filename)
-		{
-			continue;
-		}
-
-		for (int j = 0; j < ARRAYSIZE(bgmFiles); ++j)
-		{
-			if (Q_strcmp(filename, bgmFiles[j]) == 0)
-			{
-				enginesound->SetVolumeByGuid(sounds[i].m_nGuid, volCvar->GetFloat());
-				return; // should only ever be playing one jingle at a time; return early
-			}
-		}
-	}
-#ifndef NEO
-	// We were not in a server nor joining a server, and there was no music playing.
-	// Start playing the main menu bgm.
-	if (!engine->IsConnected())
-	{
-		enginesound->EmitAmbientSound(bgmFiles[0], volCvar->GetFloat());
-	}
-#endif // NEO
-}
-
-void MusicVol_ChangeCallback(IConVar *cvar, const char *pOldVal, float flOldVal)
-{
-	if (!g_pFullFileSystem)
-	{
-		Assert(false);
-		return;
-	}
-
-	// We are in a level, don't start playing menu music.
-	if (Q_strcmp(engine->GetLevelName(), "") != 0)
-	{
-		return;
-	}
-
-	UpdateBgm((ConVar*)cvar);
-}
-
 #ifdef NEO
 extern void NeoToggleConsoleEnforce();
-
-template <int STR_LIMIT_SIZE>
-static void NeoConVarStrLimitChangeCallback(IConVar *cvar, [[maybe_unused]] const char *pOldVal, [[maybe_unused]] float flOldVal)
-{
-	static bool bStaticCallbackChangedCVar = false;
-	if (bStaticCallbackChangedCVar)
-	{
-		return;
-	}
-
-	ConVarRef cvarRef(cvar);
-	if (V_strlen(cvarRef.GetString()) >= STR_LIMIT_SIZE)
-	{
-		bStaticCallbackChangedCVar = true;
-		char mutStr[STR_LIMIT_SIZE];
-		V_strcpy_safe(mutStr, cvarRef.GetString());
-		Q_UnicodeRepair(mutStr);
-		cvarRef.SetValue(mutStr);
-		bStaticCallbackChangedCVar = false;
-	}
-}
 #endif
 
 #ifdef NEO
@@ -1318,6 +1287,10 @@ static void NeoDeleteDownloadedSprays()
 		char szSLSearch[MAX_PATH];
 		V_sprintf_safe(szSLSearch, "%s/*.dat", szSLRelPath);
 
+		// Copy the string before calling FindFirst
+		char szFNameFLDir[MAX_PATH];
+		V_strcpy_safe(szFNameFLDir, pszFNameFLDir);
+
 		FileFindHandle_t findHdlSL;
 		for (const char *pszFNameSLDat = filesystem->FindFirst(szSLSearch, &findHdlSL);
 			 pszFNameSLDat && findHdlSL != FILESYSTEM_INVALID_FIND_HANDLE;
@@ -1344,7 +1317,7 @@ static void NeoDeleteDownloadedSprays()
 			}
 
 			char szFullFPathSLDat[MAX_PATH];
-			V_sprintf_safe(szFullFPathSLDat, SZ_USERCUSTOM_DIR "/%s/%s", pszFNameFLDir, pszFNameSLDat);
+			V_sprintf_safe(szFullFPathSLDat, SZ_USERCUSTOM_DIR "/%s/%s", szFNameFLDir, pszFNameSLDat);
 
 			// NEO JANK (nullsystem): filesystem API seems buggy having earlier file(s) in alphanum order
 			// unable to recognize those files and remove them. When RemoveFile was called wasn't the issue
@@ -1368,7 +1341,24 @@ static void NeoDeleteDownloadedSprays()
 	}
 	filesystem->FindClose(findHdlFL);
 }
-#endif
+
+// Makes sure that: bind is not set and default button is not set before setting it
+static void SetupBindIfNotSet(const char *pszBindName, const ButtonCode_t bc)
+{
+	const char *pszBinding = gameuifuncs->GetBindingForButtonCode(bc);
+
+	const bool bBindNotUsed = gameuifuncs->GetButtonCodeForBind(pszBindName) <= BUTTON_CODE_NONE;
+	const bool bButtonCodeNotUsed = (!pszBinding || !pszBinding[0]);
+	if (bBindNotUsed && bButtonCodeNotUsed)
+	{
+		const char *pszButtonName = g_pInputSystem->ButtonCodeToString(bc);
+		char szCmd[128];
+		V_sprintf_safe(szCmd, "bind \"%s\" \"%s\"\n", pszButtonName, pszBindName);
+		engine->ClientCmd_Unrestricted(szCmd);
+	}
+}
+
+#endif // NEO
 
 //-----------------------------------------------------------------------------
 // Purpose: Called after client & server DLL are loaded and all systems initialized
@@ -1401,13 +1391,148 @@ void CHLClient::PostInit()
 #endif
 
 #ifdef NEO
+#if defined(DEBUG) && defined(DBGFLAG_ASSERT)
+	// Tests
+	{
+		neo::test::conversions();
+	}
+#endif
+
+	NeoMP3::Init();
+
 	if (g_pCVar)
 	{
-		g_pCVar->FindVar("snd_musicvolume")->InstallChangeCallback(MusicVol_ChangeCallback);
-		g_pCVar->FindVar("neo_name")->InstallChangeCallback(NeoConVarStrLimitChangeCallback<MAX_PLAYER_NAME_LENGTH>);
-		g_pCVar->FindVar("neo_clantag")->InstallChangeCallback(NeoConVarStrLimitChangeCallback<NEO_MAX_CLANTAG_LENGTH>);
-		g_pCVar->FindVar("cl_neo_crosshair")->InstallChangeCallback(NeoConVarStrLimitChangeCallback<NEO_XHAIR_SEQMAX>);
+		g_pCVar->FindVar("neo_name")->InstallChangeCallback(NeoConVarFixPrintable<MAX_PLAYER_NAME_LENGTH>);
+		g_pCVar->FindVar("neo_clantag")->InstallChangeCallback(NeoConVarFixPrintable<NEO_MAX_CLANTAG_LENGTH>);
+		g_pCVar->FindVar("cl_neo_crosshair")->InstallChangeCallback(NeoConVarCrosshairChangeCallback);
+		g_pCVar->FindVar("snd_musicvolume")->InstallChangeCallback(NeoMP3::MusicVolCallback);
 		g_pCVar->FindVar("sv_use_steam_networking")->SetValue(false);
+		RestrictNeoClientCheats();
+
+		// Fixup invalid crosshair to default
+		ConVarRef cl_neo_crosshair("cl_neo_crosshair");
+		if (false == ValidateCrosshairSerial(cl_neo_crosshair.GetString()))
+		{
+			char szSequence[NEO_XHAIR_SEQMAX] = {};
+			DefaultCrosshairSerial(szSequence);
+			cl_neo_crosshair.SetValue(szSequence);
+		}
+
+		ConVar *sv_maxupdaterate = g_pCVar->FindVar( "sv_maxupdaterate" ); Assert(sv_maxupdaterate);
+		ConVar *cl_updaterate = g_pCVar->FindVar( "cl_updaterate" ); Assert(cl_updaterate);
+		static char svMaxUpdateRateDefault[4];
+		V_strcpy_safe(svMaxUpdateRateDefault, sv_maxupdaterate->GetDefault());
+		cl_updaterate->SetDefault(svMaxUpdateRateDefault);
+
+		// ConVarRef so that it properly sets the ConVar value
+		ConVarRef cvr_cl_neo_cfg_version_major("cl_neo_cfg_version_major");
+		ConVarRef cvr_cl_neo_cfg_version_minor("cl_neo_cfg_version_minor");
+		const int iCfgVerMajor = cvr_cl_neo_cfg_version_major.GetInt();
+		const int iCfgVerMinor = cvr_cl_neo_cfg_version_minor.GetInt();
+		if ((iCfgVerMajor < NEO_VERSION_MAJOR) || ((iCfgVerMajor == NEO_VERSION_MAJOR) && (iCfgVerMinor < NEO_VERSION_MINOR)))
+		{
+			// NEO NOTE (nullsystem):
+			//
+			// If the config version saved in the player's convar is lower than
+			// current version, check if there's need to setup new keybinds.
+			//
+			// Without this, when updating the player's binds will not be updated
+			// with the new keybinds.
+			//
+			// Using SetupBindIfNotSet, this will only do it if the player haven't
+			// set the bind already and if the player haven't set the key for which
+			// the bind defaults to.
+			if (iCfgVerMajor < 22)
+			{
+				SetupBindIfNotSet("+attack3", MOUSE_MIDDLE);	// Ping location
+				SetupBindIfNotSet("neo_mp3", KEY_M);			// MP3 player toggle
+			
+				// neo_aim_hold removal, +aim split to +aim and toggle_aim
+				// Since neo_aim_hold got removed, cannot tell if player used
+				// it or not, so just force toggle_aim if not set
+				const ButtonCode_t bcTAim = gameuifuncs->GetButtonCodeForBind("toggle_aim");
+				const ButtonCode_t bcPAim = gameuifuncs->GetButtonCodeForBind("+aim");
+				if (bcTAim <= BUTTON_CODE_NONE && bcPAim > BUTTON_CODE_NONE)
+				{
+					const char *bindBtnName = g_pInputSystem->ButtonCodeToString(bcPAim);
+					if (bindBtnName && bindBtnName[0])
+					{
+						char szCmd[128];
+
+						V_sprintf_safe(szCmd, "unbind \"%s\"\n", bindBtnName);
+						engine->ClientCmd_Unrestricted(szCmd);
+
+						V_sprintf_safe(szCmd, "bind \"%s\" \"toggle_aim\"\n", bindBtnName);
+						engine->ClientCmd_Unrestricted(szCmd);
+					}
+				}
+			}
+
+			if (iCfgVerMajor < 25)
+			{
+				const ButtonCode_t bcTAim = gameuifuncs->GetButtonCodeForBind("toggle_aim");
+				if (bcTAim > BUTTON_CODE_NONE)
+				{
+					const char *bindBtnName = g_pInputSystem->ButtonCodeToString(bcTAim);
+					if (bindBtnName && bindBtnName[0])
+					{
+						char szCmd[128];
+
+						V_sprintf_safe(szCmd, "unbind \"%s\"\n", bindBtnName);
+						engine->ClientCmd_Unrestricted(szCmd);
+
+						V_sprintf_safe(szCmd, "bind \"%s\" \"+toggle_aim\"\n", bindBtnName);
+						engine->ClientCmd_Unrestricted(szCmd);
+					}
+				}
+			}
+
+			if (iCfgVerMajor < 26)
+			{
+				ConVarRef cl_software_cursor( "cl_software_cursor" );
+				Assert(cl_software_cursor.IsValid());
+				if (cl_software_cursor.IsValid())
+				{
+					cl_software_cursor.SetValue(true);
+				}
+
+				// voice_modenable is used now instead of voice_enable as
+				// that's how the valve settings menu does it now and
+				// force voice_enable back on
+				ConVarRef cvr_voice_enable("voice_enable");
+				ConVarRef cvr_voice_modenable("voice_modenable");
+				cvr_voice_modenable.SetValue(cvr_voice_enable.GetBool());
+				cvr_voice_enable.SetValue(true);
+			}
+
+			if (iCfgVerMajor < 27)
+			{
+				// because cl_interp_ratio is dependent on this, and the default of 20
+				// is a bit too low to produce sensible default interp values:
+				//   2/20 = 0.1 (i.e. the old cl_interp)
+				//   2/66 = 0.03030... (much better)
+				constexpr int oldClUpdaterateDefault = 20;
+				if (cl_updaterate->GetInt() == oldClUpdaterateDefault)
+				{
+					cl_updaterate->SetValue(svMaxUpdateRateDefault);
+				}
+			}
+
+			if (iCfgVerMajor < 29)
+			{
+				// Upgrade pre NEOXHAIR_SERIAL_ALPHA_V29 crosshairs to NEOXHAIR_SERIAL_ALPHA_V29+
+				CrosshairInfo xhairInfo = {};
+				if (ImportCrosshair(&xhairInfo, cl_neo_crosshair.GetString()))
+				{
+					char szExportSeq[NEO_XHAIR_SEQMAX];
+					ExportCrosshair(&xhairInfo, szExportSeq);
+					cl_neo_crosshair.SetValue(szExportSeq);
+				}
+			}
+
+			cvr_cl_neo_cfg_version_major.SetValue(NEO_VERSION_MAJOR);
+			cvr_cl_neo_cfg_version_minor.SetValue(NEO_VERSION_MINOR);
+		}
 	}
 	else
 	{
@@ -1501,7 +1626,9 @@ void CHLClient::PostInit()
 void CHLClient::Shutdown( void )
 {
 #ifdef NEO
+	NeoMP3::Deinit();
 	NeoDeleteDownloadedSprays();
+	ServerBlacklistWrite(SERVER_BLACKLIST_DEFFILE);
 #endif
 
     if (g_pAchievementsAndStatsInterface)
@@ -1824,6 +1951,79 @@ void CHLClient::DecodeUserCmdFromBuffer( bf_read& buf, int slot )
 	input->DecodeUserCmdFromBuffer( buf, slot );
 }
 
+#ifdef NEO
+inline static vgui::VPANEL ChildOf(const vgui::VPANEL parent, const char* childName)
+{
+	Assert(parent);
+	const auto& children = vgui::ipanel()->GetChildren(parent);
+	for (const auto& child : children)
+	{
+		const char* name = vgui::ipanel()->GetName(child);
+		Assert(childName && *childName);
+		if (name && V_strcmp(name, childName) == 0)
+			return child;
+	}
+	return {};
+}
+
+static void FixupDemoSmoother()
+{
+	VPROF_BUDGET(__FUNCTION__, VPROF_BUDGETGROUP_REPLAY);
+
+	static bool alreadyDone = false;
+	if (alreadyDone)
+		return;
+
+	// Don't spam the vgui iteration attempts too often...
+	static float lastAttemptTime{};
+	if (gpGlobals->curtime - lastAttemptTime < 1)
+	{
+		// ...except if we're not ticking, since who knows how long it's been.
+		// Luckily perf doesn't really matter if the entire game is currently frozen.
+		if (!engine->IsPaused())
+		{
+			return;
+		}
+	}
+
+	lastAttemptTime = gpGlobals->curtime;
+
+	Assert(enginevgui);
+	const auto toolsPanel = enginevgui->GetPanel(PANEL_TOOLS);
+	const auto demoUiPanel = ChildOf(toolsPanel, "DemoUIPanel");
+	const auto demoSmootherPanel = ChildOf(demoUiPanel, "DemoSmootherPanel");
+	if (!demoSmootherPanel)
+		return;
+
+	constexpr const char* demoSmootherPanelButtonsToFix[]{
+		"DemoSmoothFixFrameButton",
+		"DemoSmootherType" };
+
+	int numFixed = 0;
+	for (const auto& buttonName : demoSmootherPanelButtonsToFix)
+	{
+		auto button = vgui::ipanel()->GetPanel(ChildOf(demoSmootherPanel, buttonName), "BaseUI");
+		if (!button)
+			continue;
+
+		// The buttons live in engine dll, so this could theoretically change in SDK update.
+		using ExpectedButtonType = vgui::MenuButton;
+		// And so we check
+		if (!dynamic_cast<ExpectedButtonType*>(button))
+		{
+			Assert(false);
+			alreadyDone = true; // nothing we can do until code fix... just mark as done
+			return;
+		}
+
+		((ExpectedButtonType*)button)->SetButtonActivationType(vgui::Button::ACTIVATE_ONPRESSED);
+		++numFixed;
+	}
+
+	alreadyDone = (numFixed == ARRAYSIZE(demoSmootherPanelButtonsToFix));
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -1837,6 +2037,12 @@ void CHLClient::View_Render( vrect_t *rect )
 
 	view->Render( rect );
 	UpdatePerfStats();
+#ifdef NEO
+	if (engine->IsPlayingDemo())
+	{
+		FixupDemoSmoother();
+	}
+#endif
 }
 
 
@@ -2085,17 +2291,6 @@ void CHLClient::LevelShutdown( void )
 	// Shutdown the ragdoll recorder
 	CReplayRagdollRecorder::Instance().Shutdown();
 	CReplayRagdollCache::Instance().Shutdown();
-#endif
-
-#ifdef NEO
-	if (g_pCVar)
-	{
-		UpdateBgm(g_pCVar->FindVar("snd_musicvolume"));
-	}
-	else
-	{
-		Assert(false);
-	}
 #endif
 }
 
@@ -2461,6 +2656,29 @@ void OnRenderStart()
 	VPROF( "OnRenderStart" );
 	MDLCACHE_CRITICAL_SECTION();
 	MDLCACHE_COARSE_LOCK();
+
+#ifdef NEO
+	if (engine->IsPaused())
+	{
+		Rope_ResetCounters();
+
+		{
+			PREDICTION_TRACKVALUECHANGESCOPE( "interpolation" );
+			C_BaseEntity::InterpolateServerEntities();
+		}
+
+		{
+			C_BaseAnimating::PushAllowBoneAccess( true, false, "OnRenderStart->CViewRender::SetUpView" ); // pops in CViewRender::SetUpView
+		}
+
+		input->CAM_Think();
+		view->OnRenderStart();
+		
+		RopeManager()->OnRenderStart();
+		
+		return;
+	}
+#endif // NEO
 
 #ifdef PORTAL
 	g_pPortalRender->UpdatePortalPixelVisibility(); //updating this one or two lines before querying again just isn't cutting it. Update as soon as it's cheap to do so.

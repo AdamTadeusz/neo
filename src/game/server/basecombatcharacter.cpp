@@ -58,6 +58,10 @@
 	#include "portal_shareddefs.h"
 #endif
 
+#ifdef NEO
+#include "neo_player.h"
+#endif
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -205,6 +209,10 @@ IMPLEMENT_SERVERCLASS_ST(CBaseCombatCharacter, DT_BaseCombatCharacter)
 
 	SendPropEHandle( SENDINFO( m_hActiveWeapon ) ),
 	SendPropArray3( SENDINFO_ARRAY3(m_hMyWeapons), SendPropEHandle( SENDINFO_ARRAY(m_hMyWeapons) ) ),
+
+#ifdef NEO
+	SendPropInt( SENDINFO( m_bloodColor ) ),
+#endif
 
 #ifdef INVASION_DLL
 	SendPropInt( SENDINFO(m_iPowerups), MAX_POWERUPS, SPROP_UNSIGNED ), 
@@ -878,7 +886,9 @@ void CBaseCombatCharacter::UpdateOnRemove( void )
 //=========================================================
 bool CBaseCombatCharacter::CorpseGib( const CTakeDamageInfo &info )
 {
+#ifndef NEO
 	trace_t		tr;
+#endif
 	bool		gibbed = false;
 
 	EmitSound( "BaseCombatCharacter.CorpseGib" );
@@ -1569,6 +1579,14 @@ bool CBaseCombatCharacter::BecomeRagdoll( const CTakeDamageInfo &info, const Vec
 		CBaseEntity *pRagdoll = CreateServerRagdoll( this, m_nForceBone, newinfo, COLLISION_GROUP_INTERACTIVE_DEBRIS, true );
 		FixupBurningServerRagdoll( pRagdoll );
 		PhysSetEntityGameFlags( pRagdoll, FVPHYSICS_NO_SELF_COLLISIONS );
+#ifdef NEO
+		if (IsPlayer())
+		{
+			auto *pPlayer = ToNEOPlayer(this);
+			pPlayer->m_hServerRagdoll = pRagdoll;
+			pPlayer->m_hRagdoll = nullptr;
+		}
+#endif
 		RemoveDeferred();
 
 		return true;
@@ -1781,7 +1799,9 @@ void CBaseCombatCharacter::ThrowDirForWeaponStrip( CBaseCombatWeapon *pWeapon, c
 		VMatrix zRot;
 		MatrixBuildRotateZ( zRot, random->RandomFloat( -60.0f, 60.0f ) );
 
+#ifndef NEO
 		Vector vecThrow;
+#endif
 		Vector3DMultiply( zRot, vecForward, *pVecThrowDir );
 
 		pVecThrowDir->z = random->RandomFloat( -0.5f, 0.5f );
@@ -2163,8 +2183,13 @@ void CBaseCombatCharacter::Weapon_Equip( CBaseCombatWeapon *pWeapon )
 		// If SF_NPC_LONG_RANGE spawn flags is set let weapon work from any distance
 		if ( HasSpawnFlags(SF_NPC_LONG_RANGE) )
 		{
+#ifdef NEO
+			m_hActiveWeapon->m_fMaxRange1 = 999999999.f;
+			m_hActiveWeapon->m_fMaxRange2 = 999999999.f;
+#else
 			m_hActiveWeapon->m_fMaxRange1 = 999999999;
 			m_hActiveWeapon->m_fMaxRange2 = 999999999;
+#endif
 		}
 	}
 
@@ -3445,6 +3470,21 @@ float CBaseCombatCharacter::GetFogObscuredRatio( CBaseEntity *target ) const
 //-----------------------------------------------------------------------------
 float CBaseCombatCharacter::GetFogObscuredRatio( float range ) const
 {
+#ifdef NEO // Generic solution for NPCs
+	auto controller = FogSystem()->GetMasterFogController();
+
+	if ( controller )
+	{
+		const fogparams_t &fog = controller->m_fog;
+
+		if ( !fog.enable )
+			return 0.0f;
+
+		float ratio = RemapValClamped( range, fog.start, fog.end, 0.0f, 1.0f );
+		ratio = MIN( ratio, fog.maxdensity );
+		return ratio;
+	}
+#endif
 /* TODO: Get global fog from map somehow since nav mesh fog is gone
 	fogparams_t fog;
 	GetFogParams( &fog );

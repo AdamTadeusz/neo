@@ -89,6 +89,7 @@ enum
 };
 
 
+#ifndef NEO // Unity build
 enum SpeechMemory_t
 {
 	bits_MEMORY_PAIN_LIGHT_SOUND	= bits_MEMORY_CUSTOM1,
@@ -96,6 +97,7 @@ enum SpeechMemory_t
 	bits_MEMORY_PLAYER_HURT			= bits_MEMORY_CUSTOM3,
 	bits_MEMORY_PLAYER_HARASSED		= bits_MEMORY_CUSTOM4,
 };
+#endif
 
 //Metrocop
 int	g_interactionMetrocopStartedStitch = 0;
@@ -133,7 +135,11 @@ int AE_METROPOLICE_DEPLOY_MANHACK;	// was	51
 // -----------------------------------------------
 //	> Squad slots
 // -----------------------------------------------
+#ifdef NEO // Unity build
+enum SquadSlotMetroPolice_T
+#else
 enum SquadSlot_T
+#endif
 {
 	SQUAD_SLOT_POLICE_CHARGE_ENEMY = LAST_SHARED_SQUADSLOT,
 	SQUAD_SLOT_POLICE_HARASS, // Yell at the player with a megaphone, etc.
@@ -4698,7 +4704,9 @@ void CNPC_MetroPolice::RunTask( const Task_t *pTask )
 		{
 			AutoMovement( );
 
+#ifndef NEO
 			Vector vecAimPoint;
+#endif
 			GetMotor()->SetIdealYawToTargetAndUpdate( m_vecBurstTargetPos, AI_KEEP_YAW_SPEED );
 
 			if ( IsActivityFinished() )

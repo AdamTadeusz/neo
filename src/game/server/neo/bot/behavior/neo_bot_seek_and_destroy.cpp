@@ -5,7 +5,11 @@
 #include "bot/neo_bot.h"
 #include "bot/behavior/neo_bot_attack.h"
 #include "bot/behavior/neo_bot_seek_and_destroy.h"
+#include "bot/behavior/neo_bot_ctg_seek.h"
+#include "bot/behavior/neo_bot_jgr_seek.h"
+#include "bot/neo_bot_path_compute.h"
 #include "nav_mesh.h"
+#include "soundent.h"
 
 extern ConVar neo_bot_path_lookahead_range;
 extern ConVar neo_bot_offense_must_push_time;
@@ -14,6 +18,105 @@ extern ConVar neo_bot_defense_must_defend_time;
 ConVar neo_bot_debug_seek_and_destroy( "neo_bot_debug_seek_and_destroy", "0", FCVAR_CHEAT );
 ConVar neo_bot_disable_seek_and_destroy( "neo_bot_disable_seek_and_destroy", "0", FCVAR_CHEAT );
 
+
+//---------------------------------------------------------------------------------------------
+CSound* CNEOBotSeekAndDestroy::SearchGunfireSounds(CNEOBot* me, const Vector* currentGoalPos)
+{
+	CSound* pClosestSound = nullptr;
+	float flClosestDistSqr = FLT_MAX;
+	const Vector& vecMyOrigin = me->GetAbsOrigin();
+
+	float flGoalDistSqr = FLT_MAX;
+	if (currentGoalPos && *currentGoalPos != vec3_invalid)
+	{
+		flGoalDistSqr = vecMyOrigin.DistToSqr(*currentGoalPos);
+	}
+
+	CSound* pSound = nullptr;
+	for (int iSound = CSoundEnt::ActiveList(); iSound != SOUNDLIST_EMPTY; iSound = pSound->NextSound())
+	{
+		pSound = CSoundEnt::SoundPointerForIndex(iSound);
+		if (!pSound)
+		{
+			break;
+		}
+
+		if (!(pSound->SoundType() & SOUND_COMBAT))
+		{
+			continue;
+		}
+
+		CBaseEntity *pOwner = pSound->m_hOwner.Get();
+
+		// Ignore non-player sounds and sounds we were responsible for
+		if (!pOwner || !pOwner->IsPlayer() || pOwner == me)
+		{
+			continue;
+		}
+
+		// NEO Jank: prevent bots from crowding teammates in teamplay
+		if (NEORules()->IsTeamplay() && me->InSameTeam(pOwner))
+		{
+			continue;
+		}
+
+		// Search for the closest gunfire sounds
+		float distSqr = vecMyOrigin.DistToSqr(pSound->GetSoundOrigin());
+
+		// Only consider sounds that are closer than the current goal
+		if (distSqr >= flGoalDistSqr)
+		{
+			continue;
+		}
+
+		if (distSqr >= flClosestDistSqr)
+		{
+			continue;
+		}
+
+		bool bInPAS = false;
+		CPASFilter filter(pSound->GetSoundOrigin());
+		for (int i = 0; i < filter.GetRecipientCount(); ++i)
+		{
+			if (filter.GetRecipientIndex(i) == me->entindex())
+			{
+				bInPAS = true;
+				break;
+			}
+		}
+
+		if (!bInPAS)
+		{
+			continue;
+		}
+
+		flClosestDistSqr = distSqr;
+		pClosestSound = pSound;
+	}
+
+	return pClosestSound;
+}
+
+//---------------------------------------------------------------------------------------------
+const Vector& CNEOBotSeekAndDestroy::SearchGunfireLocation(CNEOBot* me, const Vector* currentGoalPos)
+{
+	CSound* pBestSound = SearchGunfireSounds(me, currentGoalPos);
+	if (pBestSound)
+	{
+		if (currentGoalPos && *currentGoalPos != vec3_invalid)
+		{
+			// Only change goal if recent gunfire is radically different than where I was going
+			constexpr float flThresholdSqr = 200.0f * 200.0f;
+			if (currentGoalPos->DistToSqr(pBestSound->GetSoundOrigin()) <= flThresholdSqr)
+			{
+				return vec3_invalid;
+			}
+		}
+		return pBestSound->GetSoundOrigin();
+	}
+
+	return vec3_invalid;
+}
 
 //---------------------------------------------------------------------------------------------
 CNEOBotSeekAndDestroy::CNEOBotSeekAndDestroy( float duration )
@@ -50,6 +153,26 @@ ActionResult< CNEOBot >	CNEOBotSeekAndDestroy::OnStart( CNEOBot *me, Action< CNE
 //---------------------------------------------------------------------------------------------
 ActionResult< CNEOBot >	CNEOBotSeekAndDestroy::Update( CNEOBot *me, float interval )
 {
+	ActionResult< CNEOBot > result = UpdateCommon( me, interval );
+	if ( result.IsRequestingChange() || result.IsDone() )
+		return result;
+
+	// Check for Game Type Specific behaviors and suspend for them
+	if (NEORules()->GetGameType() == NEO_GAME_TYPE_CTG)
+	{
+		return SuspendFor( new CNEOBotCtgSeek, "Switching to Ghost-related Seek and Destroy" );
+	}
+	else if (NEORules()->GetGameType() == NEO_GAME_TYPE_JGR)
+	{
+		return SuspendFor( new CNEOBotJgrSeek, "Switching to Juggernaut-related Seek and Destroy" );
+	}
+
+	return Continue();
+}
+
+//---------------------------------------------------------------------------------------------
+ActionResult< CNEOBot > CNEOBotSeekAndDestroy::UpdateCommon( CNEOBot *me, float interval )
+{
 	if ( m_giveUpTimer.HasStarted() && m_giveUpTimer.IsElapsed() )
 	{
 		return Done( "Behavior duration elapsed" );
@@ -60,15 +183,74 @@ ActionResult< CNEOBot >	CNEOBotSeekAndDestroy::Update( CNEOBot *me, float interv
 		return Done( "Disabled." );
 	}
 
-	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
+	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat(true);
 
 	if ( threat )
 	{
-		const float engageRange = 1000.0f;
-		if ( me->IsRangeLessThan( threat->GetLastKnownPosition(), engageRange ) )
+		const auto *neoThreat = ToNEOPlayer(threat->GetEntity());
+		// This will just go to the ghoster RecomputeSeekPath logics instead of
+		// only going after it
+		const bool bDontSuspendForGhoster = (neoThreat && neoThreat->IsCarryingGhost());
+		if (!bDontSuspendForGhoster)
 		{
+			const Vector& threatLastKnownPos = threat->GetLastKnownPosition();
+			// fall back to nearest teammate for backup if I am the closest contact to enemy
+			if ( NEORules()->IsTeamplay() )
+			{
+				bool bAnyTeammatesCloserToEnemy = false;
+				CNEO_Player* pNearestTeammate = nullptr;
+				float distToNearestTeammateSqr = FLT_MAX;
+				const Vector& myPos = me->GetAbsOrigin();
+				const float distMeToThreatSqr = myPos.DistToSqr(threatLastKnownPos);
+
+				for (int i = 1; i <= gpGlobals->maxClients; i++)
+				{
+					CBasePlayer *pPlayer = UTIL_PlayerByIndex(i);
+					if (!pPlayer)
+					{
+						continue;
+					}
+					
+					CNEO_Player *pNeoCandidate = ToNEOPlayer(pPlayer);
+					if (!pNeoCandidate)
+					{
+						continue;
+					}
+
+					if (pNeoCandidate->InSameTeam(me) && (me != pNeoCandidate))
+					{
+						const Vector& candidatePos = pNeoCandidate->GetAbsOrigin();
+						if (threatLastKnownPos.DistToSqr(candidatePos) < distMeToThreatSqr)
+						{
+							bAnyTeammatesCloserToEnemy = true;
+							break;
+						}	
+
+						float distCandidateSqr = myPos.DistToSqr(candidatePos);
+						if (distCandidateSqr < distToNearestTeammateSqr)
+						{
+							distToNearestTeammateSqr = distCandidateSqr;
+							pNearestTeammate = pNeoCandidate;
+						}
+					}
+				}
+
+				if (!bAnyTeammatesCloserToEnemy && pNearestTeammate)
+				{
+					return SuspendFor( new CNEOBotAttack( pNearestTeammate->GetAbsOrigin() ), "Kiting enemy toward teammate for backup" );
+				}
+			}
+			
 			return SuspendFor( new CNEOBotAttack, "Going after an enemy" );
 		}
+	}
+	else
+	{
+		// Out of combat
+		me->DisableCloak();
+
+		// Reload when safe
+		me->ReloadIfLowClip();
 	}
 
 	// move towards our seek goal
@@ -122,6 +304,27 @@ ActionResult< CNEOBot >	CNEOBotSeekAndDestroy::Update( CNEOBot *me, float interv
 		m_repathTimer.Start( 45.0f );
 
 		RecomputeSeekPath( me );
+	}
+	else if ( m_bInvestigateGunfire && (!m_soundSearchTimer.HasStarted() || m_soundSearchTimer.IsElapsed()) )
+	{
+		m_soundSearchTimer.Start( 0.25f );
+
+		const Vector& vGunfireLocation = SearchGunfireLocation(me, &m_vGoalPos);
+		if (vGunfireLocation != vec3_invalid)
+		{
+			m_vGoalPos = vGunfireLocation;
+			m_bGoingToTargetEntity = false;
+
+			if (CNEOBotPathCompute(me, m_path, m_vGoalPos, DEFAULT_ROUTE))
+			{
+				m_repathTimer.Start( 45.0f );
+			}
+			else
+			{
+				// NEO Jank: Sound is unreachable so wait for it clear from the sound list
+				m_soundSearchTimer.Start( 3.0f );
+			}
+		}
 	}
 
 	return Continue();
@@ -316,33 +519,34 @@ void CNEOBotSeekAndDestroy::RecomputeSeekPath( CNEOBot *me )
 			CBaseEntity* pClosestWeapon = pWeapons[i];
 			if ( pClosestWeapon )
 			{
-				CNEOBotPathCost cost( me, SAFEST_ROUTE );
 				m_hTargetEntity = pClosestWeapon;
 				m_bGoingToTargetEntity = true;
 				m_vGoalPos = pClosestWeapon->WorldSpaceCenter();
-				if ( m_path.Compute( me, m_vGoalPos, cost, 0.0f, true, true ) && m_path.IsValid() && m_path.GetResult() == Path::COMPLETE_PATH )
+				if ( CNEOBotPathCompute( me, m_path, m_vGoalPos, DEFAULT_ROUTE ) && m_path.IsValid() && m_path.GetResult() == Path::COMPLETE_PATH )
 					return;
 			}
 		}
 	}
 #endif
-
-	if (NEORules()->GhostExists())
-	{ // If the ghost exists, go to the ghost
-		m_vGoalPos = NEORules()->GetGhostPos();
-		constexpr int DISTANCE_CONSIDERED_ARRIVED_SQUARED = 5000;
-		if (m_vGoalPos.DistToSqr(me->GetAbsOrigin()) < DISTANCE_CONSIDERED_ARRIVED_SQUARED)
+	
+	// Listen for gunfights
+	if (m_bInvestigateGunfire)
+	{
+		const Vector& vGunfireLocation = SearchGunfireLocation(me);
+		if (vGunfireLocation != vec3_invalid)
 		{
-			constexpr float RECHECK_TIME = 30.f;
-			m_repathTimer.Start(RECHECK_TIME);
+			m_vGoalPos = vGunfireLocation;
 			m_bGoingToTargetEntity = false;
-			return;
-		}
-		m_bGoingToTargetEntity = true;
-		CNEOBotPathCost cost(me, SAFEST_ROUTE);
-		if (m_path.Compute(me, m_vGoalPos, cost, 0.0f, true, true) && m_path.IsValid() && m_path.GetResult() == Path::COMPLETE_PATH)
-		{
-			return;
+
+			if (CNEOBotPathCompute(me, m_path, m_vGoalPos, DEFAULT_ROUTE) && m_path.IsValid() && m_path.GetResult() == Path::COMPLETE_PATH)
+			{
+				return;
+			}
+			else
+			{
+				// NEO Jank: Sound is unreachable so wait for it clear from the sound list
+				m_soundSearchTimer.Start( 3.0f );
+			}
 		}
 	}
 
@@ -364,11 +568,10 @@ void CNEOBotSeekAndDestroy::RecomputeSeekPath( CNEOBot *me )
 		{
 			for ( int i = 0; i < 10; i++ )
 			{
-				CNEOBotPathCost cost( me, SAFEST_ROUTE );
 				m_hTargetEntity = pSpawns[RandomInt( 0, pSpawns.Size() - 1 )];
 				m_bGoingToTargetEntity = true;
 				m_vGoalPos = m_hTargetEntity->WorldSpaceCenter();
-				if ( m_path.Compute( me, m_vGoalPos, cost, 0.0f, true, true ) && m_path.IsValid() && m_path.GetResult() == Path::COMPLETE_PATH )
+				if ( CNEOBotPathCompute( me, m_path, m_vGoalPos, DEFAULT_ROUTE ) && m_path.IsValid() && m_path.GetResult() == Path::COMPLETE_PATH )
 					return;
 			}
 		}
@@ -378,10 +581,9 @@ void CNEOBotSeekAndDestroy::RecomputeSeekPath( CNEOBot *me )
 	{
 		// No spawns we can get to? Just wander... somewhere!
 
-		CNEOBotPathCost cost( me, SAFEST_ROUTE );
 		Vector vWanderPoint = TheNavAreas[RandomInt( 0, TheNavAreas.Size() - 1 )]->GetCenter();
 		m_vGoalPos = vWanderPoint;
-		if ( m_path.Compute( me, vWanderPoint, cost ) )
+		if ( CNEOBotPathCompute( me, m_path, vWanderPoint, DEFAULT_ROUTE ) )
 			return;
 	}
 
@@ -416,8 +618,7 @@ EventDesiredResult< CNEOBot > CNEOBotSeekAndDestroy::OnCommandApproach( CNEOBot*
 	m_bOverrideApproach = true;
 	m_vOverrideApproach = pos;
 
-	CNEOBotPathCost cost( me, SAFEST_ROUTE );
-	m_path.Compute( me, m_vOverrideApproach, cost );
+	CNEOBotPathCompute( me, m_path, m_vOverrideApproach, DEFAULT_ROUTE );
 
 	return TryContinue();
 }

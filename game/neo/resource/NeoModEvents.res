@@ -81,6 +81,26 @@
 		"achievement"	"short"		// achievement ID
 	}
 	
+	"player_ping"
+	{
+		"userid"		"short"   	// userID of player who pinged
+		"playerteam"	"short"		// pinger team
+		"pingx"			"short"		// ping x position
+		"pingy"			"short"		// ping y position
+		"pingz"			"short"		// ping z position
+		"ghosterping"	"bool"		// the player is carrying the ghost
+	}
+	
+	"ghost_enemy_callout"
+	{
+		"userid"		"short"		// user ID of ghoster sending callout
+		"team"			"short"		// team of ghoster
+		"targetid"		"short"		// ID of target being called out
+		"targetx"		"short"		// target x position
+		"targety"		"short"		// target y position
+		"targetz"		"short"		// target z position
+	}
+	
 	// inherited from NT
 	"game_round_start"
 	{
@@ -91,5 +111,17 @@
 	"game_round_end"
 	{
 	
+	}
+	
+	// inherited from SDK
+	"player_stats_updated"
+	{
+		"forceupload"	"bool"
+	}
+	
+	"nav_blocked"
+	{
+		"area"			"long"
+		"blocked"		"bool"
 	}
 }

@@ -5,6 +5,7 @@
 #include "vgui_controls/ImagePanel.h"
 #include "vgui_controls/Button.h"
 #include "neo/game_controls/neo_button.h"
+#include "neo/game_controls/neo_image_button.h"
 
 #include <vgui/ILocalize.h>
 #include <vgui/ISurface.h>
@@ -16,6 +17,7 @@
 #include "neo_weapon_loadout.h"
 #include "neo_gamerules.h"
 #include "ui/neo_root.h"
+#include "IGameUIFuncs.h" // for key bindings
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -36,19 +38,6 @@ using namespace vgui;
 #define CONTROL_BUTTON11 "Button11"
 #define CONTROL_BUTTON12 "Button12"
 
-#define IMAGE_BUTTON1 "Button1Image"
-#define IMAGE_BUTTON2 "Button2Image"
-#define IMAGE_BUTTON3 "Button3Image"
-#define IMAGE_BUTTON4 "Button4Image"
-#define IMAGE_BUTTON5 "Button5Image"
-#define IMAGE_BUTTON6 "Button6Image"
-#define IMAGE_BUTTON7 "Button7Image"
-#define IMAGE_BUTTON8 "Button8Image"
-#define IMAGE_BUTTON9 "Button9Image"
-#define IMAGE_BUTTON10 "Button10Image"
-#define IMAGE_BUTTON11 "Button11Image"
-#define IMAGE_BUTTON12 "Button12Image"
-
 #define concat(first, second) first second
 
 static const char *szButtons[] = {
@@ -65,22 +54,6 @@ static const char *szButtons[] = {
     CONTROL_BUTTON11,
     CONTROL_BUTTON12,
 };
-static const char* szButtonImages[] = {
-	IMAGE_BUTTON1,
-	IMAGE_BUTTON2,
-	IMAGE_BUTTON3,
-	IMAGE_BUTTON4,
-	IMAGE_BUTTON5,
-	IMAGE_BUTTON6,
-	IMAGE_BUTTON7,
-	IMAGE_BUTTON8,
-	IMAGE_BUTTON9,
-	IMAGE_BUTTON10,
-	IMAGE_BUTTON11,
-	IMAGE_BUTTON12,
-};
-
-const int iNumButtonStrings = ARRAYSIZE(szButtons);
 
 Panel *NeoLoadout_Factory()
 {
@@ -102,16 +75,18 @@ CNeoLoadoutMenu::CNeoLoadoutMenu(IViewPort *pViewPort)
 
 	LoadControlSettings(GetResFile());
 
-	SetPaintBorderEnabled(false);
-	SetPaintBackgroundEnabled(false);
-	SetBorder(NULL);
-
 	SetVisible(false);
 	SetProportional(false);
 	SetMouseInputEnabled(true);
 	//SetKeyBoardInputEnabled(true); // Leaving here to highlight menu navigation with keyboard is possible atm
 	SetTitleBarVisible(false);
-	
+
+	m_iLoadoutNone = surface()->DrawGetTextureId("vgui/loadout/loadout_none");
+	if (m_iLoadoutNone == -1)
+	{
+		m_iLoadoutNone = surface()->CreateNewTextureID();
+		surface()->DrawSetTextureFile(m_iLoadoutNone, "vgui/loadout/loadout_none", true, false);
+	}
 	FindButtons();
 }
 
@@ -121,22 +96,22 @@ CNeoLoadoutMenu::~CNeoLoadoutMenu()
 
 void CNeoLoadoutMenu::FindButtons()
 {
-	m_pButton1 = FindControl<Button>(CONTROL_BUTTON1);
-	m_pButton2 = FindControl<Button>(CONTROL_BUTTON2);
-	m_pButton3 = FindControl<Button>(CONTROL_BUTTON3);
-	m_pButton4 = FindControl<Button>(CONTROL_BUTTON4);
-	m_pButton5 = FindControl<Button>(CONTROL_BUTTON5);
-	m_pButton6 = FindControl<Button>(CONTROL_BUTTON6);
-	m_pButton7 = FindControl<Button>(CONTROL_BUTTON7);
-	m_pButton8 = FindControl<Button>(CONTROL_BUTTON8);
-	m_pButton9 = FindControl<Button>(CONTROL_BUTTON9);
-	m_pButton10 = FindControl<Button>(CONTROL_BUTTON10);
-	m_pButton11 = FindControl<Button>(CONTROL_BUTTON11);
-	m_pButton12 = FindControl<Button>(CONTROL_BUTTON12);
+	m_pButton1 = FindControl<CNeoImageButton>(CONTROL_BUTTON1);
+	m_pButton2 = FindControl<CNeoImageButton>(CONTROL_BUTTON2);
+	m_pButton3 = FindControl<CNeoImageButton>(CONTROL_BUTTON3);
+	m_pButton4 = FindControl<CNeoImageButton>(CONTROL_BUTTON4);
+	m_pButton5 = FindControl<CNeoImageButton>(CONTROL_BUTTON5);
+	m_pButton6 = FindControl<CNeoImageButton>(CONTROL_BUTTON6);
+	m_pButton7 = FindControl<CNeoImageButton>(CONTROL_BUTTON7);
+	m_pButton8 = FindControl<CNeoImageButton>(CONTROL_BUTTON8);
+	m_pButton9 = FindControl<CNeoImageButton>(CONTROL_BUTTON9);
+	m_pButton10 = FindControl<CNeoImageButton>(CONTROL_BUTTON10);
+	m_pButton11 = FindControl<CNeoImageButton>(CONTROL_BUTTON11);
+	m_pButton12 = FindControl<CNeoImageButton>(CONTROL_BUTTON12);
 
-	for (int i = 0; i < iNumButtonStrings; i++)
+	for (int i = 0; i < MAX_WEAPON_LOADOUTS; i++)
 	{
-		auto button = FindControl<Button>(szButtons[i]); // Duplicate FindControl NEO FIXME
+		auto button = FindControl<CNeoImageButton>(szButtons[i]); // Duplicate FindControl NEO FIXME
 
 		if (!button)
 		{
@@ -145,12 +120,11 @@ void CNeoLoadoutMenu::FindButtons()
 			continue;
 		}
 
-		button->SetUseCaptureMouse(true);
 		button->SetMouseInputEnabled(true);
+		button->SetButtonTextureID(m_iLoadoutNone);
 	}
 
 	returnButton = FindControl<CNeoButton>("ReturnButton");
-	returnButton->SetUseCaptureMouse(true);
 	returnButton->SetMouseInputEnabled(true);
 	if (!returnButton)
 	{
@@ -160,7 +134,7 @@ void CNeoLoadoutMenu::FindButtons()
 
 void CNeoLoadoutMenu::CommandCompletion()
 {
-    for (int i = 0; i < iNumButtonStrings; i++)
+    for (int i = 0; i < MAX_WEAPON_LOADOUTS; i++)
 	{
         auto button = FindControl<Button>(szButtons[i]);
 
@@ -180,7 +154,6 @@ void CNeoLoadoutMenu::CommandCompletion()
 	SetEnabled(false);
 
 	SetMouseInputEnabled(false);
-	SetCursorAlwaysVisible(false);
 }
 
 void CNeoLoadoutMenu::ShowPanel(bool bShow)
@@ -218,6 +191,7 @@ void CNeoLoadoutMenu::OnMousePressed(vgui::MouseCode code)
 extern ConCommand loadoutmenu;
 
 extern ConVar sv_neo_ignore_wep_xp_limit;
+extern ConVar sv_neo_dev_loadout;
 
 void CNeoLoadoutMenu::OnClose()
 {
@@ -250,13 +224,13 @@ void CNeoLoadoutMenu::OnCommand(const char* command)
 		Q_StripPrecedingAndTrailingWhitespace(loadoutArgs[1]);
 		const int choiceNum = atoi(loadoutArgs[1]);
 
-		bool isDev = false;
 		auto localPlayer = C_NEO_Player::GetLocalNEOPlayer();
 		if (!localPlayer) { return; }
 
 		int currentXP = localPlayer->m_iXP.Get();
-		int currentClass = localPlayer->m_iNextSpawnClassChoice.Get() != -1 ? localPlayer->m_iNextSpawnClassChoice.Get() : localPlayer->m_iNeoClass.Get();
-		int numWeapons = CNEOWeaponLoadout::GetNumberOfLoadoutWeapons(currentXP, currentClass, isDev);
+		int currentClass = localPlayer->m_iNextSpawnClassChoice.Get() != NEO_CLASS_RANDOM ? localPlayer->m_iNextSpawnClassChoice.Get() : localPlayer->m_iNeoClass.Get();
+		int numWeapons = CNEOWeaponLoadout::GetNumberOfLoadoutWeapons(currentXP,
+				sv_neo_dev_loadout.GetBool() ? NEO_LOADOUT_DEV : currentClass);
 			
 		if (choiceNum+1 > numWeapons)
 		{
@@ -291,7 +265,7 @@ void CNeoLoadoutMenu::ChangeMenu(const char* menuName = NULL)
 
 void CNeoLoadoutMenu::OnKeyCodeReleased(vgui::KeyCode code)
 {
-	if (code == g_pNeoRoot->m_ns.keys.bcLoadoutMenu)
+	if (code == gameuifuncs->GetButtonCodeForBind("loadoutmenu"))
 	{
 		ChangeMenu(NULL);
 		return;
@@ -317,46 +291,47 @@ void CNeoLoadoutMenu::ApplySchemeSettings(vgui::IScheme *pScheme)
 	LoadControlSettings(GetResFile());
 	SetPaintBorderEnabled(false);
 	SetPaintBackgroundEnabled(false);
-	SetBorder(NULL);
-	
-	// FindButtons(); Doing this further down for all enabled buttons
 
-	bool isDev = false;
 	auto localPlayer = C_NEO_Player::GetLocalNEOPlayer();
 	if (!localPlayer) { return; }
 
-	int currentXP = localPlayer->m_iXP.Get();
-	int currentClass = localPlayer->m_iNextSpawnClassChoice.Get() != -1 ? localPlayer->m_iNextSpawnClassChoice.Get() : localPlayer->m_iNeoClass.Get();
+	const int currentXP = localPlayer->m_iXP.Get();
+	const int currentClass = localPlayer->m_iNextSpawnClassChoice.Get() != NEO_CLASS_RANDOM ? localPlayer->m_iNextSpawnClassChoice.Get() : localPlayer->m_iNeoClass.Get();
 
-	int numWeapons = CNEOWeaponLoadout::GetNumberOfLoadoutWeapons(currentXP, currentClass, isDev);
-	int i = 0;
-	for (i; i < MIN(iNumButtonStrings,numWeapons); i++)
-	{ // update all available weapons
-		auto button = FindControl<Button>(szButtons[i]);
-		button->SetUseCaptureMouse(true);
-		button->SetMouseInputEnabled(true);
-
-		auto image = FindControl<ImagePanel>(szButtonImages[i]);
-		image->SetImage(CNEOWeaponLoadout::GetLoadoutVguiWeaponName(currentClass, i, isDev));
+	int iLoadout = sv_neo_dev_loadout.GetBool() ? NEO_LOADOUT_DEV : currentClass;
+	if (IN_BETWEEN_AR(0, iLoadout, NEO_LOADOUT__COUNT) == false)
+	{
+		iLoadout = NEO_LOADOUT_INVALID;
 	}
 
-	for (i; i < MIN(iNumButtonStrings, CNEOWeaponLoadout::GetTotalLoadoutSize(currentClass, isDev)); i++)
-	{ // update all locked weapons
-		auto button = FindControl<Button>(szButtons[i]);
-		const char* command = ("");
-		button->SetCommand(command);
+	const auto &loadout = CNEOWeaponLoadout::s_LoadoutWeapons[iLoadout];
+	for (int i = 0; i < MAX_WEAPON_LOADOUTS; ++i)
+	{
+		const int iWepPrice = loadout[i].m_iWeaponPrice;
+		auto button = FindControl<CNeoImageButton>(szButtons[i]);
 
-		auto image = FindControl<ImagePanel>(szButtonImages[i]);
-		image->SetImage(CNEOWeaponLoadout::GetLoadoutVguiWeaponNameNo(currentClass, i, isDev));
-	}
-	for (i; i < iNumButtonStrings; i++)
-	{ // fill rest with dummy locked weapon
-		auto image = FindControl<ImagePanel>(szButtonImages[i]);
-		image->SetImage("loadout/loadout_none");
+		if (iWepPrice <= currentXP)
+		{
+			// Available weapons
+			button->SetButtonTexture(loadout[i].info.m_szVguiImage);
+			button->SetMouseInputEnabled(true);
+			continue;
+		}
+
+		button->SetEnabled(false);
+		if (iWepPrice < XP_EMPTY)
+		{
+			// Locked weapons
+			button->SetButtonTexture(loadout[i].info.m_szVguiImageNo);
+		}
+		else
+		{
+			// Dummy locked weapon slots
+			button->SetButtonTextureID(m_iLoadoutNone);
+		}
 	}
 
 	returnButton = FindControl<CNeoButton>("ReturnButton");
-	returnButton->SetUseCaptureMouse(true);
 	returnButton->SetMouseInputEnabled(true);
 	InvalidateLayout();
 }

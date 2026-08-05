@@ -2,8 +2,12 @@
 
 #include "cbase.h"
 #include "neo_player.h"
+#include "neo_smokelineofsightblocker.h"
 #include "bot/neo_bot.h"
+#include "bot/behavior/neo_bot_grenade_dispatch.h"
+#include "bot/behavior/neo_bot_retreat_from_grenade.h"
 #include "bot/behavior/neo_bot_retreat_to_cover.h"
+#include "bot/neo_bot_path_compute.h"
 
 extern ConVar neo_bot_path_lookahead_range;
 ConVar neo_bot_retreat_to_cover_range( "neo_bot_retreat_to_cover_range", "1000", FCVAR_CHEAT );
@@ -44,18 +48,45 @@ public:
 	{
 		VPROF_BUDGET( "CTestAreaAgainstThreats::Inspect", "NextBot" );
 
-		if ( m_me->IsEnemy( known.GetEntity() ) )
+		if ( !m_me->IsEnemy( known.GetEntity() ) )
 		{
-			const CNavArea *threatArea = known.GetLastKnownArea();
+			return true; // Known entity is not my enemy
+		}
 
-			if ( threatArea )
+		const CNavArea *threatArea = known.GetLastKnownArea();
+
+		if ( !threatArea )
+		{
+			return true; // Can't test area if we don't know last area of threat
+		}
+
+		if ( !threatArea->IsPotentiallyVisible( m_area ) )
+		{
+			return true; // Candidate area is not visible by threat
+		}
+
+		// Only consider smoke as concealment if I can see through it but the enemy cannot (thermal vision)
+		CNEO_Player *pThreatPlayer = ToNEOPlayer( known.GetEntity() );
+		if ( pThreatPlayer && (pThreatPlayer->GetClass() != NEO_CLASS_SUPPORT) && (m_me->GetClass() == NEO_CLASS_SUPPORT) )
+		{
+			ScopedSmokeLOS smokeScope( false );
+
+			Vector vecThreatEye = known.GetLastKnownPosition() + pThreatPlayer->GetViewOffset();
+			Vector vecCandidateArea = m_area->GetCenter() + m_me->GetViewOffset();
+
+			trace_t tr;
+			CTraceFilterSimple filter( known.GetEntity(), COLLISION_GROUP_NONE);
+			UTIL_TraceLine( vecThreatEye, vecCandidateArea, MASK_BLOCKLOS, &filter, &tr );
+
+			if ( tr.fraction < 1.0f )
 			{
-				// is area visible by known threat
-				if ( m_area->IsPotentiallyVisible( threatArea ) )
-					++m_exposedThreatCount;
+				return true; // Smoke provides concealment from this threat
 			}
 		}
 
+		++m_exposedThreatCount;  // Area is exposed to threat
+
+		// Return true to continue searching other known entities
 		return true;
 	}
 
@@ -173,7 +204,32 @@ ActionResult< CNEOBot >	CNEOBotRetreatToCover::OnStart( CNEOBot *me, Action< CNE
 //---------------------------------------------------------------------------------------------
 ActionResult< CNEOBot >	CNEOBotRetreatToCover::Update( CNEOBot *me, float interval )
 {
+	if ( m_grenadeCheckTimer.IsElapsed() )
+	{
+		m_grenadeCheckTimer.Start( 0.2f );
+
+		CBaseEntity *dangerousGrenade = CNEOBotRetreatFromGrenade::FindDangerousGrenade( me );
+		if ( dangerousGrenade )
+		{
+			// ChangeTo: Avoid behavior pingpong if grenade avoidance can't find cover
+			return ChangeTo( new CNEOBotRetreatFromGrenade( dangerousGrenade ), "Encountered grenade while retreating to cover!" );
+		}
+	}
+
 	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat( true );
+
+	if (!threat)
+	{
+		me->ReloadIfLowClip();
+	}
+	else if ( threat->GetEntity() && threat->GetEntity()->IsPlayer() )
+	{
+		CNEO_Player *pThreatPlayer = ToNEOPlayer( threat->GetEntity() );
+		if ( pThreatPlayer && pThreatPlayer->IsCarryingGhost() )
+		{
+			return Done( "Stopping retreat because my threat is the ghost carrier" );
+		}
+	}
 
 	if ( ShouldRetreat( me ) == ANSWER_NO )
 		return Done( "No longer need to retreat" );
@@ -181,6 +237,9 @@ ActionResult< CNEOBot >	CNEOBotRetreatToCover::Update( CNEOBot *me, float interv
 	// attack while retreating
 	me->EquipBestWeaponForThreat( threat );
 
+	// NEO JANK: How we handle reloads and how we classify barrage and reload weapons might not mix well
+	// It's probably a bad idea to waste a partial magazine for the PZ or SRS
+#ifndef NEO
 	// reload while moving to cover
 	bool isDoingAFullReload = false;
 	CNEOBaseCombatWeapon *myPrimary = (CNEOBaseCombatWeapon*)me->GetActiveWeapon();
@@ -192,7 +251,19 @@ ActionResult< CNEOBot >	CNEOBotRetreatToCover::Update( CNEOBot *me, float interv
 			isDoingAFullReload = true;
 		}
 	}
+#endif
 
+	// Consider throwing a grenade
+	if ( ( !m_grenadeThrowCooldownTimer.HasStarted() || m_grenadeThrowCooldownTimer.IsElapsed() ) &&
+	     threat && threat->GetEntity() && !me->IsLineOfFireClear( threat->GetEntity()->EyePosition(), CNEOBot::LINE_OF_FIRE_FLAGS_DEFAULT ) )
+	{
+		Action<CNEOBot> *pGrenadeBehavior = CNEOBotGrenadeDispatch::ChooseGrenadeThrowBehavior( me, threat );
+		if ( pGrenadeBehavior )
+		{
+			m_grenadeThrowCooldownTimer.Start( sv_neo_bot_grenade_throw_cooldown.GetFloat() );
+			return SuspendFor( pGrenadeBehavior, "Throwing grenade while taking cover!" );
+		}
+	}
 
 	// move to cover, or stop if we've found opportunistic cover (no visible threats right now)
 	if ( me->GetLastKnownArea() == m_coverArea || !threat )
@@ -209,6 +280,10 @@ ActionResult< CNEOBot >	CNEOBotRetreatToCover::Update( CNEOBot *me, float interv
 				return Done( "My cover is exposed, and there is no other cover available!" );
 			}
 		}
+		else
+		{
+			me->DisableCloak();
+		}
 
 		if ( m_actionToChangeToOnceCoverReached )
 		{
@@ -216,7 +291,8 @@ ActionResult< CNEOBot >	CNEOBotRetreatToCover::Update( CNEOBot *me, float interv
 		}
 
 		// stay in cover while we fully reload
-		if ( isDoingAFullReload )
+		CNEOBaseCombatWeapon* myWeapon = static_cast<CNEOBaseCombatWeapon*>(me->GetActiveWeapon());
+		if ( myWeapon && myWeapon->m_bInReload )
 		{
 			return Continue();
 		}
@@ -229,14 +305,15 @@ ActionResult< CNEOBot >	CNEOBotRetreatToCover::Update( CNEOBot *me, float interv
 	else
 	{
 		// not in cover yet
+		me->EnableCloak( 3.0f );
+
 		m_waitInCoverTimer.Reset();
 
 		if ( m_repathTimer.IsElapsed() )
 		{
 			m_repathTimer.Start( RandomFloat( 0.3f, 0.5f ) );
 
-			CNEOBotPathCost cost( me, RETREAT_ROUTE );
-			m_path.Compute( me, m_coverArea->GetCenter(), cost );
+			CNEOBotPathCompute( me, m_path, m_coverArea->GetCenter(), RETREAT_ROUTE );
 		}
 
 		m_path.Update( me );

@@ -555,6 +555,10 @@ public:
 	MoveCollide_t					GetMoveCollide( void ) const;
 	virtual SolidType_t				GetSolid( void ) const;
 
+#ifdef NEO
+	virtual void					Splash() {}
+#endif // NEO
+
 	virtual int			 			GetSolidFlags( void ) const;
 	bool							IsSolidFlagSet( int flagMask ) const;
 	void							SetSolidFlags( int nFlags );
@@ -1120,7 +1124,11 @@ public:
 	// These methods encapsulate MOVETYPE_FOLLOW, which became obsolete
 	void				FollowEntity( CBaseEntity *pBaseEntity, bool bBoneMerge = true );
 	void				StopFollowingEntity( );	// will also change to MOVETYPE_NONE
+#ifdef NEO
+	virtual bool		IsFollowingEntity();
+#else
 	bool				IsFollowingEntity();
+#endif // NEO
 	CBaseEntity			*GetFollowedEntity();
 
 	// For shadows rendering the correct body + sequence...
@@ -1400,10 +1408,6 @@ public:
 	void							SetWaterType( int nType );
 
 	float							GetElasticity( void ) const;
-#ifdef NEO
-	inline void						SetOldVelocity( const Vector& oldVelocity ) { m_vecOldVelocity = oldVelocity; }
-	inline const Vector&			GetOldVelocity() const { return m_vecOldVelocity; };
-#endif // NEO
 
 	int								GetTextureFrameIndex( void );
 	void							SetTextureFrameIndex( int iIndex );
@@ -1653,9 +1657,6 @@ private:
 
 	Vector							m_vecOldOrigin;
 	QAngle							m_vecOldAngRotation;
-#ifdef NEO
-	Vector							m_vecOldVelocity;
-#endif // NEO
 
 	Vector							m_vecOrigin;
 	CInterpolatedVar< Vector >		m_iv_vecOrigin;
@@ -1677,9 +1678,15 @@ private:
 
 #if !defined( NO_ENTITY_PREDICTION )
 	// For storing prediction results and pristine network state
+#ifdef NEO
+	byte							*m_pIntermediateData[ MULTIPLAYER_BACKUP ] = {};
+	byte							*m_pOriginalData = nullptr;
+	int								m_nIntermediateDataCount = 0;
+#else
 	byte							*m_pIntermediateData[ MULTIPLAYER_BACKUP ];
 	byte							*m_pOriginalData;
 	int								m_nIntermediateDataCount;
+#endif
 
 	bool							m_bIsPlayerSimulated;
 #endif

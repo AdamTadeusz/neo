@@ -14,6 +14,8 @@ float GetCurrentGravity( void );
 
 #ifndef NEO
 	#include "c_sdk_player.h"
+#else
+#include "neo_gamerules.h"
 #endif // NEO
 #else
 
@@ -42,7 +44,14 @@ BEGIN_NETWORK_TABLE( CBaseGrenadeProjectile, DT_BaseGrenadeProjectile )
 END_NETWORK_TABLE()
 
 
+#ifdef NEO
+ConVar sv_neo_grenade_show_path("sv_neo_grenade_show_path", "0", FCVAR_REPLICATED | FCVAR_CHEAT, "Whether to show a grenade's path to all players, and for how long", true, 0, true, 15.f);
+#endif // NEO
 #ifdef CLIENT_DLL
+#ifdef NEO
+// We're not clearing the debug overlay atm, make sure this is very short
+ConVar cl_neo_grenade_show_path("cl_neo_grenade_show_path", "0", FCVAR_ARCHIVE | FCVAR_USERINFO, "Whether to show a grenade's path when spectating, and for how long", true, 0, true, 2.f);
+#endif // NEO
 
 
 	void CBaseGrenadeProjectile::PostDataUpdate( DataUpdateType_t type )
@@ -92,11 +101,7 @@ END_NETWORK_TABLE()
 		}
 #endif // NEO
 #ifdef NEO
-#ifdef GLOWS_ENABLE
-		auto pTargetPlayer = glow_outline_effect_enable.GetBool() ? C_NEO_Player::GetLocalNEOPlayer() : C_NEO_Player::GetVisionTargetNEOPlayer();
-#else
-		auto pTargetPlayer = C_NEO_Player::GetTargetNEOPlayer();
-#endif // GLOWS_ENABLE
+		auto pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
 		bool inThermalVision = pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT;
 		if (inThermalVision)
 		{
@@ -116,8 +121,8 @@ END_NETWORK_TABLE()
 		m_flSpawnTime = gpGlobals->curtime;
 		BaseClass::Spawn();
 #ifdef NEO
-		m_flTemperature = 0.f;	// NEO NOTE (Adam) The server doesn't know the client side temperature of the weapon that spawned this projectile, and the client doesn't know what weapon spawned this projectile (may not exist already)
-								// NEO TODO use the temperature of the weapon at the time this projectile was created as the starting projectile temperature.
+		m_flTemperature = THERMALS_OBJECT_TEMPERATURE_HELD;	// NEO NOTE (Adam) The server doesn't know the client side temperature of the weapon that spawned this projectile, and the client doesn't know what weapon spawned this projectile (may not exist already)
+															// NEO TODO (Adam) use the temperature of the weapon at the time this projectile was created as the starting projectile temperature.
 		SetNextClientThink(gpGlobals->curtime + TICK_INTERVAL);
 #endif // NEO
 	}
@@ -126,12 +131,53 @@ END_NETWORK_TABLE()
 
 	void CBaseGrenadeProjectile::ClientThink()
 	{
-		constexpr int DESIRED_TEMPERATURE_WITHOUT_OWNER = 1;
-		m_flTemperature = min(DESIRED_TEMPERATURE_WITHOUT_OWNER, m_flTemperature + (TICK_INTERVAL / THERMALS_OBJECT_COOL_TIME));
-		if (m_flTemperature > 0)
+		m_flTemperature = Max(THERMALS_OBJECT_MIN_TEMPERATURE, m_flTemperature - (TICK_INTERVAL * THERMALS_OBJECT_COOL_RATE));
+		if (m_flTemperature > THERMALS_OBJECT_MIN_TEMPERATURE)
 		{
 			SetNextClientThink(gpGlobals->curtime + TICK_INTERVAL);
 		}
+		if (cl_neo_grenade_show_path.GetBool() || sv_neo_grenade_show_path.GetBool())
+		{
+			DrawPath();
+			SetNextClientThink(gpGlobals->curtime + TICK_INTERVAL);
+		}
+	}
+	
+	void CBaseGrenadeProjectile::DrawPath()
+	{
+		CBasePlayer *player = UTIL_PlayerByIndex(GetLocalPlayerIndex());
+		if ( player == NULL )
+			return;
+
+		const bool showPathInSpec = cl_neo_grenade_show_path.GetBool() && player->GetTeamNumber() == TEAM_SPECTATOR;
+		const bool showPathWhenServerEnabled = sv_neo_grenade_show_path.GetBool();
+		if (!showPathInSpec && !showPathWhenServerEnabled)
+			return;
+
+		const Vector origin = GetAbsOrigin();
+		if (!m_vLastDrawPosition.IsValid())
+		{
+			m_vLastDrawPosition = origin;
+			return;
+		}
+
+		if (m_vLastDrawPosition.DistToSqr(origin) < 0.1f)
+			return;
+
+		float r = 0, g = 0, b = 0;
+		NEORules()->GetTeamGlowColor(GetTeamNumber(), r, g, b);
+		r *= 255;
+		g *= 255;
+		b *= 255;
+		if (GetDamage())
+		{
+			const float timeAlive = (gpGlobals->curtime - m_flNeoCreateTime) * 0.5f;
+			r = clamp(r * (1 - timeAlive) + (255.f * timeAlive), 0.f, 255.f);
+			g = clamp(g * (1 - timeAlive), 0.f, 255.f);
+			b = clamp(b * (1 - timeAlive), 0.f, 255.f);
+		}
+		DebugDrawLine(m_vLastDrawPosition, origin, r, g, b, true, showPathWhenServerEnabled ? sv_neo_grenade_show_path.GetFloat() : cl_neo_grenade_show_path.GetFloat());
+		m_vLastDrawPosition = origin;
 	}
 #endif // NEO
 
@@ -147,6 +193,15 @@ END_NETWORK_TABLE()
 
 		// smaller, cube bounding box so we rest on the ground
 		SetSize( Vector ( -2, -2, -2 ), Vector ( 2, 2, 2 ) );
+
+		if (sv_neo_grenade_show_path.GetBool())
+		{ // Transmit the grenade to all players so they can see the path outside their pvs
+			SetTransmitState(FL_EDICT_ALWAYS);
+		}
+		else
+		{ // Spectators will still want to see the grenade if they have cl_neo_grenade_show_path set
+			SetTransmitState(FL_EDICT_FULLCHECK);
+		}
 	}
 
 	void CBaseGrenadeProjectile::DangerSoundThink( void )

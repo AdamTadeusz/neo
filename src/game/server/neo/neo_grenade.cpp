@@ -29,6 +29,7 @@ DEFINE_THINKFUNC(DelayThink),
 DEFINE_INPUTFUNC(FIELD_FLOAT, "SetTimer", InputSetTimer),
 END_DATADESC()
 
+ConVar sv_neo_frag_bot_danger_sound_radius("sv_neo_frag_bot_danger_sound_radius", "1000", FCVAR_CHEAT, "Radius of the SOUND_DANGER signal emitted by frag grenades for bot AI awareness.", true, 0.0, false, 0);
 ConVar sv_neo_frag_showdebug("sv_neo_frag_showdebug", "0", FCVAR_CHEAT, "Show frag collision debug", true, 0.0, true, 1.0);
 ConVar sv_neo_frag_vphys_reawaken_vel("sv_neo_frag_vphys_reawaken_vel", "200", FCVAR_CHEAT);
 extern ConVar sv_neo_grenade_cor;
@@ -44,11 +45,13 @@ void CNEOGrenadeFrag::Spawn(void)
 	SetElasticity(sv_neo_grenade_cor.GetFloat());
 	SetGravity(sv_neo_grenade_gravity.GetFloat());
 	SetFriction(sv_neo_grenade_friction.GetFloat());
-	SetCollisionGroup(COLLISION_GROUP_WEAPON);
+	SetCollisionGroup(COLLISION_GROUP_PROJECTILE);
 	SetDetonateTimerLength(FLT_MAX);
 
 	SetThink(&CNEOGrenadeFrag::DelayThink);
 	SetNextThink(gpGlobals->curtime);
+
+	m_flNextSoundTime = gpGlobals->curtime;
 }
 
 void CNEOGrenadeFrag::Precache(void)
@@ -77,15 +80,16 @@ void CNEOGrenadeFrag::DelayThink()
 		return;
 	}
 
-	if (!m_bHasWarnedAI && gpGlobals->curtime >= m_flWarnAITime)
-	{
 #if !defined( CLIENT_DLL )
-		CSoundEnt::InsertSound(SOUND_DANGER, GetAbsOrigin(), 400, 1.5, this);
-#endif
-		m_bHasWarnedAI = true;
+	// Emit danger sound periodically for bots to hear
+	if (gpGlobals->curtime >= m_flNextSoundTime)
+	{
+		CSoundEnt::InsertSound(SOUND_DANGER, GetAbsOrigin(), sv_neo_frag_bot_danger_sound_radius.GetFloat(), 0.5f, this, SOUNDENT_CHANNEL_REPEATED_DANGER);
+		m_flNextSoundTime = gpGlobals->curtime + 0.35f;
 	}
+#endif
 
-	SetNextThink(gpGlobals->curtime + 0.1);
+	SetNextThink(gpGlobals->curtime + 0.1f);
 }
 
 void CNEOGrenadeFrag::Explode(trace_t* pTrace, int bitsDamageType)

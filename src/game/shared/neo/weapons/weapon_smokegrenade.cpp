@@ -195,20 +195,6 @@ void CWeaponSmokeGrenade::ItemPostFrame(void)
 	BaseClass::ItemPostFrame();
 }
 
-// Check a throw from vecSrc.  If not valid, move the position back along the line to vecEye
-void CWeaponSmokeGrenade::CheckThrowPosition(CBasePlayer* pPlayer, const Vector& vecEye, Vector& vecSrc)
-{
-	trace_t tr;
-
-	UTIL_TraceHull(vecEye, vecSrc, -Vector(GRENADE_RADIUS + 2, GRENADE_RADIUS + 2, GRENADE_RADIUS + 2), Vector(GRENADE_RADIUS + 2, GRENADE_RADIUS + 2, GRENADE_RADIUS + 2),
-		pPlayer->PhysicsSolidMaskForEntity(), pPlayer, pPlayer->GetCollisionGroup(), &tr);
-
-	if (tr.DidHit())
-	{
-		vecSrc = tr.endpos;
-	}
-}
-
 extern ConVar sv_neo_grenade_fuse_timer;
 void CWeaponSmokeGrenade::ThrowGrenade(CNEO_Player* pPlayer, bool isAlive, CBaseEntity *pAttacker)
 {
@@ -221,26 +207,24 @@ void CWeaponSmokeGrenade::ThrowGrenade(CNEO_Player* pPlayer, bool isAlive, CBase
 #ifndef CLIENT_DLL
 	QAngle angThrow = pPlayer->LocalEyeAngles();
 
-	Vector vForward, vRight, vUp;
-
-	if (angThrow.x < 90)
+	if (angThrow.x >= 0)
+		// Below horizon
 		angThrow.x = -10 + angThrow.x * ((90 + 10) / 90.0);
 	else
-	{
-		angThrow.x = 360.0f - angThrow.x;
-		angThrow.x = -10 + angThrow.x * -((90 - 10) / 90.0);
-	}
+		// Above horizon
+		angThrow.x = -10 + angThrow.x * ((90 - 10) / 90.0);
 
 	float flVel = (90 - angThrow.x) * 6;
 
 	if (flVel > sv_neo_grenade_throw_intensity.GetFloat())
 		flVel = sv_neo_grenade_throw_intensity.GetFloat();
 
-	AngleVectors(angThrow, &vForward, &vRight, &vUp);
+	Vector vForward;
+	AngleVectors(angThrow, &vForward, nullptr, nullptr);
 
 	Vector vecSrc = pPlayer->GetAbsOrigin() + pPlayer->GetViewOffset();
 
-	vecSrc += vForward * 16;
+	GetThrowPos(vForward, vecSrc);
 
 	Vector vecThrow = vForward * flVel + pPlayer->GetAbsVelocity();
 
@@ -269,6 +253,11 @@ bool CWeaponSmokeGrenade::CanDrop()
 void CWeaponSmokeGrenade::Drop(const Vector& vecVelocity)
 {
 	BaseClass::Drop(vecVelocity);
+}
+
+bool CWeaponSmokeGrenade::CanBePickedUpByClass(int classId)
+{
+	return classId != NEO_CLASS_JUGGERNAUT;
 }
 
 #ifndef CLIENT_DLL

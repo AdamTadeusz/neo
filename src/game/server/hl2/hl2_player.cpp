@@ -301,7 +301,9 @@ void CC_ToggleDuck( void )
 	pPlayer->ToggleDuck();
 }
 
+#ifndef NEO
 static ConCommand toggle_duck("toggle_duck", CC_ToggleDuck, "Toggles duck" );
+#endif
 
 #ifndef HL2MP
 #ifndef PORTAL
@@ -433,6 +435,8 @@ static inline float GetAuxChargeRate(CBaseCombatCharacter *player)
 		return 2.5f;	// 100 units in 40 seconds
 	case NEO_CLASS_VIP:
 		return 2.5f;	// 100 units in 40 seconds
+	case NEO_CLASS_JUGGERNAUT:
+		return 10.0f;	// 100 units in 10 seconds
 	default:
 		break;
 	}
@@ -493,6 +497,7 @@ void CHL2_Player::Precache( void )
 //-----------------------------------------------------------------------------
 void CHL2_Player::CheckSuitZoom( void )
 {
+#ifndef NEO
 //#ifndef _XBOX 
 	//Adrian - No zooming without a suit!
 	if ( IsSuitEquipped() )
@@ -507,6 +512,7 @@ void CHL2_Player::CheckSuitZoom( void )
 		}
 	}
 //#endif//_XBOX
+#endif // NEO
 }
 
 void CHL2_Player::EquipSuit( bool bPlayEffects )
@@ -1064,6 +1070,7 @@ void CHL2_Player::PreThink(void)
 	// Update weapon's ready status
 	UpdateWeaponPosture();
 
+#ifndef NEO
 	// Disallow shooting while zooming
 	if ( IsX360() )
 	{
@@ -1089,6 +1096,7 @@ void CHL2_Player::PreThink(void)
 			m_nButtons &= ~(IN_ATTACK|IN_ATTACK2);
 		}
 	}
+#endif // NEO
 
 #ifdef HL2MP
 	UpdateLastKnownArea();
@@ -3216,6 +3224,9 @@ void CHL2_Player::PlayerUse ( void )
 			// Robin: Don't play sounds for NPCs, because NPCs will allow respond with speech.
 			if ( !pUseEntity->MyNPCPointer() )
 			{
+#ifdef NEO
+				if (!pUseEntity->IsBaseCombatWeapon()) // Don't play sounds when picking up weapons, so the use sound doesn't overwrite the weapon pickup sound
+#endif // NEO
 				EmitSound( "HL2Player.Use" );
 			}
 		}
@@ -3238,6 +3249,7 @@ void CHL2_Player::PlayerUse ( void )
 			usedSomething = true;
 		}
 
+#ifndef NEO // NEO NOTE DG: Moved into CNEOBaseCombatWeapon::Use
 #if	HL2_SINGLE_PRIMARY_WEAPON_MODE
 
 		//Check for weapon pick-up
@@ -3247,27 +3259,22 @@ void CHL2_Player::PlayerUse ( void )
 
 			if ( ( pWeapon != NULL ) && ( Weapon_CanSwitchTo( pWeapon ) ) )
 			{
-#ifndef NEO
-				// NEO TODO (Adam) this disables picking up ammunition from weapons with the use key, which we probably don't want anyway, but if we do work out why ghost weapon is of the same type as our primaryweapons like zr68s
 				//Try to take ammo or swap the weapon
 				if ( Weapon_OwnsThisType( pWeapon->GetClassname(), pWeapon->GetSubType() ) )
 				{
 					Weapon_EquipAmmoOnly( pWeapon );
 				}
 				else
-#endif // NEO
 				{
 					Weapon_DropSlot( pWeapon->GetSlot() );
 					Weapon_Equip( pWeapon );
-#ifdef NEO
-					pWeapon->RemoveEffects(EF_BONEMERGE);
-#endif // NEO
 				}
 
 				usedSomething = true;
 			}
 		}
 #endif
+#endif // NEO
 	}
 	else if ( m_afButtonPressed & IN_USE )
 	{
@@ -3372,8 +3379,10 @@ void CHL2_Player::UpdateWeaponPosture( void )
 	{
 		if( !pWeapon )
 		{
+#ifndef NEO
 			// This tells the client to draw no crosshair
 			m_HL2Local.m_bWeaponLowered = true;
+#endif // NEO
 			return;
 		}
 		else
@@ -3968,7 +3977,12 @@ void CHL2_Player::ItemPostFrame()
 	if ( m_bPlayUseDenySound )
 	{
 		m_bPlayUseDenySound = false;
+#ifdef NEO
+		CSingleUserRecipientFilter filter( this );
+		EmitSound( filter, entindex(), "HL2Player.UseDeny" );
+#else
 		EmitSound( "HL2Player.UseDeny" );
+#endif
 	}
 }
 

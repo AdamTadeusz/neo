@@ -11,11 +11,17 @@
 #include <ivoicetweak.h>
 #include <vgui_controls/Controls.h>
 #include <vgui/ISurface.h>
-#include <steam/steam_api.h>
 #include "vgui/ISystem.h"
+#include "voice_status.h"
 
 #include "neo_ui.h"
 #include "neo_root.h"
+#include "neo/ui/neo_utils.h"
+#include "neo_theme.h"
+#include "neo_mp3player.h"
+#include "neo/ui/neo_scoreboard.h"
+
+#include <cwctype>
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -25,6 +31,11 @@ extern NeoUI::Context g_uiCtx;
 extern int g_iRowsInScreen;
 extern bool g_bOBSDetected;
 extern ConVar cl_neo_streamermode;
+
+const wchar_t *RINGBOX_BOOL_LABELS_REVERSE[] = {
+	L"Enabled",
+	L"Disabled",
+};
 
 const wchar_t *QUALITY_LABELS[] = {
 	L"Low",
@@ -112,6 +123,24 @@ static const wchar_t* AUTOMATIC_LEAN_LABELS[] = {
 	L"Always",
 };
 
+static const wchar_t *CROSSHAIR_HIPFIRE_LABELS_DEFAULT[HIPFIREOPT__TOTAL] = {
+	L"Disabled",
+	L"Use default",
+	L"Enabled",
+};
+
+static const wchar_t *CROSSHAIR_HIPFIRE_LABELS[HIPFIREOPT__TOTAL] = {
+	L"Disabled",
+	L"Use hipfire default",
+	L"Enabled",
+};
+
+static const wchar_t *STARTUP_TYPE_LABELS[NeoMP3::STARTUP_TYPE__TOTAL] = {
+	L"Default",
+	L"Always random",
+	L"First song or random shuffle",
+};
+
 static inline CUtlVector<ConVarRefEx *> g_vecConVarRefPtrs;
 
 ConVarRefEx::ConVarRefEx(const char *pName, const bool bExcludeGlobalPtrs)
@@ -154,6 +183,7 @@ void NeoSettingsInit(NeoSettings *ns)
 		auto *conbind = &keys->vBinds[keys->iBindsSize++];
 		V_strcpy_safe(conbind->szBindingCmd, "neo_toggleconsole");
 		V_wcscpy_safe(conbind->wszDisplayText, L"Developer console bind");
+		conbind->bSkipSecondary = true;
 
 		while (bufAct.IsValid() && keys->iBindsSize < ARRAYSIZE(keys->vBinds))
 		{
@@ -193,6 +223,7 @@ void NeoSettingsInit(NeoSettings *ns)
 				V_strcpy_safe(bind->szBindingCmd, szBindingCmd);
 				V_wcscpy_safe(bind->wszDisplayText, wszDispText);
 				bind->bcDefault = BUTTON_CODE_NONE;
+				bind->bSkipSecondary = false;
 			}
 		}
 		AssertMsg(keys->iBindsSize < ARRAYSIZE(keys->vBinds), "Bump the size of the vBinds array");
@@ -234,35 +265,168 @@ void NeoSettingsInit(NeoSettings *ns)
 			vgui::surface()->DrawGetTextureSize(pTex->iTexId, pTex->iWide, pTex->iTall);
 		}
 	}
+
+	// NEO NOTE (Adam) Ensures random background on every launch if random background option selected.
+	// If new background is different from previous background, the static image will change during load
+	// NEO TODO (Adam) Change the background on client shutdown instead somehow?
+	NeoSettingsBackgroundsInit(ns);
+}
+
+// sv_unlockedchapters is not a consistent way of guaranteeing what background shows up as the menu background.
+// Instead, we read all available backgrounds from a second file neo_backgrounds.txt, and overwrite chapterbackgrounds.txt
+// to only include the one background that the user is interested in.
+void NeoSettingsBackgroundsInit(NeoSettings* ns)
+{
+#define NEO_BACKGROUNDS_FILENAME "scripts/neo_backgrounds.txt"
+#define NEO_RANDOM_BACKGROUND_NAME "Random"
+#define NEO_FALLBACK_BACKGROUND_DISPLAYNAME "No backgrounds"
+#define NEO_FALLBACK_BACKGROUND_FILENAME "background01"
+
+	if (ns->backgrounds)
+	{
+		ns->backgrounds->deleteThis();
+	}
+	ns->backgrounds = new KeyValues( "neo_backgrounds" );
+	ns->iCBListSize = 0;
+
+	constexpr auto allocate = [](NeoSettings *ns, size_t size) {
+		ns->p2WszCBList = (wchar_t **)calloc(sizeof(wchar_t *), ns->iCBListSize);
+		ns->p2WszCBList[0] = (wchar_t *)calloc(sizeof(wchar_t) * size, ns->iCBListSize);
+	};
+
+	// Setup Background Map options
+	auto dispSize = Max(sizeof(NEO_FALLBACK_BACKGROUND_DISPLAYNAME), sizeof(NEO_RANDOM_BACKGROUND_NAME) + 1);
+	if ( !ns->backgrounds->LoadFromFile( g_pFullFileSystem, NEO_BACKGROUNDS_FILENAME, "MOD" ) )
+	{ // File empty or unable to load, set to static and return early
+		Warning( "Unable to load '%s'\n", NEO_BACKGROUNDS_FILENAME );
+		ns->iCBListSize = 1;
+		allocate(ns, dispSize);
+		g_pVGuiLocalize->ConvertANSIToUnicode(NEO_FALLBACK_BACKGROUND_DISPLAYNAME, ns->p2WszCBList[0], narrow_cast<int>(sizeof(wchar_t) * dispSize));
+		NeoSettingsBackgroundWrite(ns, NEO_FALLBACK_BACKGROUND_FILENAME);
+		return;
+	}
+
+	for ( KeyValues* background = ns->backgrounds->GetFirstSubKey(); background != NULL; /*background = background->GetNextKey()*/)
+	{ // Iterate once to get the number of options and longest background map name
+		const char* displayName = background->GetName();
+		if (FStrEq(displayName, "")) // NEO NOTE (Adam) If name missing read will fail
+		{ // no display name, skip
+			KeyValues* thisKey = background;
+			background = background->GetNextKey();
+			ns->backgrounds->RemoveSubKey(thisKey);
+			continue;
+		}
+
+		const char* fileName = background->GetString("fileName");
+		if (FStrEq(fileName, ""))
+		{ // no file name, skip
+			KeyValues* thisKey = background;
+			background = background->GetNextKey();
+			ns->backgrounds->RemoveSubKey(thisKey);
+			continue;
+		}
+
+		ns->iCBListSize++;
+		dispSize = Max<decltype(dispSize)>(dispSize, (V_strlen(displayName) + 1));
+		background = background->GetNextKey();
+	}
+	const int wDispSize = narrow_cast<int>(sizeof(wchar_t) * dispSize);
+	
+	// Random Background Option
+	ns->iCBListSize++;
+	allocate(ns, dispSize);
+	KeyValues* background = ns->backgrounds->GetFirstSubKey();
+	// iterate through background maps and set their names
+	for (int i = 0, offset = 0; i < ns->iCBListSize - 1; ++i, offset = narrow_cast<decltype(i)>(offset+dispSize))
+	{
+		g_pVGuiLocalize->ConvertANSIToUnicode(background->GetName(), ns->p2WszCBList[0] + offset, wDispSize);
+		ns->p2WszCBList[i] = ns->p2WszCBList[0] + offset;
+		background = background->GetNextKey();
+	}
+
+	// Set last option to random
+	const int offset = narrow_cast<int>((ns->iCBListSize - 1) * dispSize);
+	g_pVGuiLocalize->ConvertANSIToUnicode(ns->iCBListSize == 1 ? NEO_FALLBACK_BACKGROUND_DISPLAYNAME : NEO_RANDOM_BACKGROUND_NAME, ns->p2WszCBList[0] + offset, wDispSize);
+	ns->p2WszCBList[ns->iCBListSize - 1] = ns->p2WszCBList[0] + offset;
+
+	// write selected background name
+	NeoSettingsBackgroundWrite(ns);
+}
+
+void NeoSettingsBackgroundWrite(const NeoSettings* ns, const char* backgroundName)
+{
+	// Select background name
+	if (!backgroundName)
+	{
+		const int selectedBackground = ns->cvr.sv_unlockedchapters.GetInt() + 1;
+		int i = 1;
+		const int iFinal = selectedBackground >= ns->iCBListSize ? RandomInt(1, ns->iCBListSize - 1) : selectedBackground;
+		KeyValues* background;
+		for (background = ns->backgrounds->GetFirstSubKey(); background != NULL && i < iFinal; (background = background->GetNextKey()) && i++)
+		{ // Skip to the desired background
+		}
+		backgroundName = background ? background->GetString("fileName") : NEO_FALLBACK_BACKGROUND_DISPLAYNAME;
+	}
+
+	// Overwrite CHAPTER_BACKGROUNDS_FILENAME with selected background
+	CUtlBuffer buf( 0, 0, CUtlBuffer::TEXT_BUFFER );
+	bpr(0, buf, "// Auto Generated on game launch. Set background in game through the options menu from those available in scripts/neo_backgrounds.txt\n");
+	bpr(0, buf, "\"chapters\"\n");
+	bpr(0, buf, "{\n" );
+	bpr(1, buf, "1 \"");
+	bpr(0, buf, backgroundName);
+	bpr(0, buf, "\"\n");
+	bpr(0, buf, "}\n");
+
+#define NEO_CHAPTER_BACKGROUNDS_FILENAME "scripts/chapterbackgrounds.txt"
+	FileHandle_t fh = g_pFullFileSystem->Open( NEO_CHAPTER_BACKGROUNDS_FILENAME, "wb" );
+	if ( FILESYSTEM_INVALID_HANDLE != fh )
+	{
+		g_pFullFileSystem->Write( buf.Base(), buf.TellPut(), fh );
+		g_pFullFileSystem->Close( fh );
+	}
+	else
+	{
+		Warning( "Unable to open '%s' for writing\n", NEO_CHAPTER_BACKGROUNDS_FILENAME );
+	}
 }
 
 void NeoSettingsDeinit(NeoSettings *ns)
 {
 	free(ns->video.p2WszVmDispList[0]);
 	free(ns->video.p2WszVmDispList);
+
+	free(ns->p2WszCBList[0]);
+	free(ns->p2WszCBList);
+	if (ns->backgrounds)
+	{
+		ns->backgrounds->deleteThis();
+	}
 }
 
 void NeoSettingsRestore(NeoSettings *ns, const NeoSettings::Keys::Flags flagsKeys)
 {
 	ns->bModified = false;
+	ns->bIsValid = true;
 	NeoSettings::CVR *cvr = &ns->cvr;
 	{
 		NeoSettings::General *pGeneral = &ns->general;
 		g_pVGuiLocalize->ConvertANSIToUnicode(cvr->neo_name.GetString(), pGeneral->wszNeoName, sizeof(pGeneral->wszNeoName));
 		g_pVGuiLocalize->ConvertANSIToUnicode(cvr->neo_clantag.GetString(), pGeneral->wszNeoClantag, sizeof(pGeneral->wszNeoClantag));
+
+		if (V_wcscmp(pGeneral->wszNeoName, L"#empty") == 0)
+			pGeneral->wszNeoName[0] = L'\0';
+		if (V_wcscmp(pGeneral->wszNeoClantag, L"#empty") == 0)
+			pGeneral->wszNeoClantag[0] = L'\0';
+
 		pGeneral->bOnlySteamNick = cvr->cl_onlysteamnick.GetBool();
-		pGeneral->bMarkerSpecOnlyClantag = cvr->cl_neo_clantag_friendly_marker_spec_only.GetBool();
-		pGeneral->iFov = cvr->neo_fov.GetInt();
-		pGeneral->iViewmodelFov = cvr->neo_viewmodel_fov_offset.GetInt();
-		pGeneral->bAimHold = cvr->neo_aim_hold.GetBool();
 		pGeneral->bReloadEmpty = cvr->cl_autoreload_when_empty.GetBool();
 		pGeneral->bViewmodelRighthand = cvr->cl_righthand.GetBool();
 		pGeneral->bLeanViewmodelOnly = cvr->cl_neo_lean_viewmodel_only.GetBool();
 		pGeneral->iLeanAutomatic = cvr->cl_neo_lean_automatic.GetInt();
-		pGeneral->bShowSquadList = cvr->cl_neo_squad_hud_original.GetBool();
+		pGeneral->iEquipUtilityPriority = cvr->cl_neo_equip_utility_priority.GetInt();
+		pGeneral->bWeaponFastSwitch = cvr->hud_fastswitch.GetBool();
 		pGeneral->bShowPlayerSprays = !(cvr->cl_spraydisable.GetBool()); // Inverse
-		pGeneral->bShowPos = cvr->cl_showpos.GetBool();
-		pGeneral->iShowFps = cvr->cl_showfps.GetInt();
 		{
 			const char *szDlFilter = cvr->cl_downloadfilter.GetString();
 			pGeneral->iDlFilter = 0;
@@ -277,27 +441,92 @@ void NeoSettingsRestore(NeoSettings *ns, const NeoSettings::Keys::Flags flagsKey
 		}
 		pGeneral->bStreamerMode = cvr->cl_neo_streamermode.GetBool();
 		pGeneral->bAutoDetectOBS = cvr->cl_neo_streamermode_autodetect_obs.GetBool();
-		pGeneral->bEnableRangeFinder = cvr->cl_neo_hud_rangefinder_enabled.GetBool();
-		pGeneral->bExtendedKillfeed = cvr->cl_neo_hud_extended_killfeed.GetBool();
-		pGeneral->iBackground = cvr->sv_unlockedchapters.GetInt();
+		pGeneral->bTachiFullAutoPreferred = cvr->cl_neo_tachi_prefer_auto.GetBool();
+		pGeneral->bTakingDamageSounds = cvr->cl_neo_taking_damage_sounds.GetBool();
+		pGeneral->iBackground = clamp(cvr->sv_unlockedchapters.GetInt(), 0, ns->iCBListSize - 1);
+		NeoSettingsBackgroundWrite(ns);
 		NeoUI::ResetTextures();
 	}
 	{
 		NeoSettings::Keys *pKeys = &ns->keys;
-		pKeys->bWeaponFastSwitch = cvr->hud_fastswitch.GetBool();
 		pKeys->bDeveloperConsole = cvr->cl_neo_toggleconsole.GetBool();
 		if (!(flagsKeys & NeoSettings::Keys::SKIP_KEYS))
 		{
+			static constexpr const int MAX_BCVAL = 2;
+			struct BcVal
+			{
+				ButtonCode_t list[MAX_BCVAL];
+				int iSize;
+			};
+			CUtlHashtable<CUtlConstString, BcVal> htAllBinds;
+			for (int iBc = KEY_FIRST; iBc <= BUTTON_CODE_LAST; ++iBc)
+			{
+				const ButtonCode_t bc = static_cast<ButtonCode_t>(iBc);
+				const char *pszBinding = gameuifuncs->GetBindingForButtonCode(bc);
+				if (pszBinding)
+				{
+					auto hdl = htAllBinds.Find(pszBinding);
+					if (hdl == htAllBinds.InvalidHandle())
+					{
+						BcVal bcVal = {}; // zero-init
+						hdl = htAllBinds.Insert(pszBinding, bcVal);
+					}
+					if (hdl != htAllBinds.InvalidHandle())
+					{
+						BcVal &bcVal = htAllBinds.Element(hdl);
+						if (bcVal.iSize < MAX_BCVAL)
+						{
+							bcVal.list[bcVal.iSize++] = bc;
+						}
+					}
+				}
+			}
+
 			for (int i = 0; i < pKeys->iBindsSize; ++i)
 			{
 				auto *bind = &pKeys->vBinds[i];
 				bind->bcNext = bind->bcCurrent = gameuifuncs->GetButtonCodeForBind(bind->szBindingCmd);
+				bind->bcSecondaryNext = bind->bcSecondaryCurrent = BUTTON_CODE_NONE;
+				if (bind->bcCurrent > BUTTON_CODE_NONE)
+				{
+					auto hdl = htAllBinds.Find(bind->szBindingCmd);
+					if (hdl != htAllBinds.InvalidHandle())
+					{
+						if (false == bind->bSkipSecondary)
+						{
+							const auto &bcVal = htAllBinds.Element(hdl);
+							const int iMaxIdxBc = Min(bcVal.iSize, MAX_BCVAL);
+							for (int idxBc = 0; idxBc < iMaxIdxBc; ++idxBc)
+							{
+								const ButtonCode_t bc = bcVal.list[idxBc];
+								if (bc != bind->bcCurrent)
+								{
+									bind->bcSecondaryNext = bind->bcSecondaryCurrent = bc;
+									break;
+								}
+							}
+						}
+					}
+					else
+					{
+						// NEO JANK (Rain): gameuifuncs->GetButtonCodeForBind seems to treat
+						// "+duck" and "toggle_duck" as the same thing, which makes NeoUI
+						// incorrectly display the "toggle_duck" bind key for "+duck".
+						// If we couldn't find "+duck", explicitly mark it as unbound here to fix.
+						if (bind->bcNext != BUTTON_CODE_NONE &&
+							V_strcmp(bind->szBindingCmd, "+duck") == 0)
+						{
+							bind->bcNext =  BUTTON_CODE_NONE;
+						}
+					}
+				}
 			}
 		}
 	}
 	{
 		NeoSettings::Mouse *pMouse = &ns->mouse;
 		pMouse->flSensitivity = cvr->sensitivity.GetFloat();
+		pMouse->flZoomSensitivityRatio = cvr->zoom_sensitivity_ratio.GetFloat();
 		pMouse->bRawInput = cvr->m_rawinput.GetBool();
 		pMouse->bFilter = cvr->m_filter.GetBool();
 		pMouse->bReverse = (cvr->m_pitch.GetFloat() < 0.0f);
@@ -305,12 +534,23 @@ void NeoSettingsRestore(NeoSettings *ns, const NeoSettings::Keys::Flags flagsKey
 		pMouse->flExponent = cvr->m_customaccel_exponent.GetFloat();
 	}
 	{
+		NeoSettings::Controller *pController = &ns->controller;
+		pController->bEnabled = cvr->joystick.GetBool();
+		pController->bReverse = cvr->joy_inverty.GetBool();
+		pController->bSwapSticks = cvr->joy_movement_stick.GetBool();
+		pController->flSensHorizontal = -cvr->joy_yawsensitivity.GetFloat(); // Negate convar
+		pController->flSensVertical = cvr->joy_pitchsensitivity.GetFloat();
+	}
+	{
 		NeoSettings::Audio *pAudio = &ns->audio;
 
 		// Output
 		pAudio->flVolMain = cvr->volume.GetFloat();
 		pAudio->flVolMusic = cvr->snd_musicvolume.GetFloat();
+		pAudio->bVolMusicSepInGame = cvr->cl_neo_radio_volume_separate_ingame.GetBool();
+		pAudio->flVolMusicInGame = cvr->cl_neo_radio_volume_ingame.GetFloat();
 		pAudio->flVolVictory = cvr->snd_victory_volume.GetFloat();
+		pAudio->flVolPing = cvr->snd_ping_volume.GetFloat();
 		pAudio->iSoundSetup = 0;
 		switch (cvr->snd_surround_speakers.GetInt())
 		{
@@ -324,6 +564,8 @@ void NeoSettingsRestore(NeoSettings *ns, const NeoSettings::Keys::Flags flagsKey
 		break; default: break;
 		}
 		pAudio->bMuteAudioUnFocus = cvr->snd_mute_losefocus.GetBool();
+		pAudio->bPauseMusicInGame = cvr->cl_neo_radio_pause_ingame.GetBool();
+		pAudio->iMusicStartupType = cvr->cl_neo_radio_startup.GetInt();
 
 		// Sound quality:  snd_pitchquality   dsp_slow_cpu
 		// High                   1                0
@@ -334,7 +576,7 @@ void NeoSettingsRestore(NeoSettings *ns, const NeoSettings::Keys::Flags flagsKey
 																	  QUALITY_MEDIUM;
 
 		// Input
-		pAudio->bVoiceEnabled = cvr->voice_enable.GetBool();
+		pAudio->bVoiceEnabled = cvr->voice_modenable.GetBool();
 		pAudio->flVolVoiceRecv = cvr->voice_scale.GetFloat();
 		pAudio->bMicBoost = (engine->GetVoiceTweakAPI()->GetControlFloat(MicBoost) > 0.0f);
 	}
@@ -418,19 +660,87 @@ void NeoSettingsRestore(NeoSettings *ns, const NeoSettings::Keys::Flags flagsKey
 		pVideo->bMotionBlur = cvr->mat_motion_blur_enabled.GetBool();
 		pVideo->iHDR = cvr->mat_hdr_level.GetInt();
 		pVideo->flGamma = cvr->mat_monitorgamma.GetFloat();
+		pVideo->iFov = cvr->neo_fov.GetInt();
+		pVideo->iViewmodelFov = cvr->neo_viewmodel_fov_offset.GetInt();
+		pVideo->bSoftwareCursor = cvr->cl_software_cursor.GetBool();
 	}
 	{
 		NeoSettings::Crosshair *pCrosshair = &ns->crosshair;
-		const bool bImported = ImportCrosshair(&pCrosshair->info, cvr->cl_neo_crosshair.GetString());
+		const bool bImported = ImportCrosshair(&pCrosshair->info, cvr->cl_neo_crosshair.GetString(), &pCrosshair->aeHipfireOpts);
 		if (!bImported)
 		{
-			ImportCrosshair(&pCrosshair->info, CL_NEO_CROSSHAIR_DEFAULT);
+			ResetCrosshairToDefault(&pCrosshair->info, &pCrosshair->aeHipfireOpts);
 		}
+		pCrosshair->bPreviewDynamicAccuracy = false;
 		pCrosshair->eClipboardInfo = XHAIREXPORTNOTIFY_NONE;
 		pCrosshair->bNetworkCrosshair = cvr->cl_neo_crosshair_network.GetBool();
+		pCrosshair->bInaccuracyInScope = cvr->cl_neo_crosshair_scope_inaccuracy.GetBool();
+		pCrosshair->bFriendlyFireWarning = cvr->cl_neo_crosshair_friendly_fire_warning.GetBool();
+	}
+	{
+		NeoSettings::HUD *pHUD = &ns->hud;
+		
+		pHUD->bShowSquadList = cvr->cl_neo_squad_hud_original.GetBool();
+		pHUD->iHealthMode = cvr->cl_neo_hud_health_mode.GetInt();
+		pHUD->iObjVerbosity = cvr->cl_neo_hud_worldpos_verbose.GetInt();
+		pHUD->bShowHints = cvr->cl_neo_showhints.GetBool();
+		pHUD->bShowPos = cvr->cl_showpos.GetBool();
+		pHUD->iShowFps = cvr->cl_showfps.GetInt();
+		pHUD->bEnableRangeFinder = cvr->cl_neo_hud_rangefinder_enabled.GetBool();
+		pHUD->iExtendedKillfeed = cvr->cl_neo_hud_extended_killfeed.GetInt();
+		pHUD->iScoreboardPadding = cvr->cl_neo_hud_scoreboard_padding.GetInt();
+		pHUD->bShowHudContextHints = cvr->cl_neo_hud_context_hint_enabled.GetBool();
+		pHUD->bShowHudContextHintPlayerTakeover = cvr->cl_neo_hud_context_hint_show_player_takeover_hint.GetBool();
+		pHUD->bShowHudContextHintObjectInteract = cvr->cl_neo_hud_context_hint_show_object_interact_hint.GetBool();
+		pHUD->bShowHudContextAdjacentObjects = cvr->cl_neo_hud_context_hint_show_adjacent_interactable_objects.GetBool();
+		pHUD->bShowHudContextHintBotInteract = cvr->cl_neo_hud_context_hint_show_bot_interact_hint.GetBool();
+		pHUD->bShowHudContextHighlightObject = cvr->cl_neo_hud_context_hint_highlight_object.GetBool();
+		pHUD->bShowHudContextHighlightPlayer = cvr->cl_neo_hud_context_hint_highlight_player.GetBool();
+
+		bool bImported = ImportMarker(&pHUD->options[NEOIFFMARKER_OPTION_SQUAD], cvr->cl_neo_squad_marker.GetString());
+		if (!bImported)
+		{
+			ImportMarker(&pHUD->options[NEOIFFMARKER_OPTION_SQUAD], NEO_SQUAD_MARKER_DEFAULT);
+		}
+		bImported = ImportMarker(&pHUD->options[NEOIFFMARKER_OPTION_FRIENDLY], cvr->cl_neo_friendly_marker.GetString());
+		if (!bImported)
+		{
+			ImportMarker(&pHUD->options[NEOIFFMARKER_OPTION_FRIENDLY], NEO_FRIENDLY_MARKER_DEFAULT);
+		}
+		bImported = ImportMarker(&pHUD->options[NEOIFFMARKER_OPTION_SPECTATOR], cvr->cl_neo_spectator_marker.GetString());
+		if (!bImported)
+		{
+			ImportMarker(&pHUD->options[NEOIFFMARKER_OPTION_SPECTATOR], NEO_SPECTATOR_MARKER_DEFAULT);
+		}
+#ifdef GLOWS_ENABLE
+		bImported = ImportMarker(&pHUD->options[NEOIFFMARKER_OPTION_SQUAD_XRAY], cvr->cl_neo_squad_xray_marker.GetString());
+		if (!bImported)
+		{
+			ImportMarker(&pHUD->options[NEOIFFMARKER_OPTION_SQUAD_XRAY], NEO_SQUAD_XRAY_MARKER_DEFAULT);
+		}
+		bImported = ImportMarker(&pHUD->options[NEOIFFMARKER_OPTION_FRIENDLY_XRAY], cvr->cl_neo_friendly_xray_marker.GetString());
+		if (!bImported)
+		{
+			ImportMarker(&pHUD->options[NEOIFFMARKER_OPTION_FRIENDLY_XRAY], NEO_FRIENDLY_XRAY_MARKER_DEFAULT);
+		}
+		bImported = ImportMarker(&pHUD->options[NEOIFFMARKER_OPTION_SPECTATOR_XRAY], cvr->cl_neo_spectator_xray_marker.GetString());
+		if (!bImported)
+		{
+			ImportMarker(&pHUD->options[NEOIFFMARKER_OPTION_SPECTATOR_XRAY], NEO_SPECTATOR_XRAY_MARKER_DEFAULT);
+		}
+
+		pHUD->bEnableXray = cvr->glow_outline_effect_enable.GetBool();
+		pHUD->flOutlineWidth = cvr->glow_outline_effect_width.GetFloat();
+		pHUD->flOutlineAlpha = cvr->glow_outline_effect_alpha.GetFloat();
+		pHUD->flCenterOpacity = cvr->glow_outline_effect_center_alpha.GetFloat();
+		pHUD->flTexturedOpacity = cvr->glow_outline_effect_textured_center_alpha.GetFloat();
+#endif // GLOWS_ENABLE
 	}
 }
 
+// NEO TODO (nullsystem): For now the settings UI only exposes consoles as a
+// single keybind and this also deals with a single bind. Trying to enforce
+// multiple neo_toggleconsole binds doesn't seem to work here?
 void NeoToggleConsoleEnforce()
 {
 	// NEO JANK (nullsystem): Try to unbind toggleconsole when possible
@@ -478,28 +788,23 @@ void NeoSettingsSave(const NeoSettings *ns)
 		g_pVGuiLocalize->ConvertUnicodeToANSI(pGeneral->wszNeoClantag, neoClantagText, sizeof(neoClantagText));
 		cvr->neo_clantag.SetValue(neoClantagText);
 		cvr->cl_onlysteamnick.SetValue(pGeneral->bOnlySteamNick);
-		cvr->cl_neo_clantag_friendly_marker_spec_only.SetValue(pGeneral->bMarkerSpecOnlyClantag);
-		cvr->neo_fov.SetValue(pGeneral->iFov);
-		cvr->neo_viewmodel_fov_offset.SetValue(pGeneral->iViewmodelFov);
-		cvr->neo_aim_hold.SetValue(pGeneral->bAimHold);
 		cvr->cl_autoreload_when_empty.SetValue(pGeneral->bReloadEmpty);
 		cvr->cl_righthand.SetValue(pGeneral->bViewmodelRighthand);
 		cvr->cl_neo_lean_viewmodel_only.SetValue(pGeneral->bLeanViewmodelOnly);
 		cvr->cl_neo_lean_automatic.SetValue(pGeneral->iLeanAutomatic);
-		cvr->cl_neo_squad_hud_original.SetValue(pGeneral->bShowSquadList);
+		cvr->cl_neo_equip_utility_priority.SetValue(pGeneral->iEquipUtilityPriority);
+		cvr->hud_fastswitch.SetValue(pGeneral->bWeaponFastSwitch);
 		cvr->cl_spraydisable.SetValue(!pGeneral->bShowPlayerSprays); // Inverse
-		cvr->cl_showpos.SetValue(pGeneral->bShowPos);
-		cvr->cl_showfps.SetValue(pGeneral->iShowFps);
 		cvr->cl_downloadfilter.SetValue(DLFILTER_STRMAP[pGeneral->iDlFilter]);
 		cvr->cl_neo_streamermode.SetValue(pGeneral->bStreamerMode);
 		cvr->cl_neo_streamermode_autodetect_obs.SetValue(pGeneral->bAutoDetectOBS);
-		cvr->cl_neo_hud_rangefinder_enabled.SetValue(pGeneral->bEnableRangeFinder);
-		cvr->cl_neo_hud_extended_killfeed.SetValue(pGeneral->bExtendedKillfeed);
+		cvr->cl_neo_tachi_prefer_auto.SetValue(pGeneral->bTachiFullAutoPreferred);
 		cvr->sv_unlockedchapters.SetValue(pGeneral->iBackground);
+		cvr->cl_neo_taking_damage_sounds.SetValue(pGeneral->bTakingDamageSounds);
+		NeoSettingsBackgroundWrite(ns);
 	}
 	{
 		const NeoSettings::Keys *pKeys = &ns->keys;
-		cvr->hud_fastswitch.SetValue(pKeys->bWeaponFastSwitch);
 		NeoToggleConsoleEnforce();
 		cvr->cl_neo_toggleconsole.SetValue(pKeys->bDeveloperConsole);
 		for (int i = 0; i < pKeys->iBindsSize; ++i)
@@ -516,28 +821,44 @@ void NeoSettingsSave(const NeoSettings *ns)
 		for (int i = 0; i < pKeys->iBindsSize; ++i)
 		{
 			auto *bind = const_cast<NeoSettings::Keys::Bind *>(&pKeys->vBinds[i]);
-			if (bind->szBindingCmd[0] != '\0' && bind->bcNext > KEY_NONE)
+			if (bind->szBindingCmd[0] != '\0')
 			{
 				char cmdStr[128];
-				const char *bindBtnName = g_pInputSystem->ButtonCodeToString(bind->bcNext);
-				V_sprintf_safe(cmdStr, "bind \"%s\" \"%s\"\n", bindBtnName, bind->szBindingCmd);
-				engine->ClientCmd_Unrestricted(cmdStr);
+				if (bind->bcNext > KEY_NONE)
+				{
+					const char *bindBtnName = g_pInputSystem->ButtonCodeToString(bind->bcNext);
+					V_sprintf_safe(cmdStr, "bind \"%s\" \"%s\"\n", bindBtnName, bind->szBindingCmd);
+					engine->ClientCmd_Unrestricted(cmdStr);
+				}
+				if (bind->bcSecondaryNext > KEY_NONE)
+				{
+					const char *bindBtnName = g_pInputSystem->ButtonCodeToString(bind->bcSecondaryNext);
+					V_sprintf_safe(cmdStr, "bind \"%s\" \"%s\"\n", bindBtnName, bind->szBindingCmd);
+					engine->ClientCmd_Unrestricted(cmdStr);
+				}
 			}
 			bind->bcCurrent = bind->bcNext;
+			bind->bcSecondaryCurrent = bind->bcSecondaryNext;
 		}
-		// Reset the cache to none so it'll refresh on next KeyCodeTyped
-		const_cast<NeoSettings::Keys *>(pKeys)->bcConsole = KEY_NONE;
-		const_cast<NeoSettings::Keys *>(pKeys)->bcMP3Player = KEY_NONE;
 	}
 	{
 		const NeoSettings::Mouse *pMouse = &ns->mouse;
 		cvr->sensitivity.SetValue(pMouse->flSensitivity);
+		cvr->zoom_sensitivity_ratio.SetValue(pMouse->flZoomSensitivityRatio);
 		cvr->m_rawinput.SetValue(pMouse->bRawInput);
 		cvr->m_filter.SetValue(pMouse->bFilter);
 		const float absPitch = abs(cvr->m_pitch.GetFloat());
 		cvr->m_pitch.SetValue(pMouse->bReverse ? -absPitch : absPitch);
 		cvr->m_customaccel.SetValue(pMouse->bCustomAccel ? 3 : 0);
 		cvr->m_customaccel_exponent.SetValue(pMouse->flExponent);
+	}
+	{
+		const NeoSettings::Controller *pController = &ns->controller;
+		cvr->joystick.SetValue(pController->bEnabled);
+		cvr->joy_inverty.SetValue(pController->bReverse);
+		cvr->joy_movement_stick.SetValue(pController->bSwapSticks);
+		cvr->joy_yawsensitivity.SetValue(-pController->flSensHorizontal); // Negate convar
+		cvr->joy_pitchsensitivity.SetValue(pController->flSensVertical);
 	}
 	{
 		const NeoSettings::Audio *pAudio = &ns->audio;
@@ -556,14 +877,21 @@ void NeoSettingsSave(const NeoSettings *ns)
 		// Output
 		cvr->volume.SetValue(pAudio->flVolMain);
 		cvr->snd_musicvolume.SetValue(pAudio->flVolMusic);
+		cvr->cl_neo_radio_volume_separate_ingame.SetValue(pAudio->bVolMusicSepInGame);
+		cvr->cl_neo_radio_volume_ingame.SetValue(pAudio->flVolMusicInGame);
 		cvr->snd_victory_volume.SetValue(pAudio->flVolVictory);
+		cvr->snd_ping_volume.SetValue(pAudio->flVolPing);
 		cvr->snd_surround_speakers.SetValue(SURROUND_RE_MAP[pAudio->iSoundSetup]);
 		cvr->snd_mute_losefocus.SetValue(pAudio->bMuteAudioUnFocus);
+		cvr->cl_neo_radio_pause_ingame.SetValue(pAudio->bPauseMusicInGame);
+		cvr->cl_neo_radio_startup.SetValue(pAudio->iMusicStartupType);
 		cvr->snd_pitchquality.SetValue(pAudio->iSoundQuality == QUALITY_HIGH);
 		cvr->dsp_slow_cpu.SetValue(pAudio->iSoundQuality == QUALITY_LOW);
 
+		NeoMP3::Update();
+
 		// Input
-		cvr->voice_enable.SetValue(pAudio->bVoiceEnabled);
+		cvr->voice_modenable.SetValue(pAudio->bVoiceEnabled);
 		cvr->voice_scale.SetValue(pAudio->flVolVoiceRecv);
 		engine->GetVoiceTweakAPI()->SetControlFloat(MicBoost, static_cast<float>(pAudio->bMicBoost));
 	}
@@ -603,13 +931,60 @@ void NeoSettingsSave(const NeoSettings *ns)
 		cvr->mat_motion_blur_enabled.SetValue(pVideo->bMotionBlur);
 		cvr->mat_hdr_level.SetValue(pVideo->iHDR);
 		cvr->mat_monitorgamma.SetValue(pVideo->flGamma);
+		cvr->neo_fov.SetValue(pVideo->iFov);
+		cvr->neo_viewmodel_fov_offset.SetValue(pVideo->iViewmodelFov);
+		cvr->cl_software_cursor.SetValue(pVideo->bSoftwareCursor);
 	}
 	{
 		const NeoSettings::Crosshair *pCrosshair = &ns->crosshair;
 		char szSequence[NEO_XHAIR_SEQMAX];
-		ExportCrosshair(&pCrosshair->info, szSequence);
+		ExportCrosshair(const_cast<CrosshairInfo *>(&pCrosshair->info), szSequence);
 		cvr->cl_neo_crosshair.SetValue(szSequence);
 		cvr->cl_neo_crosshair_network.SetValue(pCrosshair->bNetworkCrosshair);
+		cvr->cl_neo_crosshair_scope_inaccuracy.SetValue(pCrosshair->bInaccuracyInScope);
+		cvr->cl_neo_crosshair_friendly_fire_warning.SetValue(pCrosshair->bFriendlyFireWarning);
+	}
+	{
+		const NeoSettings::HUD *pHUD = &ns->hud;
+		
+		cvr->cl_neo_squad_hud_original.SetValue(pHUD->bShowSquadList);
+		cvr->cl_neo_hud_health_mode.SetValue(pHUD->iHealthMode);
+		cvr->cl_neo_hud_worldpos_verbose.SetValue(pHUD->iObjVerbosity);
+		cvr->cl_neo_showhints.SetValue(pHUD->bShowHints);
+		cvr->cl_showpos.SetValue(pHUD->bShowPos);
+		cvr->cl_showfps.SetValue(pHUD->iShowFps);
+		cvr->cl_neo_hud_rangefinder_enabled.SetValue(pHUD->bEnableRangeFinder);
+		cvr->cl_neo_hud_extended_killfeed.SetValue(pHUD->iExtendedKillfeed);
+		cvr->cl_neo_hud_scoreboard_padding.SetValue(pHUD->iScoreboardPadding);
+		cvr->cl_neo_hud_context_hint_enabled.SetValue(pHUD->bShowHudContextHints);
+		cvr->cl_neo_hud_context_hint_show_player_takeover_hint.SetValue(pHUD->bShowHudContextHintPlayerTakeover);
+		cvr->cl_neo_hud_context_hint_show_object_interact_hint.SetValue(pHUD->bShowHudContextHintObjectInteract);
+		cvr->cl_neo_hud_context_hint_show_adjacent_interactable_objects.SetValue(pHUD->bShowHudContextAdjacentObjects && pHUD->bShowHudContextHintObjectInteract);
+		cvr->cl_neo_hud_context_hint_show_bot_interact_hint.SetValue(pHUD->bShowHudContextHintBotInteract);
+		cvr->cl_neo_hud_context_hint_highlight_object.SetValue(pHUD->bShowHudContextHighlightObject);
+		cvr->cl_neo_hud_context_hint_highlight_player.SetValue(pHUD->bShowHudContextHighlightPlayer);
+
+		char szSequence[NEO_IFFMARKER_SEQMAX];
+		ExportMarker(&pHUD->options[NEOIFFMARKER_OPTION_SQUAD], szSequence);
+		cvr->cl_neo_squad_marker.SetValue(szSequence);
+		ExportMarker(&pHUD->options[NEOIFFMARKER_OPTION_FRIENDLY], szSequence);
+		cvr->cl_neo_friendly_marker.SetValue(szSequence);
+		ExportMarker(&pHUD->options[NEOIFFMARKER_OPTION_SPECTATOR], szSequence);
+		cvr->cl_neo_spectator_marker.SetValue(szSequence);
+#ifdef GLOWS_ENABLE
+		ExportMarker(&pHUD->options[NEOIFFMARKER_OPTION_SQUAD_XRAY], szSequence);
+		cvr->cl_neo_squad_xray_marker.SetValue(szSequence);
+		ExportMarker(&pHUD->options[NEOIFFMARKER_OPTION_FRIENDLY_XRAY], szSequence);
+		cvr->cl_neo_friendly_xray_marker.SetValue(szSequence);
+		ExportMarker(&pHUD->options[NEOIFFMARKER_OPTION_SPECTATOR_XRAY], szSequence);
+		cvr->cl_neo_spectator_xray_marker.SetValue(szSequence);
+
+		cvr->glow_outline_effect_enable.SetValue(pHUD->bEnableXray);
+		cvr->glow_outline_effect_width.SetValue(pHUD->flOutlineWidth);
+		cvr->glow_outline_effect_alpha.SetValue(pHUD->flOutlineAlpha);
+		cvr->glow_outline_effect_center_alpha.SetValue(pHUD->flCenterOpacity);
+		cvr->glow_outline_effect_textured_center_alpha.SetValue(pHUD->flTexturedOpacity);
+#endif // GLOWS_ENABLE
 	}
 
 	engine->ClientCmd_Unrestricted("host_writeconfig");
@@ -648,6 +1023,7 @@ void NeoSettingsResetToDefault(NeoSettings *ns)
 			engine->ClientCmd_Unrestricted(cmdStr);
 		}
 		bind->bcCurrent = bind->bcNext = bind->bcDefault;
+		bind->bcSecondaryCurrent = bind->bcSecondaryNext = BUTTON_CODE_NONE;
 	}
 
 	engine->ClientCmd_Unrestricted("host_writeconfig");
@@ -657,51 +1033,123 @@ void NeoSettingsResetToDefault(NeoSettings *ns)
 	NeoSettingsRestore(ns, NeoSettings::Keys::SKIP_KEYS);
 }
 
+void NeoSettingsEndVoiceTweakMode()
+{
+	// NEO JANK (nullsystem): After tweaking, load up a local server and the voice icon
+	// indicator shows it's recording even though it's actually not? Workaround: just
+	// directly set UpdateSpeakerStatus here, -1 = local player.
+	engine->GetVoiceTweakAPI()->EndVoiceTweakMode();
+	GetClientVoiceMgr()->UpdateSpeakerStatus(-1, false);
+}
+
 static const wchar_t *DLFILTER_LABELS[] = {
 	L"Allow all custom files from server",
 	L"Do not download custom sounds",
 	L"Only allow map files",
 	L"Do not download any custom files",
 };
-static const wchar_t *SHOWFPS_LABELS[] = { L"Disabled", L"Enabled (FPS)", L"Enabled (Smooth FPS)", };
 static_assert(ARRAYSIZE(DLFILTER_STRMAP) == ARRAYSIZE(DLFILTER_LABELS));
+
+static const wchar_t* HEALTHMODE_LABELS[] = { L"Percent", L"Hit Points", L"Effective HP" };
+
+static const wchar_t* IFFVERBOSITY_LABELS[] = { L"Minimal", L"Clean", L"Full" };
+
+static const wchar_t* OBJVERBOSITY_LABELS[] = { L"Minimal", L"Full" };
+
+static const wchar_t *SHOWFPS_LABELS[] = { L"Disabled", L"Enabled (FPS)", L"Enabled (Smooth FPS)", };
+
+static const wchar_t *EQUIP_UTILITY_PRIORITY_LABELS[NeoSettings::EquipUtilityPriorityType::EQUIP_UTILITY_PRIORITY__TOTAL] = {
+	L"Frag, Smoke, Detpack", // EQUIP_UTILITY_PRIORITY_FRAG_SMOKE_DETPACK
+	L"Class Specific First" // EQUIP_UTILITY_PRIORITY_CLASS_SPECIFIC
+};
+
+// Trims empty whitespaces from the left-hand side of a text variable.
+// Allows one contiguous whitespace on the right side for space-separated input, but no more.
+template <int maxlen>
+	requires (maxlen > 1)
+FORCEINLINE void VarTrimmer(wchar_t (&input)[maxlen])
+{
+	auto zeroIdx = Clamp(V_wcslen(input), 0, maxlen - 1);
+	for (int i = 0; i < zeroIdx; ++i)
+	{
+		const bool hasBadCharInPos = (
+			V_IsDeprecatedW(input[i]) ||
+			V_IsMeanSpaceW(input[i]));
+
+		const bool hasDoubleBlankInPos = (
+			(i + 1 < zeroIdx) &&
+			std::iswblank(input[i]) &&
+			std::iswblank(input[i + 1]));
+
+		if (hasBadCharInPos || hasDoubleBlankInPos)
+		{
+			V_memmove(&input[i], &input[i + 1], (zeroIdx - i) * sizeof(input[0]));
+			NeoUI::CurrentContext()->iTextSelCur = NeoUI::CurrentContext()->iTextSelStart = i+hasDoubleBlankInPos;
+			// memmove has shifted contents one position to the left, so compensate by decrementing
+			zeroIdx = Max(0, zeroIdx - 1);
+			i -= 1;
+		}
+	}
+	// Block leading spaces
+	if (std::iswblank(input[0]))
+	{
+		V_memmove(input, &input[1], (maxlen - 1) * sizeof(input[0]));
+		NeoUI::CurrentContext()->iTextSelCur = NeoUI::CurrentContext()->iTextSelCur = 0;
+		NeoUI::CurrentContext()->iTextSelCur = NeoUI::CurrentContext()->iTextSelStart = 0;
+	}
+}
 
 void NeoSettings_General(NeoSettings *ns)
 {
 	NeoSettings::General *pGeneral = &ns->general;
-	NeoUI::TextEdit(L"Name", pGeneral->wszNeoName, SZWSZ_LEN(pGeneral->wszNeoName));
-	NeoUI::TextEdit(L"Clan tag", pGeneral->wszNeoClantag, SZWSZ_LEN(pGeneral->wszNeoClantag));
-	NeoUI::RingBoxBool(L"Show only steam name", &pGeneral->bOnlySteamNick);
-	NeoUI::RingBoxBool(L"Friendly marker spectator only clantags", &pGeneral->bMarkerSpecOnlyClantag);
-
-	wchar_t wszTotalClanAndName[NEO_MAX_DISPLAYNAME];
-	GetClNeoDisplayName(wszTotalClanAndName, pGeneral->wszNeoName, pGeneral->wszNeoClantag, pGeneral->bOnlySteamNick);
-	NeoUI::Label(L"Display name", wszTotalClanAndName);
-
-	NeoUI::SliderInt(L"FOV", &pGeneral->iFov, 75, 110);
-	NeoUI::SliderInt(L"Viewmodel FOV Offset", &pGeneral->iViewmodelFov, -20, 40);
-	NeoUI::RingBoxBool(L"Aim hold", &pGeneral->bAimHold);
+	NeoUI::Divider(L"GAMEPLAY");
 	NeoUI::RingBoxBool(L"Reload empty", &pGeneral->bReloadEmpty);
 	NeoUI::RingBoxBool(L"Right hand viewmodel", &pGeneral->bViewmodelRighthand);
 	NeoUI::RingBoxBool(L"Lean viewmodel only", &pGeneral->bLeanViewmodelOnly);
 	NeoUI::RingBox(L"Automatic leaning", AUTOMATIC_LEAN_LABELS, ARRAYSIZE(AUTOMATIC_LEAN_LABELS), &pGeneral->iLeanAutomatic);
-	NeoUI::RingBoxBool(L"Classic squad list", &pGeneral->bShowSquadList);
-	NeoUI::RingBoxBool(L"Show position", &pGeneral->bShowPos);
-	NeoUI::RingBox(L"Show FPS", SHOWFPS_LABELS, ARRAYSIZE(SHOWFPS_LABELS), &pGeneral->iShowFps);
-	NeoUI::RingBoxBool(L"Show rangefinder", &pGeneral->bEnableRangeFinder);
-	NeoUI::RingBoxBool(L"Extended Killfeed", &pGeneral->bExtendedKillfeed);
-	NeoUI::SliderInt(L"Selected Background", &pGeneral->iBackground, 1, 4); // NEO TODO (Adam) switch to RingBox with values read from ChapterBackgrounds.txt
+	NeoUI::RingBox(L"Utility slot equip priority", EQUIP_UTILITY_PRIORITY_LABELS, NeoSettings::EquipUtilityPriorityType::EQUIP_UTILITY_PRIORITY__TOTAL, &pGeneral->iEquipUtilityPriority);
+	NeoUI::RingBoxBool(L"Weapon fastswitch", &pGeneral->bWeaponFastSwitch);
+	NeoUI::RingBoxBool(L"Taking damage sounds", &pGeneral->bTakingDamageSounds);
 
-	NeoUI::HeadingLabel(L"STREAMER MODE");
+	NeoUI::Divider(L"MAIN MENU");
+	NeoUI::RingBox(L"Selected Background", const_cast<const wchar_t **>(ns->p2WszCBList), ns->iCBListSize, &pGeneral->iBackground);
+
+	NeoUI::Divider(L"MULTIPLAYER");
+	NeoUI::TextEdit(L"Name", pGeneral->wszNeoName, ARRAYSIZE(pGeneral->wszNeoName) - 1);
+	VarTrimmer(pGeneral->wszNeoName);
+	NeoUI::TextEdit(L"Clan tag", pGeneral->wszNeoClantag, ARRAYSIZE(pGeneral->wszNeoClantag) - 1);
+	VarTrimmer(pGeneral->wszNeoClantag);
+	NeoUI::RingBoxBool(L"Show only steam name", &pGeneral->bOnlySteamNick);
+	NeoUI::RingBoxBool(L"Only show clantags when spectator", &pGeneral->bMarkerSpecOnlyClantag);
+
+	wchar_t wszTotalClanAndName[NEO_MAX_DISPLAYNAME];
+	ns->bIsValid = GetClNeoDisplayName(wszTotalClanAndName,
+			pGeneral->wszNeoName, pGeneral->wszNeoClantag,
+			((pGeneral->bOnlySteamNick) ?
+			 	CL_NEODISPLAYNAME_FLAG_CHECK | CL_NEODISPLAYNAME_FLAG_ONLYSTEAMNICK :
+				CL_NEODISPLAYNAME_FLAG_CHECK));
+	if (ns->bIsValid)
+	{
+		NeoUI::Label(L"Display name", wszTotalClanAndName);
+	}
+	else
+	{
+		NeoUI::BeginOverrideFgColor(COLOR_RED);
+		NeoUI::Label(L"Display name (invalid)", wszTotalClanAndName);
+		NeoUI::EndOverrideFgColor();
+	}
+
+	NeoUI::Pad();
+	NeoUI::Pad();
 	NeoUI::RingBoxBool(L"Streamer mode", &pGeneral->bStreamerMode);
 	NeoUI::RingBoxBool(L"Auto streamer mode (requires restart)", &pGeneral->bAutoDetectOBS);
 	NeoUI::Label(L"OBS detection", g_bOBSDetected ? L"OBS detected on startup" : L"Not detected on startup");
 
-	NeoUI::HeadingLabel(L"DOWNLOADING");
-	NeoUI::RingBoxBool(L"Show player spray", &pGeneral->bShowPlayerSprays);
+	NeoUI::Pad();
+	NeoUI::Pad();
 	NeoUI::RingBox(L"Download filter", DLFILTER_LABELS, ARRAYSIZE(DLFILTER_LABELS), &pGeneral->iDlFilter);
+	NeoUI::RingBoxBool(L"Show player sprays", &pGeneral->bShowPlayerSprays);
 
-	NeoUI::HeadingLabel(L"SPRAY");
 	if (IsInGame())
 	{
 		NeoUI::HeadingLabel(L"Disconnect to update in-game spray");
@@ -746,49 +1194,105 @@ void NeoSettings_General(NeoSettings *ns)
 void NeoSettings_Keys(NeoSettings *ns)
 {
 	NeoSettings::Keys *pKeys = &ns->keys;
-	NeoUI::RingBoxBool(L"Weapon fastswitch", &pKeys->bWeaponFastSwitch);
+	NeoUI::Divider(L"CONSOLE");
 	NeoUI::RingBoxBool(L"Developer console", &pKeys->bDeveloperConsole);
 	g_uiCtx.eButtonTextStyle = NeoUI::TEXTSTYLE_CENTER;
+	g_uiCtx.eLabelTextStyle = NeoUI::TEXTSTYLE_CENTER;
+	static constexpr const int KEYS_LAYOUT[] = { 40, 30, -1 };
+	NeoUI::SetPerRowLayout(ARRAYSIZE(KEYS_LAYOUT), KEYS_LAYOUT);
+	g_uiCtx.eLabelTextStyle = NeoUI::TEXTSTYLE_LEFT;
 	for (int i = 0; i < pKeys->iBindsSize; ++i)
 	{
 		const auto &bind = pKeys->vBinds[i];
 		if (bind.szBindingCmd[0] == '\0')
 		{
-			NeoUI::HeadingLabel(bind.wszDisplayText);
+			NeoUI::Divider(bind.wszDisplayText);
 		}
 		else
 		{
+			if (bind.bSkipSecondary)
+			{
+				NeoUI::SetPerRowLayout(2, NeoUI::ROWLAYOUT_TWOSPLIT);
+			}
+			NeoUI::BeginMultiWidgetHighlighter(bind.bSkipSecondary ? 2 : 3);
+			NeoUI::Label(bind.wszDisplayText);
 			wchar_t wszBindBtnName[64];
 			const char *szBindBtnName = g_pInputSystem->ButtonCodeToString(bind.bcNext);
 			g_pVGuiLocalize->ConvertANSIToUnicode(szBindBtnName, wszBindBtnName, sizeof(wszBindBtnName));
-			if (NeoUI::Button(bind.wszDisplayText, wszBindBtnName).bPressed)
+			if (NeoUI::Button(wszBindBtnName).bPressed)
 			{
 				ns->iNextBinding = i;
+				ns->bNextBindingSecondary = false;
+			}
+			if (false == bind.bSkipSecondary)
+			{
+				const char *szBindSecondaryBtnName = g_pInputSystem->ButtonCodeToString(bind.bcSecondaryNext);
+				g_pVGuiLocalize->ConvertANSIToUnicode(szBindSecondaryBtnName, wszBindBtnName, sizeof(wszBindBtnName));
+				if (NeoUI::Button(wszBindBtnName).bPressed)
+				{
+					ns->iNextBinding = i;
+					ns->bNextBindingSecondary = true;
+				}
+			}
+			NeoUI::EndMultiWidgetHighlighter();
+			if (bind.bSkipSecondary)
+			{
+				NeoUI::SetPerRowLayout(ARRAYSIZE(KEYS_LAYOUT), KEYS_LAYOUT);
 			}
 		}
 	}
 }
 
-void NeoSettings_Mouse(NeoSettings *ns)
+void NeoSettings_MouseController(NeoSettings *ns)
 {
-	NeoSettings::Mouse *pMouse = &ns->mouse;
-	NeoUI::Slider(L"Sensitivity", &pMouse->flSensitivity, 0.1f, 10.0f, 2, 0.25f);
-	NeoUI::RingBoxBool(L"Raw input", &pMouse->bRawInput);
-	NeoUI::RingBoxBool(L"Mouse Filter", &pMouse->bFilter);
-	NeoUI::RingBoxBool(L"Mouse Reverse", &pMouse->bReverse);
-	NeoUI::RingBoxBool(L"Custom Acceleration", &pMouse->bCustomAccel);
-	NeoUI::Slider(L"Exponent", &pMouse->flExponent, 1.0f, 1.4f, 2, 0.1f);
+	{
+		NeoUI::Divider(L"MOUSE");
+		NeoSettings::Mouse *pMouse = &ns->mouse;
+		NeoUI::Slider(L"Sensitivity", &pMouse->flSensitivity, 0.1f, 10.0f, 2, 0.25f);
+		NeoUI::Slider(L"Zoom Sensitivity Ratio", &pMouse->flZoomSensitivityRatio, 0.f, 10.0f, 2, 0.25f);
+		NeoUI::RingBoxBool(L"Raw input", &pMouse->bRawInput);
+		NeoUI::RingBoxBool(L"Mouse Filter", &pMouse->bFilter);
+		NeoUI::RingBoxBool(L"Mouse Reverse", &pMouse->bReverse);
+		NeoUI::RingBoxBool(L"Custom Acceleration", &pMouse->bCustomAccel);
+		NeoUI::Slider(L"Exponent", &pMouse->flExponent, 1.0f, 1.4f, 2, 0.1f);
+	}
+	{
+		NeoUI::Divider(L"CONTROLLER");
+		NeoSettings::Controller *pController = &ns->controller;
+		NeoUI::RingBoxBool(L"Enable controller", &pController->bEnabled);
+		if (pController->bEnabled)
+		{
+			NeoUI::RingBoxBool(L"Reverse stick", &pController->bReverse);
+			NeoUI::RingBoxBool(L"Swap sticks", &pController->bSwapSticks);
+			NeoUI::Slider(L"Horizontal sensitivity", &pController->flSensHorizontal, 0.5f, 7.0f, 2, 0.1f);
+			NeoUI::Slider(L"Vertical sensitivity", &pController->flSensVertical, 0.5f, 7.0f, 2, 0.1f);
+		}
+	}
 }
 
 void NeoSettings_Audio(NeoSettings *ns)
 {
 	NeoSettings::Audio *pAudio = &ns->audio;
+	NeoUI::Divider(L"VOLUME");
 	NeoUI::Slider(L"Main Volume", &pAudio->flVolMain, 0.0f, 1.0f, 2, 0.1f);
-	NeoUI::Slider(L"Music Volume", &pAudio->flVolMusic, 0.0f, 1.0f, 2, 0.1f);
+	NeoUI::Slider(pAudio->bVolMusicSepInGame
+			? L"Music Volume (Main Menu)"
+			: L"Music Volume"
+				, &pAudio->flVolMusic, 0.0f, 1.0f, 2, 0.1f);
+	NeoUI::RingBoxBool(L"Separate in-game Music Volume", &pAudio->bVolMusicSepInGame);
+	if (pAudio->bVolMusicSepInGame)
+	{
+		NeoUI::Slider(L"Music Volume (In Game)", &pAudio->flVolMusicInGame, 0.0f, 1.0f, 2, 0.1f);
+	}
 	NeoUI::Slider(L"Victory Volume", &pAudio->flVolVictory, 0.0f, 1.0f, 2, 0.1f);
+	NeoUI::Slider(L"Ping Volume", &pAudio->flVolPing, 0.0f, 1.0f, 2, 0.1f);
+	NeoUI::Divider(L"SOUND");
 	NeoUI::RingBox(L"Sound Setup", SPEAKER_CFG_LABELS, ARRAYSIZE(SPEAKER_CFG_LABELS), &pAudio->iSoundSetup);
 	NeoUI::RingBox(L"Sound Quality", QUALITY_LABELS, 3, &pAudio->iSoundQuality);
 	NeoUI::RingBoxBool(L"Mute Audio on un-focus", &pAudio->bMuteAudioUnFocus);
+	NeoUI::RingBoxBool(L"Pause Music on entering in game", &pAudio->bPauseMusicInGame);
+	NeoUI::RingBox(L"First song on startup", STARTUP_TYPE_LABELS, NeoMP3::STARTUP_TYPE__TOTAL, &pAudio->iMusicStartupType);
+	NeoUI::Divider(L"VOICE");
 	NeoUI::RingBoxBool(L"Voice Enabled", &pAudio->bVoiceEnabled);
 	NeoUI::Slider(L"Voice Receive", &pAudio->flVolVoiceRecv, 0.0f, 1.0f, 2, 0.1f);
 	NeoUI::RingBoxBool(L"Microphone Boost", &pAudio->bMicBoost);
@@ -814,19 +1318,17 @@ void NeoSettings_Audio(NeoSettings *ns)
 										g_uiCtx.rWidgetArea.x0 + (pAudio->flSpeakingVol * g_uiCtx.irWidgetWide),
 										g_uiCtx.rWidgetArea.y1 + g_uiCtx.layout.iRowTall);
 		vgui::surface()->DrawSetColor(COLOR_TRANSPARENT);
-		g_uiCtx.selectBgColor = COLOR_TRANSPARENT;
 	}
 	if (NeoUI::Button(L"Microphone Tester",
 					  bTweaking ? L"Stop testing" : L"Start testing").bPressed)
 	{
-		bTweaking ? pVoiceTweak->EndVoiceTweakMode() : (void)pVoiceTweak->StartVoiceTweakMode();
+		bTweaking ? NeoSettingsEndVoiceTweakMode() : (void)pVoiceTweak->StartVoiceTweakMode();
 		pAudio->flSpeakingVol = 0.0f;
 		pAudio->flLastFetchInterval = 0.0f;
 	}
 	if (bTweaking && g_uiCtx.eMode == NeoUI::MODE_PAINT)
 	{
 		vgui::surface()->DrawSetColor(COLOR_NEOPANELACCENTBG);
-		g_uiCtx.selectBgColor = COLOR_NEOPANELSELECTBG;
 	}
 }
 
@@ -843,9 +1345,17 @@ static const wchar_t *MSAA_LABELS[] = { L"None", L"2x MSAA", L"4x MSAA", L"6x MS
 void NeoSettings_Video(NeoSettings *ns)
 {
 	NeoSettings::Video *pVideo = &ns->video;
+	NeoUI::Divider(L"DISPLAY");
 	NeoUI::RingBox(L"Resolution", const_cast<const wchar_t **>(pVideo->p2WszVmDispList), pVideo->iVMListSize, &pVideo->iResolution);
 	NeoUI::RingBox(L"Window", WINDOW_MODE, WINDOWMODE__TOTAL, &pVideo->iWindow);
+	NeoUI::RingBoxBool(L"V-Sync", &pVideo->bVSync);
 	NeoUI::RingBox(L"Core Rendering", QUEUE_MODE, ARRAYSIZE(QUEUE_MODE), &pVideo->iCoreRendering);
+	NeoUI::Slider(L"Gamma", &pVideo->flGamma, 1.6, 2.6, 2, 0.1f);
+	NeoUI::SliderInt(L"FOV", &pVideo->iFov, MIN_FOV, MAX_FOV);
+	NeoUI::SliderInt(L"Viewmodel FOV Offset", &pVideo->iViewmodelFov, -20, 40);
+	NeoUI::RingBoxBool(L"Software Cursor", &pVideo->bSoftwareCursor);
+
+	NeoUI::Divider(L"VISUALS");
 	NeoUI::RingBox(L"Model detail", QUALITY_LABELS, 3, &pVideo->iModelDetail);
 	NeoUI::RingBox(L"Texture detail", QUALITY_LABELS, 4, &pVideo->iTextureDetail);
 	NeoUI::RingBox(L"Shader detail", QUALITY3_LABELS, 3, &pVideo->iShaderDetail);
@@ -854,49 +1364,67 @@ void NeoSettings_Video(NeoSettings *ns)
 	NeoUI::RingBoxBool(L"Color correction", &pVideo->bColorCorrection);
 	NeoUI::RingBox(L"Anti-aliasing", MSAA_LABELS, ARRAYSIZE(MSAA_LABELS), &pVideo->iAntiAliasing);
 	NeoUI::RingBox(L"Filtering mode", FILTERING_LABELS, FILTERING__TOTAL, &pVideo->iFilteringMode);
-	NeoUI::RingBoxBool(L"V-Sync", &pVideo->bVSync);
 	NeoUI::RingBoxBool(L"Motion blur", &pVideo->bMotionBlur);
 	NeoUI::RingBox(L"HDR", HDR_LABELS, ARRAYSIZE(HDR_LABELS), &pVideo->iHDR);
-	NeoUI::Slider(L"Gamma", &pVideo->flGamma, 1.6, 2.6, 2, 0.1f);
 }
 
 void NeoSettings_Crosshair(NeoSettings *ns)
 {
 	static constexpr int IVIEW_ROWS = 5;
+	static constexpr int IMISC_ROWS = 4;
 	NeoSettings::Crosshair *pCrosshair = &ns->crosshair;
 
 	g_uiCtx.dPanel.y += g_uiCtx.dPanel.tall;
 	g_uiCtx.dPanel.tall = g_uiCtx.layout.iRowTall * IVIEW_ROWS;
 
-	const bool bTextured = CROSSHAIR_FILES[pCrosshair->info.iStyle][0];
-	NeoUI::BeginSection();
+	const int iXHairWep = static_cast<int>(pCrosshair->eXHairWep);
+	bool bIsHipfireHide = false;
+	const int iUseXHairIdx = UseCrosshairIndexFor(&pCrosshair->info, iXHairWep, &bIsHipfireHide);
+	const bool bIsInUse = (iXHairWep == iUseXHairIdx);
+
+	CrosshairWepInfo *crh = &pCrosshair->info.wep[iUseXHairIdx];
+
+	const bool bTextured = CROSSHAIR_FILES[crh->iStyle][0];
+	NeoUI::BeginSection(NeoUI::SECTIONFLAG_EXCLUDECONTROLLER);
 	{
-		if (bTextured)
+		NeoUI::Divider(L"PREVIEW");
+		if (!bIsHipfireHide)
 		{
-			NeoSettings::Crosshair::Texture *pTex = &ns->crosshair.arTextures[pCrosshair->info.iStyle];
-			vgui::surface()->DrawSetTexture(pTex->iTexId);
-			vgui::surface()->DrawSetColor(pCrosshair->info.color);
-			vgui::surface()->DrawTexturedRect(
-				g_uiCtx.dPanel.x + g_uiCtx.iLayoutX - (pTex->iWide / 2) + (g_uiCtx.dPanel.wide / 2),
-				g_uiCtx.dPanel.y + g_uiCtx.iLayoutY,
-				g_uiCtx.dPanel.x + g_uiCtx.iLayoutX + (pTex->iWide / 2) + (g_uiCtx.dPanel.wide / 2),
-				g_uiCtx.dPanel.y + g_uiCtx.iLayoutY + pTex->iTall);
+			if (bTextured)
+			{
+				NeoSettings::Crosshair::Texture *pTex = &ns->crosshair.arTextures[crh->iStyle];
+				vgui::surface()->DrawSetTexture(pTex->iTexId);
+				vgui::surface()->DrawSetColor(crh->color);
+				vgui::surface()->DrawTexturedRect(
+					g_uiCtx.dPanel.x + g_uiCtx.iLayoutX - (pTex->iWide / 2) + (g_uiCtx.dPanel.wide / 2),
+					g_uiCtx.dPanel.y + g_uiCtx.iLayoutY,
+					g_uiCtx.dPanel.x + g_uiCtx.iLayoutX + (pTex->iWide / 2) + (g_uiCtx.dPanel.wide / 2),
+					g_uiCtx.dPanel.y + g_uiCtx.iLayoutY + pTex->iTall);
+			}
+			else
+			{
+				const int iPreviewDynamicAccuracy = (pCrosshair->bPreviewDynamicAccuracy) ? (Max(0, (int)(sin(gpGlobals->curtime) * 24) + 16)) : 0;
+				PaintCrosshair(crh, iPreviewDynamicAccuracy,
+							   g_uiCtx.dPanel.x + g_uiCtx.iLayoutX + (g_uiCtx.dPanel.wide / 2),
+							   g_uiCtx.dPanel.y + g_uiCtx.iLayoutY + (g_uiCtx.dPanel.tall / 2));
+			}
 		}
-		else
-		{
-			PaintCrosshair(pCrosshair->info,
-						   g_uiCtx.dPanel.x + g_uiCtx.iLayoutX + (g_uiCtx.dPanel.wide / 2),
-						   g_uiCtx.dPanel.y + g_uiCtx.iLayoutY + (g_uiCtx.dPanel.tall / 2));
-		}
-		vgui::surface()->DrawSetColor(g_uiCtx.normalBgColor);
+		vgui::surface()->DrawSetColor(g_uiCtx.colors.normalBg);
 
 		NeoUI::SetPerRowLayout(4);
 		{
-			const bool bExportPressed = NeoUI::Button(L"Export to clipboard").bPressed;
-			const bool bImportPressed = NeoUI::Button(L"Import from clipboard").bPressed;
+			g_uiCtx.eButtonTextStyle = NeoUI::TEXTSTYLE_CENTER;
+			static constexpr const ButtonCode_t BUTTON_CODES_EXPORT[] = { KEY_XBUTTON_X, STEAMCONTROLLER_X };
+			static constexpr const ButtonCode_t BUTTON_CODES_IMPORT[] = { KEY_XBUTTON_Y, STEAMCONTROLLER_Y };
+			const bool bExportPressed = NeoUI::Button(NeoUI::HintAlt(L"Export", L"Export (X)")).bPressed ||
+					NeoUI::Bind(BUTTON_CODES_EXPORT, ARRAYSIZE(BUTTON_CODES_EXPORT));
+			const bool bTestCrosshairPressed = NeoUI::Button(L"Test dynamic").bPressed;
+			const bool bImportPressed = NeoUI::Button(NeoUI::HintAlt(L"Import", L"Import (Y)")).bPressed ||
+					NeoUI::Bind(BUTTON_CODES_IMPORT, ARRAYSIZE(BUTTON_CODES_IMPORT));
 			const bool bDefaultPressed = NeoUI::Button(L"Reset to default").bPressed;
+			g_uiCtx.eButtonTextStyle = NeoUI::TEXTSTYLE_LEFT;
 
-			if (bExportPressed || bImportPressed)
+			if (bExportPressed || bTestCrosshairPressed || bImportPressed)
 			{
 				char szClipboardCrosshair[NEO_XHAIR_SEQMAX] = {}; // zero-init
 				if (bExportPressed)
@@ -906,6 +1434,10 @@ void NeoSettings_Crosshair(NeoSettings *ns)
 					vgui::system()->SetClipboardText(szClipboardCrosshair, V_strlen(szClipboardCrosshair));
 					pCrosshair->eClipboardInfo = XHAIREXPORTNOTIFY_EXPORT_TO_CLIPBOARD;
 				}
+				else if (bTestCrosshairPressed)
+				{
+					pCrosshair->bPreviewDynamicAccuracy = !pCrosshair->bPreviewDynamicAccuracy;
+				}
 				else // bImportPressed
 				{
 					bool bImported = false;
@@ -914,7 +1446,7 @@ void NeoSettings_Crosshair(NeoSettings *ns)
 #ifdef WIN32
 						// NEO NOTE (nullsystem): On Windows, GetClipboardText char * returns UTF-16 arranged bytes, differs from Set...
 						wchar_t wszClipboardCrosshair[NEO_XHAIR_SEQMAX] = {};
-						const int iClipboardWSZBytes = vgui::system()->GetClipboardText(0, wszClipboardCrosshair, NEO_XHAIR_SEQMAX);
+						const int iClipboardWSZBytes = vgui::system()->GetClipboardText(0, wszClipboardCrosshair, sizeof(wszClipboardCrosshair));
 						const int iClipboardBytes = (iClipboardWSZBytes > 0)
 								? g_pVGuiLocalize->ConvertUnicodeToANSI(wszClipboardCrosshair, szClipboardCrosshair, sizeof(szClipboardCrosshair))
 								: 0;
@@ -923,7 +1455,7 @@ void NeoSettings_Crosshair(NeoSettings *ns)
 #endif
 						if (iClipboardBytes > 0)
 						{
-							bImported = ImportCrosshair(&pCrosshair->info, szClipboardCrosshair);
+							bImported = ImportCrosshair(&pCrosshair->info, szClipboardCrosshair, &pCrosshair->aeHipfireOpts);
 							if (bImported)
 							{
 								ns->bModified = true;
@@ -938,7 +1470,7 @@ void NeoSettings_Crosshair(NeoSettings *ns)
 
 			if (bDefaultPressed)
 			{
-				ImportCrosshair(&pCrosshair->info, CL_NEO_CROSSHAIR_DEFAULT);
+				ResetCrosshairToDefault(&pCrosshair->info, &pCrosshair->aeHipfireOpts);
 				pCrosshair->eClipboardInfo = XHAIREXPORTNOTIFY_RESET_TO_DEFAULT;
 				ns->bModified = true;
 			}
@@ -959,33 +1491,252 @@ void NeoSettings_Crosshair(NeoSettings *ns)
 	NeoUI::EndSection();
 
 	g_uiCtx.dPanel.y += g_uiCtx.dPanel.tall;
-	g_uiCtx.dPanel.tall = g_uiCtx.layout.iRowTall * (g_iRowsInScreen - IVIEW_ROWS);
-	NeoUI::BeginSection(true);
+	g_uiCtx.dPanel.tall = g_uiCtx.layout.iRowTall;
+	NeoUI::BeginSection();
 	{
-		NeoUI::SetPerRowLayout(2, NeoUI::ROWLAYOUT_TWOSPLIT);
-		NeoUI::RingBox(L"Crosshair style", CROSSHAIR_LABELS, CROSSHAIR_STYLE__TOTAL, &pCrosshair->info.iStyle);
-		NeoUI::SliderU8(L"Red", &pCrosshair->info.color[0], 0, UCHAR_MAX);
-		NeoUI::SliderU8(L"Green", &pCrosshair->info.color[1], 0, UCHAR_MAX);
-		NeoUI::SliderU8(L"Blue", &pCrosshair->info.color[2], 0, UCHAR_MAX);
-		NeoUI::SliderU8(L"Alpha", &pCrosshair->info.color[3], 0, UCHAR_MAX);
-		if (!bTextured)
+		static const wchar_t *CROSSHAIR_WEP_LABELS[CROSSHAIR_WEP__TOTAL] = {
+			L"Default",
+			L"Secondary",
+			L"Shotgun",
+			L"Default hipfire",
+			L"Secondary hipfire",
+			L"Shotgun hipfire",
+			L"Grenades",
+		};
+		NeoUI::SetPerRowLayout(1);
+		static_assert(sizeof(int) == sizeof(ENeoCrosshairWep));
+		const ENeoCrosshairWep eCmpXHairWep = pCrosshair->eXHairWep;
+		NeoUI::Tabs(CROSSHAIR_WEP_LABELS, CROSSHAIR_WEP__TOTAL, (int *)(&pCrosshair->eXHairWep),
+				NeoUI::TABFLAG_NOSIDEKEYS | NeoUI::TABFLAG_NOSTATERESETS);
+		if (eCmpXHairWep != pCrosshair->eXHairWep)
 		{
-			NeoUI::RingBox(L"Size type", CROSSHAIR_SIZETYPE_LABELS, CROSSHAIR_SIZETYPE__TOTAL, &pCrosshair->info.iESizeType);
-			switch (pCrosshair->info.iESizeType)
-			{
-			case CROSSHAIR_SIZETYPE_ABSOLUTE: NeoUI::SliderInt(L"Size", &pCrosshair->info.iSize, 0, CROSSHAIR_MAX_SIZE); break;
-			case CROSSHAIR_SIZETYPE_SCREEN: NeoUI::Slider(L"Size", &pCrosshair->info.flScrSize, 0.0f, 1.0f, 3, 0.01f); break;
-			}
-			NeoUI::SliderInt(L"Thickness", &pCrosshair->info.iThick, 0, CROSSHAIR_MAX_THICKNESS);
-			NeoUI::SliderInt(L"Gap", &pCrosshair->info.iGap, 0, CROSSHAIR_MAX_GAP);
-			NeoUI::SliderInt(L"Outline", &pCrosshair->info.iOutline, 0, CROSSHAIR_MAX_OUTLINE);
-			NeoUI::SliderInt(L"Center dot", &pCrosshair->info.iCenterDot, 0, CROSSHAIR_MAX_CENTER_DOT);
-			NeoUI::RingBoxBool(L"Draw top line", &pCrosshair->info.bTopLine);
-			NeoUI::SliderInt(L"Circle radius", &pCrosshair->info.iCircleRad, 0, CROSSHAIR_MAX_CIRCLE_RAD);
-			NeoUI::SliderInt(L"Circle segments", &pCrosshair->info.iCircleSegments, 0, CROSSHAIR_MAX_CIRCLE_SEGMENTS);
+			V_memset(g_uiCtx.iYOffset, 0, sizeof(g_uiCtx.iYOffset));
 		}
-		NeoUI::HeadingLabel(L"NETWORKING");
-		NeoUI::RingBoxBool(L"Show other players' crosshairs", &pCrosshair->bNetworkCrosshair);
 	}
 	NeoUI::EndSection();
+
+	g_uiCtx.dPanel.y += g_uiCtx.dPanel.tall;
+	g_uiCtx.dPanel.tall = g_uiCtx.layout.iRowTall * (g_iRowsInScreen - IVIEW_ROWS - IMISC_ROWS - 1);
+	NeoUI::BeginSection(NeoUI::SECTIONFLAG_DEFAULTFOCUS);
+	{
+		NeoUI::SetPerRowLayout(2, NeoUI::ROWLAYOUT_TWOSPLIT);
+		if (pCrosshair->eXHairWep != CROSSHAIR_WEP_DEFAULT)
+		{
+			if (iXHairWep >= CROSSHAIR_WEP_DEFAULT_HIPFIRE)
+			{
+				static_assert(sizeof(int) == sizeof(EHipfireOpt));
+				const int iPrevIdx = pCrosshair->aeHipfireOpts[iXHairWep];
+				NeoUI::RingBox(L"Use crosshair",
+						(iXHairWep == CROSSHAIR_WEP_DEFAULT_HIPFIRE)
+								? CROSSHAIR_HIPFIRE_LABELS_DEFAULT
+								: CROSSHAIR_HIPFIRE_LABELS,
+						HIPFIREOPT__TOTAL,
+						(int *)(&pCrosshair->aeHipfireOpts[iXHairWep]));
+				if (iPrevIdx != pCrosshair->aeHipfireOpts[iXHairWep])
+				{
+					const NeoCrosshairWepFlags wepMask = (1 << (iXHairWep - 1));
+					const NeoCrosshairHipfireCustomFlags wepHipfireMask = (1 << (iXHairWep - CROSSHAIR_WEP_DEFAULT_HIPFIRE));
+
+					switch (pCrosshair->aeHipfireOpts[iXHairWep])
+					{
+					case HIPFIREOPT_DISABLED:
+						pCrosshair->info.wepFlags &= ~(wepMask);
+						pCrosshair->info.hipfireFlags &= ~(wepHipfireMask);
+						break;
+					case HIPFIREOPT_USEDEFAULT:
+						pCrosshair->info.wepFlags |= wepMask;
+						pCrosshair->info.hipfireFlags &= ~(wepHipfireMask);
+						break;
+					case HIPFIREOPT_ENABLED:
+						pCrosshair->info.wepFlags |= wepMask;
+						pCrosshair->info.hipfireFlags |= wepHipfireMask;
+						break;
+					}
+				}
+			}
+			else
+			{
+				static const wchar_t *RINGBOX_FLAG_LABELS_USEXHAIR[] = {
+					L"Use default",
+					L"Enabled",
+				};
+				NeoUI::RingBoxFlag(L"Use crosshair", (1 << (pCrosshair->eXHairWep - 1)),
+						&pCrosshair->info.wepFlags, RINGBOX_FLAG_LABELS_USEXHAIR);
+			}
+		}
+
+		if (bIsInUse)
+		{
+			NeoUI::RingBox(L"Crosshair style", CROSSHAIR_LABELS, CROSSHAIR_STYLE__TOTAL, &crh->iStyle);
+			NeoUI::ColorEdit(L"Crosshair color",
+					&crh->color[0],
+					&crh->color[1],
+					&crh->color[2],
+					&crh->color[3]);
+			if (!bTextured)
+			{
+				static_assert(sizeof(int) == sizeof(NeoHudCrosshairSizeType));
+				NeoUI::RingBox(L"Size type", CROSSHAIR_SIZETYPE_LABELS, CROSSHAIR_SIZETYPE__TOTAL, (int *)(&crh->eSizeType));
+				switch (crh->eSizeType)
+				{
+				case CROSSHAIR_SIZETYPE_ABSOLUTE: NeoUI::SliderInt(L"Size", &crh->iSize, 0, CROSSHAIR_MAX_SIZE); break;
+				case CROSSHAIR_SIZETYPE_SCREEN: NeoUI::Slider(L"Size", &crh->flScrSize, 0.0f, 1.0f, 3, 0.01f); break;
+				}
+				NeoUI::SliderInt(L"Thickness", &crh->iThick, 0, CROSSHAIR_MAX_THICKNESS);
+				NeoUI::SliderInt(L"Gap", &crh->iGap, 0, CROSSHAIR_MAX_GAP);
+				NeoUI::SliderInt(L"Outline", &crh->iOutline, 0, CROSSHAIR_MAX_OUTLINE);
+				if (crh->iOutline > 0)
+				{
+					NeoUI::ColorEdit(L"Outline color",
+							&crh->colorOutline[0],
+							&crh->colorOutline[1],
+							&crh->colorOutline[2],
+							&crh->colorOutline[3]);
+				}
+				NeoUI::SliderInt(L"Center dot", &crh->iCenterDot, 0, CROSSHAIR_MAX_CENTER_DOT);
+				if (crh->iCenterDot > 0)
+				{
+					NeoUI::RingBoxFlag(L"Separate dot color", CROSSHAIR_FLAG_SEPERATEDOTCOLOR, &crh->flags);
+					if (crh->flags & CROSSHAIR_FLAG_SEPERATEDOTCOLOR)
+					{
+						NeoUI::ColorEdit(L"Dot color",
+								&crh->colorDot[0],
+								&crh->colorDot[1],
+								&crh->colorDot[2],
+								&crh->colorDot[3]);
+						if (crh->iOutline > 0)
+						{
+							NeoUI::ColorEdit(L"Dot outline",
+									&crh->colorDotOutline[0],
+									&crh->colorDotOutline[1],
+									&crh->colorDotOutline[2],
+									&crh->colorDotOutline[3]);
+						}
+					}
+				}
+				NeoUI::RingBoxFlag(L"Draw top line", CROSSHAIR_FLAG_NOTOPLINE, &crh->flags, RINGBOX_BOOL_LABELS_REVERSE);
+				NeoUI::SliderInt(L"Circle radius", &crh->iCircleRad, 0, CROSSHAIR_MAX_CIRCLE_RAD);
+				if (crh->iCircleRad > 0)
+				{
+					NeoUI::SliderInt(L"Circle segments", &crh->iCircleSegments, 0, CROSSHAIR_MAX_CIRCLE_SEGMENTS);
+				}
+				static_assert(sizeof(int) == sizeof(NeoHudCrosshairDynamicType));
+				NeoUI::RingBox(L"Dynamic type", CROSSHAIR_DYNAMICTYPE_LABELS, CROSSHAIR_DYNAMICTYPE__TOTAL, (int *)(&crh->eDynamicType));
+			}
+		}
+	}
+	NeoUI::EndSection();
+
+	g_uiCtx.dPanel.y += g_uiCtx.dPanel.tall;
+	g_uiCtx.dPanel.tall = g_uiCtx.layout.iRowTall * IMISC_ROWS;
+	NeoUI::BeginSection();
+	{
+		NeoUI::SetPerRowLayout(2, NeoUI::ROWLAYOUT_TWOSPLIT);
+		NeoUI::Divider(L"MISCELLANEOUS");
+		NeoUI::RingBoxBool(L"Show other players' crosshairs", &pCrosshair->bNetworkCrosshair);
+		NeoUI::RingBoxBool(L"Inaccuracy in scope", &pCrosshair->bInaccuracyInScope);
+		NeoUI::RingBoxBool(L"Friendly Fire warning", &pCrosshair->bFriendlyFireWarning);
+	}
+	NeoUI::EndSection();
+}
+
+static const wchar_t *IFF_LABELS[] = {
+	L"Squad", 
+	L"Team",
+	L"Spectator",
+#ifdef GLOWS_ENABLE
+	L"Squad (Xray)",
+	L"Team (Xray)",
+	L"Spectator (Xray)"
+#endif // GLOWS_ENABLE
+};
+
+static const wchar_t *EXT_KILLFEED_LABELS[] = {
+	L"Disabled",
+	L"Objectives",
+	L"Objectives & rank-ups"
+};
+
+static const wchar_t *NEOSCOREBOARDPADDING_LABELS[NEOSCOREBOARDPADDING__TOTAL] = {
+	L"Default",		// NEOSCOREBOARDPADDING_DEFAULT
+	L"Compact",		// NEOSCOREBOARDPADDING_COMPACT
+	L"Spacious",	// NEOSCOREBOARDPADDING_SPACIOUS
+};
+
+void NeoSettings_HUD(NeoSettings *ns)
+{
+	NeoSettings::HUD *pHud = &ns->hud;
+	NeoUI::Divider(L"MISCELLANEOUS");
+	NeoUI::RingBoxBool(L"Classic squad list", &pHud->bShowSquadList);
+	NeoUI::RingBox(L"Health display mode", HEALTHMODE_LABELS, pHud->iHealthMode >= 2 ? ARRAYSIZE(HEALTHMODE_LABELS) : 2, &pHud->iHealthMode);
+	NeoUI::RingBox(L"Objective verbosity", OBJVERBOSITY_LABELS, ARRAYSIZE(OBJVERBOSITY_LABELS), &pHud->iObjVerbosity);
+	NeoUI::RingBoxBool(L"Show hints", &pHud->bShowHints);
+	NeoUI::RingBoxBool(L"Show position", &pHud->bShowPos);
+	NeoUI::RingBox(L"Show FPS", SHOWFPS_LABELS, ARRAYSIZE(SHOWFPS_LABELS), &pHud->iShowFps);
+	NeoUI::RingBoxBool(L"Show rangefinder", &pHud->bEnableRangeFinder);
+	NeoUI::RingBox(L"Extended killfeed", EXT_KILLFEED_LABELS, ARRAYSIZE(EXT_KILLFEED_LABELS), &pHud->iExtendedKillfeed);
+	NeoUI::RingBox(L"Scoreboard padding", NEOSCOREBOARDPADDING_LABELS, NEOSCOREBOARDPADDING__TOTAL, &pHud->iScoreboardPadding);
+
+	NeoUI::Divider(L"CONTEXTUAL HINTS");
+	NeoUI::RingBoxBool(L"Show HUD contextual hints", &pHud->bShowHudContextHints);
+	if (pHud->bShowHudContextHints)
+	{
+		NeoUI::RingBoxBool(L"Show player takeover contextual hint", &pHud->bShowHudContextHintPlayerTakeover);
+		NeoUI::RingBoxBool(L"Show object interact contextual hint", &pHud->bShowHudContextHintObjectInteract);
+		if (pHud->bShowHudContextHintObjectInteract)
+		{
+			NeoUI::RingBoxBool(L"Show adjacent interactable objects", &pHud->bShowHudContextAdjacentObjects);
+		}
+		NeoUI::RingBoxBool(L"Show bot interact contextual hint", &pHud->bShowHudContextHintBotInteract);
+		NeoUI::RingBoxBool(L"Highlight interactable objects", &pHud->bShowHudContextHighlightObject);
+		NeoUI::RingBoxBool(L"Highlight interactable players", &pHud->bShowHudContextHighlightPlayer);
+	}
+
+#ifdef GLOWS_ENABLE
+	NeoUI::Divider(L"XRAY");
+	NeoUI::RingBoxBool(L"Enable Xray", &pHud->bEnableXray);
+	NeoUI::Slider(L"Outline Width", &pHud->flOutlineWidth, 0, 2, 2, 0.25f);
+	NeoUI::Slider(L"Outline Opacity", &pHud->flOutlineAlpha, 0, 1, 2, 0.1f);
+	NeoUI::Slider(L"Center Opacity", &pHud->flCenterOpacity, 0, 1, 2, 0.1f);
+	NeoUI::Slider(L"Texture Opacity (Cloak highlight)", &pHud->flTexturedOpacity, 0, 1, 2, 0.1f);
+#endif // GLOWS_ENABLE
+
+	NeoUI::Divider(L"IFF MARKERS");
+	static int optionChosen = 0;
+
+	const bool bEnableXray = 
+#ifdef GLOWS_ENABLE
+		pHud->bEnableXray
+#else
+		false
+#endif
+		;
+
+	const int iIFFLabelsSize =
+#ifdef GLOWS_ENABLE
+		bEnableXray ? ARRAYSIZE(IFF_LABELS) : (ARRAYSIZE(IFF_LABELS) / 2)
+#else
+		ARRAYSIZE(IFF_LABELS)
+#endif // GLOWS_ENABLE
+		;
+
+	NeoUI::SetPerRowLayout(1);
+	NeoUI::Tabs(IFF_LABELS, iIFFLabelsSize, &optionChosen,
+			NeoUI::TABFLAG_NOSIDEKEYS | NeoUI::TABFLAG_NOSTATERESETS,
+			&g_pNeoRoot->m_tabsStateIFF);
+	NeoUI::SetPerRowLayout(2, NeoUI::ROWLAYOUT_TWOSPLIT);
+
+	// NEO TODO (Adam) Show what the marker looks like somewhere here
+
+	FriendlyMarkerInfo *pMarker = &pHud->options[optionChosen];
+	NeoUI::SliderInt(L"Initial offset", &pMarker->iInitialOffset, -64, 64, 1);
+	NeoUI::RingBoxBool(L"Show distance", &pMarker->bShowDistance);
+	NeoUI::RingBoxBool(L"Verbose distance", &pMarker->bVerboseDistance);
+	NeoUI::RingBoxBool(L"Show squad marker", &pMarker->bShowSquadMarker);
+	NeoUI::Slider(L"Squad marker scale", &pMarker->flSquadMarkerScale, 0, 2, 2, 0.1f);
+	NeoUI::RingBoxBool(L"Show healthbar", &pMarker->bShowHealthBar);
+	NeoUI::RingBoxBool(L"Show health", &pMarker->bShowHealth);
+	NeoUI::RingBoxBool(L"Show name", &pMarker->bShowName);
+	NeoUI::RingBoxBool(L"Prepend clantag", &pMarker->bPrependClantagToName);
+	NeoUI::SliderInt(L"Max name length (including clantag)", &pMarker->iMaxNameLength, 0, MAX_MARKER_STRSIZE, 1);
 }

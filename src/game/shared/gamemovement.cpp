@@ -28,6 +28,7 @@
 #include "../server/neo/neo_player.h"
 #else
 #include "../client/neo/c_neo_player.h"
+#include "in_main.h"
 #endif
 #endif
 
@@ -51,7 +52,9 @@ extern IFileSystem *filesystem;
 // gpGlobals->frametime are. We should probably set tickcount (to player->m_nTickBase),
 // but we're REALLY close to shipping, so we can change that later and people can use
 // player->CurrentCommandNumber() in the meantime.
+#ifndef NEO // Unity build | NEO NOTE (nullsystem): This tickcount never used in this cpp file
 #define tickcount USE_PLAYER_CURRENT_COMMAND_NUMBER__INSTEAD_OF_TICKCOUNT
+#endif
 
 #if defined( HL2_DLL )
 ConVar xc_uncrouch_on_jump( "xc_uncrouch_on_jump", "1", FCVAR_ARCHIVE, "Uncrouch when jump occurs" );
@@ -1717,6 +1720,68 @@ void CGameMovement::Friction( void )
  	mv->m_outWishVel -= (1.f-newspeed) * mv->m_vecVelocity;
 }
 
+#ifdef NEO
+ConVar	sv_airfriction("sv_neo_airfriction", "0", FCVAR_NOTIFY | FCVAR_REPLICATED, "Air friction.", true, 0, false, 0);
+ConVar	sv_airfriction_objective("sv_neo_airfriction_objective", "0.5", FCVAR_NOTIFY | FCVAR_REPLICATED, "Air friction for ghost carrier, VIP and juggernaut.", true, 0, false, 0);
+ConVar	sv_airstopspeed("sv_neo_airstopspeed", "0", FCVAR_NOTIFY | FCVAR_REPLICATED, "Minimum stopping speed when in the air.", true, 0, false, 0);
+ConVar	sv_jumpbuffer("sv_neo_jumpbuffer", "0", FCVAR_NOTIFY | FCVAR_REPLICATED | FCVAR_CHEAT, "Allow Quake style jump buffering.", true, 0, true, 1);
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CGameMovement::AirFriction( void )
+{
+	float	speed, newspeed, control;
+	float	friction;
+	float	drop;
+
+	// Friction only works horizontally so zero out the z component
+	float z = mv->m_vecVelocity.z;
+	mv->m_vecVelocity.z = 0;
+	speed = VectorLength( mv->m_vecVelocity );
+
+	// If too slow, return
+	auto neoplayer = ToNEOPlayer(player);
+	float overspeed = speed - neoplayer->GetNormSpeed_WithActiveWepEncumberment();
+	if (overspeed < 0.1f)
+	{
+		// Restore z component
+		mv->m_vecVelocity.z = z;
+		return;
+	}
+
+	drop = 0;
+
+	// apply air friction
+	friction = neoplayer->IsObjective() ? sv_airfriction_objective.GetFloat() : sv_airfriction.GetFloat();
+
+	// Bleed off some speed, but if we have less than the bleed
+	// threshold, bleed the threshold amount.
+	control = (overspeed < sv_airstopspeed.GetFloat()) ? sv_airstopspeed.GetFloat() : overspeed;
+
+	// Add the amount to the drop amount.
+	drop += control*friction*gpGlobals->frametime;
+
+	// scale the velocity
+	newspeed = speed - drop;
+	if (newspeed < 0)
+		newspeed = 0;
+
+	if ( newspeed != speed )
+	{
+		// Determine proportion of old speed we are using.
+		newspeed /= speed;
+		// Adjust velocity according to proportion.
+		VectorScale( mv->m_vecVelocity, newspeed, mv->m_vecVelocity );
+	}
+
+	// Restore z component
+	mv->m_vecVelocity.z = z;
+
+ 	mv->m_outWishVel -= (1.f-newspeed) * mv->m_vecVelocity;
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose:
 //-----------------------------------------------------------------------------
@@ -2145,6 +2210,12 @@ void CGameMovement::FullWalkMove( )
 			mv->m_vecVelocity[2] = 0.0;
 			Friction();
 		}
+#ifdef NEO
+		else
+		{
+			AirFriction();
+		}
+#endif
 
 		// Make sure velocity is valid.
 		CheckVelocity();
@@ -2182,9 +2253,13 @@ void CGameMovement::FullWalkMove( )
 		  ( m_nOldWaterLevel != WL_NotInWater && player->GetWaterLevel() == WL_NotInWater ) )
 	{
 		PlaySwimSound();
+#ifdef NEO
+		player->Splash();
+#else
 #if !defined( CLIENT_DLL )
 		player->Splash();
 #endif
+#endif // NEO
 	}
 }
 
@@ -2226,7 +2301,11 @@ void CGameMovement::FullObserverMove( void )
 
 	Vector wishvel;
 	Vector forward, right, up;
+#ifdef NEO
+	Vector wishdir;
+#else
 	Vector wishdir, wishend;
+#endif
 	float wishspeed;
 
 	AngleVectors (mv->m_vecViewAngles, &forward, &right, &up);  // Determine movement angles
@@ -2242,7 +2321,22 @@ void CGameMovement::FullObserverMove( void )
 
 	float fmove = mv->m_flForwardMove * factor;
 	float smove = mv->m_flSideMove * factor;
-
+	
+#ifdef NEO
+	const bool bDroneMove = mv->m_nButtons & IN_WALK;
+	if (bDroneMove)
+	{
+		forward.z = 0;
+		if (fmove && smove)
+		{
+			const float absFMove = fabs(fmove);
+			const float absSMove = fabs(smove);
+			const float moveMagnitude = FastSqrt((absFMove * absFMove) + (absSMove * absSMove));
+			fmove *= absFMove / moveMagnitude;
+			smove *= absSMove / moveMagnitude;
+		}
+	}
+#endif // NEO
 	VectorNormalize (forward);  // Normalize remainder of vectors
 	VectorNormalize (right);    //
 
@@ -2320,6 +2414,21 @@ void CGameMovement::FullNoClipMove( float factor, float maxacceleration )
 	float fmove = mv->m_flForwardMove * factor;
 	float smove = mv->m_flSideMove * factor;
 
+#ifdef NEO
+	const bool bDroneMove = mv->m_nButtons & IN_WALK;
+	if (bDroneMove)
+	{
+		forward.z = 0;
+		if (fmove && smove)
+		{
+			const float absFMove = fabs(fmove);
+			const float absSMove = fabs(smove);
+			const float moveMagnitude = FastSqrt((absFMove * absFMove) + (absSMove * absSMove));
+			fmove *= absFMove / moveMagnitude;
+			smove *= absSMove / moveMagnitude;
+		}
+	}
+#endif // NEO
 	VectorNormalize (forward);  // Normalize remainder of vectors
 	VectorNormalize (right);    //
 
@@ -2442,7 +2551,19 @@ bool CGameMovement::CheckJumpButton( void )
 	// No more effect
  	if (player->GetGroundEntity() == NULL)
 	{
-		mv->m_nOldButtons |= IN_JUMP;
+#ifdef NEO
+		if (sv_jumpbuffer.GetBool())
+		{
+			if (!(mv->m_nOldButtons & IN_JUMP))
+			{
+				mv->m_nButtons &= ~IN_JUMP;
+			}
+		}
+		else
+#endif
+		{
+			mv->m_nOldButtons |= IN_JUMP;
+		}
 		return false;		// in air, so no effect
 	}
 
@@ -2494,19 +2615,37 @@ bool CGameMovement::CheckJumpButton( void )
 		flMul = sqrt(2 * GetCurrentGravity() * GAMEMOVEMENT_JUMP_HEIGHT);
 	}
 #else
+	// NEO JANK: Remember to update NEO_RECON_CROUCH_JUMP_HEIGHT/etc if you change these values.
 	auto neoPlayer = static_cast<CNEO_Player*>(player);
 	if ( g_bMovementOptimizations )
 	{
-		Assert( GetCurrentGravity() == 800.0f );
-		flMul = neoPlayer->GetClass() == NEO_CLASS_RECON ?
-			293.9387691339814f: // sqrt(2 * 800 * 54)
-			240.0f; 			// sqrt(2 * 800 * 36)
+		switch (neoPlayer->GetClass())
+		{
+			case NEO_CLASS_RECON:
+				flMul = 293.9387691339814f;	// sqrt(2 * 800 * 54)
+				break;
+			case NEO_CLASS_JUGGERNAUT:
+				flMul = 283.9718295887816f;	// sqrt(2 * 800 * 50.4)
+				break;
+			default:
+				flMul = 240.0f;				// sqrt(2 * 800 * 36)
+				break;
+		}
 	}
 	else
 	{
-		flMul = neoPlayer->GetClass() == NEO_CLASS_RECON ?
-			sqrt(2 * GetCurrentGravity() * GAMEMOVEMENT_JUMP_HEIGHT * 1.5f) :
-			sqrt(2 * GetCurrentGravity() * GAMEMOVEMENT_JUMP_HEIGHT);
+		switch (neoPlayer->GetClass())
+		{
+			case NEO_CLASS_RECON:
+				flMul = sqrt(2 * GetCurrentGravity() * GAMEMOVEMENT_JUMP_HEIGHT * 1.5f);
+				break;
+			case NEO_CLASS_JUGGERNAUT:
+				flMul = sqrt(2 * GetCurrentGravity() * GAMEMOVEMENT_JUMP_HEIGHT * 1.4f);
+				break;
+			default:
+				flMul = sqrt(2 * GetCurrentGravity() * GAMEMOVEMENT_JUMP_HEIGHT);
+				break;
+		}
 	}
 	neoPlayer->DoAnimationEvent(PLAYERANIMEVENT_JUMP);
 	neoPlayer->m_flJumpLastTime = gpGlobals->curtime;
@@ -2569,6 +2708,12 @@ bool CGameMovement::CheckJumpButton( void )
 	mv->m_outStepHeight += 0.15f;
 
 	OnJump(mv->m_outJumpVel.z);
+#if defined NEO && defined CLIENT_DLL
+	if (neoPlayer->IsLocalPlayer())
+	{
+		IN_LeanToggleReset();
+	}
+#endif // NEO && CLIENT_DLL
 
 	// Set jump time.
 	if ( gpGlobals->maxClients == 1 )
@@ -2998,6 +3143,14 @@ bool CGameMovement::LadderMove( void )
 	if ( mv->m_nButtons & IN_MOVERIGHT )
 		rightSpeed += climbSpeed;
 
+#ifdef NEO
+	if (mv->m_flUpMove)
+	{
+		forwardSpeed = mv->m_flUpMove > 0 ? climbSpeed : -climbSpeed;
+		rightSpeed = 0;
+	}
+#endif // NEO
+
 	if ( mv->m_nButtons & IN_JUMP )
 	{
 		player->SetMoveType( MOVETYPE_WALK );
@@ -3015,7 +3168,11 @@ bool CGameMovement::LadderMove( void )
 			//	pev->velocity.x, pev->velocity.y, pev->velocity.z);
 			// Calculate player's intended velocity
 			//Vector velocity = (forward * gpGlobals->v_forward) + (right * gpGlobals->v_right);
+#ifdef NEO
+			VectorScale( mv->m_flUpMove ? -player->m_vecLadderNormal : m_vecForward, forwardSpeed, velocity );
+#else
 			VectorScale( m_vecForward, forwardSpeed, velocity );
+#endif // NEO
 			VectorMA( velocity, rightSpeed, m_vecRight, velocity );
 
 			// Perpendicular in the ladder plane
@@ -3946,11 +4103,19 @@ void CGameMovement::CategorizePosition( void )
 			}
 			else
 			{
+#ifdef NEO
+				// don't glide along a slope when noclipping as a player
+				if (player->GetMoveType() != MOVETYPE_NOCLIP)
+#endif // NEO
 				SetGroundEntity( &pm );
 			}
 		}
 		else
 		{
+#ifdef NEO
+			// don't glide along the ground when noclipping as a player
+			if (player->GetMoveType() != MOVETYPE_NOCLIP)
+#endif // NEO
 			SetGroundEntity( &pm );  // Otherwise, point to index of ent under us.
 		}
 
@@ -4217,7 +4382,9 @@ void CGameMovement::FinishUnDuck( void )
 	Assert(dynamic_cast<CNEO_Player*>(player));
 
 	int i;
+#ifndef NEO
 	trace_t trace;
+#endif
 	Vector newOrigin;
 
 	VectorCopy( mv->GetAbsOrigin(), newOrigin );
@@ -4346,10 +4513,10 @@ void CGameMovement::FinishDuck( void )
 {
 #ifdef NEO
 	Assert(dynamic_cast<CNEO_Player*>(player));
-#endif
-
+#else
 	if ( player->GetFlags() & FL_DUCKING )
 		return;
+#endif
 
 	player->AddFlag( FL_DUCKING );
 	player->m_Local.m_bDucked = true;
@@ -4550,9 +4717,11 @@ void CGameMovement::Duck( void )
 	HandleDuckingSpeedCrop();
 
 	// If the player is holding down the duck button, the player is in duck transition, ducking, or duck-jumping.
+#ifndef NEO
 	bool bFirstTimePredicted = true; // Assumes we never rerun commands on the server.
 #ifdef CLIENT_DLL
 	bFirstTimePredicted = prediction->IsFirstTimePredicted();
+#endif
 #endif
 
 	// If the player is holding down the duck button, the player is in duck transition, ducking, or duck-jumping.
@@ -5128,4 +5297,3 @@ void  CGameMovement::TryTouchGround( const Vector& start, const Vector& end, con
 	ray.Init( start, end, mins, maxs );
 	UTIL_TraceRay( ray, fMask, mv->m_nPlayerHandle.Get(), collisionGroup, &pm );
 }
-

@@ -171,6 +171,9 @@ BEGIN_RECV_TABLE_NOBASE( CPlayerLocalData, DT_Local )
 	RecvPropFloat	(RECVINFO(m_flDucktime)),
 	RecvPropFloat	(RECVINFO(m_flDuckJumpTime)),
 	RecvPropFloat	(RECVINFO(m_flJumpTime)),
+#ifdef NEO
+	RecvPropInt		(RECVINFO(m_nStepside)),
+#endif
 	RecvPropFloat	(RECVINFO(m_flFallVelocity)),
 
 #if PREDICTION_ERROR_CHECK_LEVEL > 1 
@@ -196,6 +199,10 @@ BEGIN_RECV_TABLE_NOBASE( CPlayerLocalData, DT_Local )
 	RecvPropInt(RECVINFO(m_skybox3d.scale)),
 	RecvPropVector(RECVINFO(m_skybox3d.origin)),
 	RecvPropInt(RECVINFO(m_skybox3d.area)),
+#ifdef NEO
+	RecvPropInt(RECVINFO(m_skybox3d.reflectMode)),
+	RecvPropFloat(RECVINFO(m_skybox3d.waterLevel)),
+#endif
 
 	// 3d skybox fog data
 	RecvPropInt( RECVINFO( m_skybox3d.fog.enable ) ),
@@ -264,7 +271,9 @@ END_RECV_TABLE()
 
 		RecvPropFloat		( RECVINFO( m_flDeathTime )),
 
+#ifndef NEO
 		RecvPropInt			( RECVINFO( m_nWaterLevel ) ),
+#endif // NEO
 		RecvPropFloat		( RECVINFO( m_flLaggedMovementValue )),
 
 	END_RECV_TABLE()
@@ -314,6 +323,10 @@ END_RECV_TABLE()
 		
 
 		RecvPropString( RECVINFO(m_szLastPlaceName) ),
+
+#ifdef NEO
+		RecvPropInt			( RECVINFO( m_nWaterLevel ) ),
+#endif // NEO
 
 #if defined USES_ECON_ITEMS
 		RecvPropUtlVector( RECVINFO_UTLVECTOR( m_hMyWearables ), MAX_WEARABLES_SENT_FROM_SERVER,	RecvPropEHandle(NULL, 0, 0) ),
@@ -642,12 +655,6 @@ void C_BasePlayer::SetObserverMode ( int iNewMode )
 		{
 			// On a change of viewing mode or target, we may want to reset both head and torso to point at the new target.
 			g_ClientVirtualReality.AlignTorsoAndViewToWeapon();
-#ifdef NEO
-			if (iNewMode != OBS_MODE_DEATHCAM)
-			{
-				vieweffects->ClearAllFades();
-			}
-#endif
 		}
 	}
 }
@@ -735,7 +742,12 @@ bool C_BasePlayer::IsValidObserverTarget(CBaseEntity* target)
 
 	if (player->m_lifeState == LIFE_DEAD || player->m_lifeState == LIFE_DYING)
 	{
+#ifdef NEO
+		constexpr int DEATH_SPEC_TIME = 3.0f; // OGNT switches spectator targets much faster than the DEATH_ANIMATION_TIME
+		if ((player->m_flDeathTime + DEATH_SPEC_TIME) < gpGlobals->curtime)
+#else
 		if ((player->m_flDeathTime + DEATH_ANIMATION_TIME) < gpGlobals->curtime)
+#endif // NEO
 		{
 			return false;	// allow watching until 3 seconds after death to see death animation
 		}
@@ -1687,6 +1699,11 @@ void C_BasePlayer::CalcChaseCamView(Vector& eyeOrigin, QAngle& eyeAngles, float&
 	// HPE_END
 	//=============================================================================
 
+#ifdef NEO
+	// Same as above, and in NT players can lean
+	viewangles.z = 0;
+#endif
+
 	m_flObserverChaseDistance += gpGlobals->frametime*48.0f;
 
 	float flMinDistance = CHASE_CAM_DISTANCE_MIN;
@@ -2591,8 +2608,8 @@ void C_BasePlayer::PhysicsSimulate( void )
 		ctx->cmd.sidemove = 0;
 		ctx->cmd.upmove = 0;
 		ctx->cmd.impulse = 0;
-		ctx->cmd.buttons &= ~(IN_ATTACK | IN_ATTACK3 | IN_JUMP | IN_SPEED |
-			IN_ALT1 | IN_ALT2 | IN_BACK | IN_FORWARD | IN_MOVELEFT | IN_MOVERIGHT | IN_RUN | IN_ZOOM);
+		ctx->cmd.buttons &= ~(IN_ATTACK | IN_JUMP | IN_SPEED |
+			IN_ALT1 | IN_ALT2 | IN_BACK | IN_FORWARD | IN_MOVELEFT | IN_MOVERIGHT | IN_RUN);
 		const bool isTachi = (dynamic_cast<CWeaponTachi*>(GetActiveWeapon()) != NULL);
 		if (!isTachi)
 		{
@@ -3228,7 +3245,9 @@ void C_BasePlayer::BuildFirstPersonMeathookTransformations( CStudioHdr *hdr, Vec
 	// Find out where the player's head (driven by the HMD) is in the world.
 	// We can't move this with animations or effects without causing nausea, so we need to move
 	// the whole body so that the animated head is in the right place to match the player-controlled head.
+#ifndef NEO
 	Vector vHeadUp;
+#endif
 	Vector vRealPivotPoint;
 	if( UseVR() )
 	{

@@ -13,42 +13,39 @@
 #include "GameEventListener.h"
 #include "neo_player_shared.h"
 #include "neo_misc.h"
+#include "weapon_ghost.h"
+#include "neo_juggernaut.h"
 
 #ifdef CLIENT_DLL
 	#include "c_neo_player.h"
 #else
 	#include "neo_player.h"
+	#include "neo_ghost_spawn_point.h"
 	#include "utlhashtable.h"
+	#include "neo_gamerules_restore.h"
 #endif
 
-#ifdef GLOWS_ENABLE
 #include "neo_player_shared.h"
-#endif
-
-enum
-{
-	TEAM_JINRAI = LAST_SHARED_TEAM + 1,
-	TEAM_NSF,
-
-	TEAM__TOTAL, // Always last enum in here
-};
-
-#define TEAM_STR_JINRAI "Jinrai"
-#define TEAM_STR_NSF "NSF"
-#define TEAM_STR_SPEC "Spectator"
-
-#define NEO_GAME_NAME "Neotokyo; Rebuild"
 
 #ifdef CLIENT_DLL
 	#define CNEORules C_NEORules
 	#define CNEOGameRulesProxy C_NEOGameRulesProxy
 #endif
 
+// NEO JANK (Rain): magic value for signaling a mp_restart originated from "neo_restart_this".
+// This is a hack around neo_restart_this leaking edicts for some reason; for now, it just
+// repurposes the mp_restartgame logic but without the HL2DM-style center print.
+constexpr float MAGIC_NEO_RESTART_THIS = 0xdaff;
+
 class CNEOGameRulesProxy : public CHL2MPGameRulesProxy
 {
 public:
 	DECLARE_CLASS( CNEOGameRulesProxy, CHL2MPGameRulesProxy );
 	DECLARE_NETWORKCLASS();
+
+#ifdef CLIENT_DLL
+	void OnDataChanged(DataUpdateType_t updateType) override;
+#endif // CLIENT_DLL
 };
 
 class NEOViewVectors : public HL2MPViewVectors
@@ -87,6 +84,10 @@ public:
 class CNEOGhostCapturePoint;
 class CNEO_Player;
 class CWeaponGhost;
+class CNEOBotCtgLoneWolf;
+class CNEOBotCtgLoneWolfAmbush;
+class CNEOBotCtgLoneWolfSeek;
+class CNEOBotSeekAndDestroy;
 
 extern ConVar sv_neo_mirror_teamdamage_multiplier;
 extern ConVar sv_neo_mirror_teamdamage_duration;
@@ -106,6 +107,7 @@ enum NeoGameType {
 	NEO_GAME_TYPE_DM,
 	NEO_GAME_TYPE_EMT,
 	NEO_GAME_TYPE_TUT,
+	NEO_GAME_TYPE_JGR,
 
 	NEO_GAME_TYPE__TOTAL // Number of game types
 };
@@ -119,9 +121,12 @@ enum NeoRoundStatus {
 	Warmup,
 	PreRoundFreeze,
 	RoundLive,
+	Overtime,
 	PostRound,
 	Pause,
 	Countdown,
+
+	RoundStatusTotal
 };
 
 enum NeoWinReason {
@@ -155,6 +160,17 @@ enum NeoHudElements : NEO_HUD_BITS_UNDERLYING_TYPE {
 	NEO_HUD_ELEMENT_ROUND_STATE = (static_cast<NEO_HUD_BITS_UNDERLYING_TYPE>(1) << 12),
 	NEO_HUD_ELEMENT_WORLDPOS_MARKER = (static_cast<NEO_HUD_BITS_UNDERLYING_TYPE>(1) << 13),
 	NEO_HUD_ELEMENT_SCOREBOARD = (static_cast<NEO_HUD_BITS_UNDERLYING_TYPE>(1) << 14),
+	NEO_HUD_ELEMENT_PLAYER_PING = (static_cast<NEO_HUD_BITS_UNDERLYING_TYPE>(1) << 15),
+	NEO_HUD_ELEMENT_WORLDPOS_MARKER_ENT = (static_cast<NEO_HUD_BITS_UNDERLYING_TYPE>(1) << 16),
+};
+
+enum NeoSpectateEvent {
+	NEO_SPECTATE_EVENT_LAST_HURT = 0,
+	NEO_SPECTATE_EVENT_LAST_SHOOTER,
+	NEO_SPECTATE_EVENT_LAST_EVENT,
+	NEO_SPECTATE_EVENT_LAST_ATTACKER,
+	NEO_SPECTATE_EVENT_LAST_KILLER,
+	NEO_SPECTATE_EVENT_LAST_GHOSTER,
 };
 
 class CNEORules : public CHL2MPRules, public CGameEventListener
@@ -187,6 +203,12 @@ public:
 	virtual void ClientDisconnected(edict_t* pClient) OVERRIDE;
 
 	CBaseEntity *GetPlayerSpawnSpot(CBasePlayer *pPlayer) override;
+
+	virtual bool IsOfficialMap(void) override;
+
+	virtual void MarkAchievement ( IRecipientFilter& filter, char const *pchAchievementName ) override;
+
+	virtual void InitDefaultAIRelationships(void);
 #endif
 	virtual bool ShouldCollide( int collisionGroup0, int collisionGroup1 ) OVERRIDE;
 
@@ -207,9 +229,10 @@ public:
 	int GetForcedClass();
 	int GetForcedSkin();
 	int GetForcedWeapon();
+	bool IsCyberspace();
 	virtual const char* GetGameTypeName(void) OVERRIDE;
-	virtual const bool CanChangeTeamClassLoadoutWhenAlive();
-	virtual const bool CanRespawnAnyTime();
+	bool CanChangeTeamClassLoadoutWhenAlive();
+	bool CanRespawnAnyTime();
 
 	void GetDMHighestScorers(
 #ifdef GAME_DLL
@@ -239,6 +262,7 @@ public:
 
 	bool RoundIsInSuddenDeath() const;
 	bool RoundIsMatchPoint() const;
+	bool RoundIsDoOrDie() const;
 
 	virtual int DefaultFOV(void) override;
 
@@ -254,6 +278,7 @@ public:
 	void ResetTDM();
 	void ResetGhost();
 	void ResetVIP();
+	void ResetJGR();
 
 	void CheckRestartGame();
 
@@ -267,6 +292,7 @@ public:
 	virtual bool CheckGameOver(void) OVERRIDE;
 
 	float GetRoundRemainingTime() const;
+	float GetCTGOverTime() const;
 	float GetRoundAccumulatedTime() const;
 #ifdef GAME_DLL
 	float MirrorDamageMultiplier() const;
@@ -307,8 +333,7 @@ public:
 	bool ReadyUpPlayerIsReady(CNEO_Player *pNeoPlayer) const;
 
 	void CheckGameType();
-	void CheckHiddenHudElements();
-	void CheckPlayerForced();
+	void CheckGameConfig();
 	void StartNextRound();
 
 	virtual const char* GetChatFormat(bool bTeamOnly, CBasePlayer* pPlayer) OVERRIDE;
@@ -328,7 +353,16 @@ public:
 	int GetGhosterTeam() const { return m_iGhosterTeam; }
 	int GetGhosterPlayer() const { return m_iGhosterPlayer; }
 	bool GhostExists() const { return m_bGhostExists; }
-	Vector GetGhostPos() const { return m_vecGhostMarkerPos; }
+	const Vector& GetGhostPos() const;
+	Vector GetGhostMarkerPos() const;
+
+	int GetJuggernautPlayer() const { return m_iJuggernautPlayerIndex; }
+	bool JuggernautItemExists() const;
+	const Vector& GetJuggernautMarkerPos() const;
+	bool IsJuggernautLocked() const;
+
+	bool InReadyUpState() const;
+	bool InRoundState() const;
 
 	int GetOpposingTeam(const int team) const
 	{
@@ -349,8 +383,9 @@ public:
 		return GetOpposingTeam(player->GetTeamNumber());
 	}
 
-    int roundNumber() const { return m_iRoundNumber; }
-    bool roundAlternate() const { return static_cast<bool>(m_iRoundNumber % 2 == 0); }
+	inline void SetRoundNumber(const int iNewVal) { m_iRoundNumber.Set(iNewVal); }
+    inline int roundNumber() const { return m_iRoundNumber; }
+    inline bool roundNumberIsEven() const { return (roundNumber() % 2 == 0); }
 
 #ifdef GLOWS_ENABLE
 	void GetTeamGlowColor(int teamNumber, float &r, float &g, float &b)
@@ -381,6 +416,11 @@ public:
 	void OnNavMeshLoad() override;
 #endif // GAME_DL:
 
+	// Class limit methods
+	int GetClassCount(int team, int classId) const;
+	bool IsClassFull(int team, int classId) const;
+	int GetFallbackClass(int team, int preferredClass) const;
+
 public:
 #ifdef GAME_DLL
 	// Workaround for bot spawning. See Bot_f() for details.
@@ -401,6 +441,7 @@ public:
 	bool m_bPausedByPreRoundFreeze = false;
 	bool m_bPausingTeamRequestedUnpause = false;
 	bool m_bThinkCheckClantags = false;
+	bool m_bRotatingMapRightNow = false;
 #endif
 	CNetworkVar(float, m_flPauseEnd);
 
@@ -408,9 +449,56 @@ private:
 	void ResetMapSessionCommon();
 
 #ifdef GAME_DLL
-	void SpawnTheGhost(const Vector *origin = nullptr);
-	void SelectTheVIP();
+	const int GetScoreLimit() const;
+	const int GetRoundLimit() const;
 
+	void SpawnTheGhost(const Vector *origin = nullptr);
+	void SpawnTheJuggernaut(const Vector *origin = nullptr);
+	void SelectTheVIP();
+public:
+	void JuggernautActivated(CNEO_Player *pPlayer);
+	void JuggernautDeactivated(CNEO_Juggernaut *pJuggernaut);
+	void JuggernautTotalRemoval(CNEO_Juggernaut *pJuggernaut);
+
+	void SetLastHurt(const int index) { m_iLastHurt = index; }
+	void SetLastShooter(const int index) { m_iLastShooter = index; }
+	void SetLastAttacker(const int index) { m_iLastAttacker = m_iLastEvent = index; }
+	void SetLastKiller(const int index) { m_iLastKiller = m_iLastEvent = index; }
+	void SetLastGhoster(const int index) { m_iLastGhoster = m_iLastEvent = index; }
+
+	enum ReadyToggleFlag_
+	{
+		READYTOGGLEFLAG_NIL = 0,
+		READYTOGGLEFLAG_UNREADY = 1 << 0,
+		READYTOGGLEFLAG_PRINTCHANGE = 1 << 1,
+	};
+	typedef int ReadyToggleFlags;
+	void ReadyToggle(CNEO_Player *pNeoPlayer, const ReadyToggleFlags flags);
+#endif // GAME_DLL
+public:
+	const int GetLastHurt() const { return m_iLastHurt; }
+	const int GetLastShooter() const { return m_iLastShooter; }
+	const int GetLastEvent() const { return m_iLastEvent; }
+	const int GetLastAttacker() const { return m_iLastAttacker; }
+	const int GetLastKiller() const { return m_iLastKiller; }
+	const int GetLastGhoster() const { return m_iLastGhoster; }
+#ifdef GAME_DLL
+private:
+	CNEO_Juggernaut *m_pJuggernautItem = nullptr;
+	CNEO_Player *m_pJuggernautPlayer = nullptr;
+	float m_flJuggernautDeathTime = 0.0f;
+	int m_iLastJuggernautTeam = TEAM_INVALID;
+	
+	// For looking up capture zone locations
+	friend class CNEOBotCtgCarrier;
+	friend class CNEOBotCtgEscort;
+	friend class CNEOBotCtgLoneWolf;
+	friend class CNEOBotCtgLoneWolfAmbush;
+	friend class CNEOBotCtgLoneWolfDetpack;
+	friend class CNEOBotCtgLoneWolfSeek;
+	friend class CNEOBotTacticalMonitor;
+
+	friend class CNEOBotSeekAndDestroy;
 	CUtlVector<int> m_pGhostCaps;
 	CWeaponGhost *m_pGhost = nullptr;
 	CNEO_Player *m_pVIP = nullptr;
@@ -423,7 +511,17 @@ private:
 	int m_iEntPrevCapSize = 0;
 	int m_iPrintHelpCounter = 0;
 	bool m_bGamemodeTypeBeenInitialized = false;
+	bool m_bServerIsCurrentlyAutoRecording = false;
+	friend class CNEO_GhostBoundary;
+	friend class CNEOGhostSpawnPoint;
+	friend class CNEOJuggernautSpawnPoint;
+	friend class CMultiplayRules;
+	CUtlVector<CHandle<CNEOGhostSpawnPoint>> m_ghostSpawns;
+	CUtlVector<CHandle<CNEOJuggernautSpawnPoint>> m_jgrSpawns;
 	Vector m_vecPreviousGhostSpawn = vec3_origin;
+	Vector m_vecPreviousJuggernautSpawn = vec3_origin;
+	bool m_bGotMatchWinner = false;
+	int m_iMatchWinner = TEAM_UNASSIGNED;
 #endif
 	CNetworkVar(int, m_nRoundStatus);
 	CNetworkVar(int, m_iHiddenHudElements);
@@ -431,8 +529,12 @@ private:
 	CNetworkVar(int, m_iForcedClass);
 	CNetworkVar(int, m_iForcedSkin);
 	CNetworkVar(int, m_iForcedWeapon);
+	CNetworkVar(bool, m_bCyberspaceLevel);
 	CNetworkVar(int, m_nGameTypeSelected);
 	CNetworkVar(int, m_iRoundNumber);
+	CNetworkVar(bool, m_bIsMatchPoint);
+	CNetworkVar(bool, m_bIsDoOrDie);
+	CNetworkVar(bool, m_bIsInSuddenDeath);
 	CNetworkString(m_szNeoJinraiClantag, NEO_MAX_CLANTAG_LENGTH);
 	CNetworkString(m_szNeoNSFClantag, NEO_MAX_CLANTAG_LENGTH);
 
@@ -441,13 +543,55 @@ private:
 	CNetworkVar(int, m_iGhosterPlayer);
 	CNetworkVector(m_vecGhostMarkerPos);
 	CNetworkVar(bool, m_bGhostExists);
+	CNetworkVar(float, m_flGhostLastHeld);
+	CNetworkHandle( CWeaponGhost, m_hGhost );
+
+	// Juggernaut networked variables
+	CNetworkVar(int, m_iJuggernautPlayerIndex);
+	CNetworkVar(bool, m_bJuggernautItemExists);
+	CNetworkHandle( CBaseEntity, m_hJuggernaut );
 
 	CNetworkVar(float, m_flNeoRoundStartTime);
 	CNetworkVar(float, m_flNeoNextRoundStartTime);
 
+	// For spectator commands. Networked so can be saved in demos for hltv
+	CNetworkVar(int, m_iLastHurt);
+	CNetworkVar(int, m_iLastShooter);
+	CNetworkVar(int, m_iLastEvent);
+	CNetworkVar(int, m_iLastAttacker);
+	CNetworkVar(int, m_iLastKiller);
+	CNetworkVar(int, m_iLastGhoster);
+
+	// Class limit networked variables
+	CNetworkVar(int, m_iClassLimitRecon);
+	CNetworkVar(int, m_iClassLimitAssault);
+	CNetworkVar(int, m_iClassLimitSupport);
+
+	// Class count networked variables (for client UI)
+	CNetworkVar(int, m_iJinraiReconCount);
+	CNetworkVar(int, m_iJinraiAssaultCount);
+	CNetworkVar(int, m_iJinraiSupportCount);
+	CNetworkVar(int, m_iNsfReconCount);
+	CNetworkVar(int, m_iNsfAssaultCount);
+	CNetworkVar(int, m_iNsfSupportCount);
+
 public:
 	// VIP networked variables
 	CNetworkVar(int, m_iEscortingTeam);
+
+#ifdef GAME_DLL
+	// sv_neo_restore_...
+	struct NeoRestore
+	{
+		NextRoundGameruleRestoreFlags flags;
+		int iScoreJinrai;
+		int iScoreNSF;
+		int iRoundNumber;
+		int iRoundsWonJinrai;
+		int iRoundsWonNSF;
+	};
+	NeoRestore m_iNextRestore = {};
+#endif
 };
 
 inline CNEORules *NEORules()

@@ -3,6 +3,7 @@
 
 #include "c_neo_player.h"
 #include "neo_gamerules.h"
+#include "view.h"
 
 #include "iclientmode.h"
 #include <vgui/ILocalize.h>
@@ -19,24 +20,7 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-#define UNICODE_NEO_COMPASS_SIZE_BYTES (UNICODE_NEO_COMPASS_STR_LENGTH * sizeof(wchar_t))
-
 using vgui::surface;
-
-ConVar cl_neo_hud_debug_compass_enabled("cl_neo_hud_debug_compass_enabled", "0", FCVAR_USERINFO | FCVAR_CHEAT,
-	"Whether the Debug HUD compass is enabled or not.", true, 0.0f, true, 1.0f);
-ConVar cl_neo_hud_debug_compass_pos_x("cl_neo_hud_debug_compass_pos_x", "0.45", FCVAR_USERINFO | FCVAR_CHEAT,
-	"Horizontal position of the Debug compass, in range 0 to 1.", true, 0.0f, true, 1.0f);
-ConVar cl_neo_hud_debug_compass_pos_y("cl_neo_hud_debug_compass_pos_y", "0.925", FCVAR_USERINFO | FCVAR_CHEAT,
-	"Vertical position of the Debug compass, in range 0 to 1.", true, 0.0f, true, 1.0f);
-ConVar cl_neo_hud_debug_compass_color_r("cl_neo_hud_debug_compass_color_r", "190", FCVAR_USERINFO | FCVAR_CHEAT,
-	"Red color value of the Debug compass, in range 0 - 255.", true, 0.0f, true, 255.0f);
-ConVar cl_neo_hud_debug_compass_color_g("cl_neo_hud_debug_compass_color_g", "185", FCVAR_USERINFO | FCVAR_CHEAT,
-	"Green color value of the Debug compass, in range 0 - 255.", true, 0.0f, true, 255.0f);
-ConVar cl_neo_hud_debug_compass_color_b("cl_neo_hud_debug_compass_color_b", "205", FCVAR_USERINFO | FCVAR_CHEAT,
-	"Blue value of the Debug compass, in range 0 - 255.", true, 0.0f, true, 255.0f);
-ConVar cl_neo_hud_debug_compass_color_a("cl_neo_hud_debug_compass_color_a", "255", FCVAR_USERINFO | FCVAR_CHEAT,
-	"Alpha color value of the Debug compass, in range 0 - 255.", true, 0.0f, true, 255.0f);
 
 ConVar cl_neo_hud_rangefinder_enabled("cl_neo_hud_rangefinder_enabled", "1", FCVAR_ARCHIVE,
 									  "Whether the rangefinder HUD is enabled or not.", true, 0.0f, true, 1.0f);
@@ -46,6 +30,9 @@ ConVar cl_neo_hud_rangefinder_pos_frac_x("cl_neo_hud_rangefinder_pos_frac_x", "0
 ConVar cl_neo_hud_rangefinder_pos_frac_y("cl_neo_hud_rangefinder_pos_frac_y", "0.55", FCVAR_ARCHIVE,
 										 "In fractional to the total screen height, the y-axis position of the rangefinder.",
 										 true, 0.0f, true, 1.0f);
+
+ConVar cl_neo_ghost_callout_compass_time("cl_neo_ghost_callout_compass_time", "10.0", FCVAR_CHEAT,
+	"Time in seconds that ghost callouts remain on the compass.", true, 0.0f, false, 0.0f);
 
 DECLARE_NAMED_HUDELEMENT(CNEOHud_Compass, NHudCompass);
 
@@ -72,10 +59,61 @@ CNEOHud_Compass::CNEOHud_Compass(const char *pElementName, vgui::Panel *parent)
 	m_hFont = 0;
 
 	SetVisible(true);
+}
 
-	COMPILE_TIME_ASSERT(sizeof(m_wszCompassUnicode) == UNICODE_NEO_COMPASS_SIZE_BYTES);
-	Assert(g_pVGuiLocalize);
-	g_pVGuiLocalize->ConvertANSIToUnicode("\0", m_wszCompassUnicode, UNICODE_NEO_COMPASS_SIZE_BYTES);
+void CNEOHud_Compass::Init()
+{
+	ListenForGameEvent("ghost_enemy_callout");
+	ListenForGameEvent("round_start");
+	ListenForGameEvent("player_team");
+}
+
+void CNEOHud_Compass::LevelShutdown()
+{
+	HideAllGhostCallouts();
+}
+
+void CNEOHud_Compass::HideAllGhostCallouts()
+{
+	for (int i = 0; i < V_ARRAYSIZE(m_GhostCallouts); ++i)
+	{
+		m_GhostCallouts[i].timer.Invalidate();
+	}
+}
+
+void CNEOHud_Compass::FireGameEvent(IGameEvent* event)
+{
+	auto eventName = event->GetName();
+	if (!Q_stricmp(eventName, "ghost_enemy_callout"))
+	{
+		const int localTeam = GetLocalPlayerTeam();
+		const int playerTeam = event->GetInt("team");
+		
+		if (localTeam == TEAM_SPECTATOR || playerTeam != localTeam)
+		{
+			return;
+		}
+		
+		int targetId = event->GetInt("targetid");
+		if (targetId > 0 && targetId < V_ARRAYSIZE(m_GhostCallouts))
+		{
+			GhostCallout &callout = m_GhostCallouts[targetId];
+			callout.worldPos = Vector(event->GetInt("targetx"), event->GetInt("targety"), event->GetInt("targetz"));
+			callout.timer.Start(cl_neo_ghost_callout_compass_time.GetFloat());
+		}
+	}
+	else if (!Q_stricmp(eventName, "round_start"))
+	{
+		HideAllGhostCallouts();
+	}
+	else if (!Q_stricmp(eventName, "player_team"))
+	{
+		auto player = UTIL_PlayerByUserId(event->GetInt("userid"));
+		if (player && player->IsLocalPlayer())
+		{
+			HideAllGhostCallouts();
+		}
+	}
 }
 
 void CNEOHud_Compass::Paint()
@@ -88,51 +126,12 @@ void CNEOHud_Compass::Paint()
 	BaseClass::Paint();
 }
 
-void CNEOHud_Compass::GetCompassUnicodeString(const float angle, wchar_t* outUnicodeStr) const
-{
-	// Char representation of the compass strip
-	static constexpr char ROSE[] =
-		"N                |                NE                |\
-                E                |                SE                |\
-                S                |                SW                |\
-                W                |                NW                |\
-                ";
-
-	// One compass tick represents this many degrees of rotation
-	const float unitAccuracy = 360.0f / sizeof(ROSE);
-
-	// Get index offset for this angle's compass position
-	int offset = RoundFloatToInt(angle / unitAccuracy) - UNICODE_NEO_COMPASS_VIS_AROUND;
-	if (offset < 0)
-	{
-		offset += sizeof(ROSE);
-	}
-
-	// Both sides + center + terminator
-	char compass[UNICODE_NEO_COMPASS_STR_LENGTH];
-	int i;
-	for (i = 0; i < UNICODE_NEO_COMPASS_STR_LENGTH - 1; i++)
-	{
-		// Get our index by circling around the compass strip.
-		// We do modulo -1, because sizeof would land us on NULL
-		// and terminate the string early.
-		const int wrappedIndex = (offset + i) % (sizeof(ROSE) - 1);
-
-		compass[i] = ROSE[wrappedIndex];
-	}
-	// Finally, make sure we have a null terminator
-	compass[i] = '\0';
-
-	g_pVGuiLocalize->ConvertANSIToUnicode(compass, outUnicodeStr, UNICODE_NEO_COMPASS_SIZE_BYTES);
-}
-
 static C_NEO_Player *GetFirstPersonPlayer()
 {
-	auto pLocalPlayer = C_NEO_Player::GetLocalNEOPlayer();
-	C_NEO_Player *pFPPlayer = pLocalPlayer;
-	if (pLocalPlayer->GetObserverMode() == OBS_MODE_IN_EYE)
+	C_NEO_Player *pFPPlayer = C_NEO_Player::GetLocalNEOPlayer();
+	if (pFPPlayer->GetObserverMode() == OBS_MODE_IN_EYE)
 	{
-		auto *pTargetPlayer = dynamic_cast<C_NEO_Player *>(pLocalPlayer->GetObserverTarget());
+		auto *pTargetPlayer = dynamic_cast<C_NEO_Player *>(pFPPlayer->GetObserverTarget());
 		if (pTargetPlayer && !pTargetPlayer->IsObserver())
 		{
 			pFPPlayer = pTargetPlayer;
@@ -141,40 +140,40 @@ static C_NEO_Player *GetFirstPersonPlayer()
 	return pFPPlayer;
 }
 
+static float safeAngle(float angle) {
+	while (angle < -180) {
+		angle += 360;
+	}
+	while (angle >= 180) {
+		angle -= 360;
+	}
+	return angle;
+}
+
 void CNEOHud_Compass::UpdateStateForNeoHudElementDraw()
 {
-	auto pLocalPlayer = C_NEO_Player::GetLocalNEOPlayer();
-	Assert(pLocalPlayer);
+	auto pFPPlayer = GetFirstPersonPlayer();
+	Assert(pFPPlayer);
 
-	static auto safeAngle = [](const float angle) -> float {
-		if (angle > 180.0f)
-		{
-			return angle - 360.0f;
-		}
-		else if (angle < -180.0f)
-		{
-			return angle + 360.0f;
-		}
-		return angle;
-	};
-
-	// Direction in -180 to 180
-	float angle = pLocalPlayer->EyeAngles()[YAW] * -1;
-	angle = safeAngle(angle);
-	angle += 180.0f;	// NEO NOTE (nullsystem): Adjust it again to match OG:NT's compass angle
-	angle = safeAngle(angle);
-	GetCompassUnicodeString(angle, m_wszCompassUnicode);
+	// Point the objective arrow to the relevant objective, if it exists
+	if (NEORules()->GhostExists() || NEORules()->GetJuggernautMarkerPos() != vec3_origin)
+	{
+		const Vector objPos = NEORules()->GetGameType() == NEO_GAME_TYPE_JGR ? NEORules()->GetJuggernautMarkerPos() : NEORules()->GetGhostPos();
+		const Vector objVec = objPos - MainViewOrigin();
+		const float objYaw = RAD2DEG(atan2f(objVec.y, objVec.x));
+		float objAngle = safeAngle(- objYaw + MainViewAngles()[YAW]);
+		m_objAngle = Clamp(objAngle, -(float)m_fov / 2, (float)m_fov / 2);
+	}
 
 	if (cl_neo_hud_rangefinder_enabled.GetBool())
 	{
-		C_NEO_Player *pFPPlayer = GetFirstPersonPlayer();
 		if (pFPPlayer->IsInAim())
 		{
 			// Update Rangefinder
 			trace_t tr;
 			Vector vecForward;
-			AngleVectors(pFPPlayer->EyeAngles(), &vecForward);
-			UTIL_TraceLine(pFPPlayer->EyePosition(), pFPPlayer->EyePosition() + (vecForward * MAX_TRACE_LENGTH),
+			AngleVectors(MainViewAngles(), &vecForward);
+			UTIL_TraceLine(MainViewOrigin(), MainViewOrigin() + (vecForward * MAX_TRACE_LENGTH),
 						   MASK_SHOT, pFPPlayer, COLLISION_GROUP_NONE, &tr);
 			const float flDist = METERS_PER_INCH * tr.startpos.DistTo(tr.endpos);
 			if (flDist >= 999.0f || tr.surface.flags & (SURF_SKY | SURF_SKY2D))
@@ -201,11 +200,6 @@ void CNEOHud_Compass::DrawNeoHudElement(void)
 		DrawCompass();
 	}
 
-	if (cl_neo_hud_debug_compass_enabled.GetBool())
-	{
-		DrawDebugCompass();
-	}
-
 	if (cl_neo_hud_rangefinder_enabled.GetBool() && GetFirstPersonPlayer()->IsInAim())
 	{
 		surface()->DrawSetTextColor(COLOR_NEO_WHITE);
@@ -223,166 +217,185 @@ void CNEOHud_Compass::ApplySchemeSettings(vgui::IScheme *pScheme)
 	LoadControlSettings("scripts/HudLayout.res");
 
 	m_hFont = pScheme->GetFont("NHudOCRSmall");
-	m_savedXBoxWidth = 0;
+	m_hFontSmall = pScheme->GetFont("NHudOCRSmallerNoAdditive");
 
 	surface()->GetScreenSize(m_resX, m_resY);
 	SetBounds(0, 0, m_resX, m_resY);
 	SetZPos(90);
+	m_fov = Clamp(m_fov, 45, 360);
+	m_fadeExp = Clamp(m_fadeExp, 0, 10);
 }
 
 void CNEOHud_Compass::DrawCompass() const
 {
-	auto player = C_NEO_Player::GetLocalNEOPlayer();
+	static const wchar_t* ROSE[] = {
+		L"S", L"|", L"SW", L"|", L"W", L"|", L"NW", L"|", L"N", L"|", L"NE", L"|", L"E", L"|", L"SE", L"|",
+	};
+
+	auto player = GetFirstPersonPlayer();
 	Assert(player);
 
 	surface()->DrawSetTextFont(m_hFont);
 
-	int fontWidth, fontHeight;
-	surface()->GetTextSize(m_hFont, m_wszCompassUnicode, fontWidth, fontHeight);
-
-	if (m_savedXBoxWidth == 0)
-	{
-		// Using the fontHeight for padding works out
-		m_savedXBoxWidth = fontWidth + fontHeight;
-	}
-	// These are the compass box dimension, just based on the font's dimensions
-	const int xBoxWidth = m_savedXBoxWidth;
-	const int yBoxHeight = fontHeight;
-
-	const int resXHalf = m_resX / 2;
-	const int xBoxWidthHalf = xBoxWidth / 2;
-	const int margin = m_yFromBottomPos;
-
 	DrawNeoHudRoundedBox(
-		resXHalf - xBoxWidthHalf, m_resY - yBoxHeight - margin,
-		resXHalf + xBoxWidthHalf, m_resY - margin,
+		m_xPos, m_yPos,
+		m_xPos + m_width, m_yPos + m_height,
 		m_boxColor);
 
-	// Draw the compass "needle"
-	if (m_needleVisible)
-	{
-		static const Color COMPASS_NEEDLE_COLOR_GREEN{25, 255, 25, 150};
-		static const Color COMPASS_NEEDLE_COLOR_BLUE{25, 25, 255, 150};
-		static const Color COMPASS_NEEDLE_COLOR_WHITE{255, 255, 255, 150};
-		Color needleColor = COMPASS_NEEDLE_COLOR_WHITE;
-		if (m_needleColored)
-		{
-			const int playerTeam = player->GetTeamNumber();
-			switch (playerTeam)
-			{
-			break; case TEAM_JINRAI: needleColor = COMPASS_NEEDLE_COLOR_GREEN;
-			break; case TEAM_NSF: needleColor = COMPASS_NEEDLE_COLOR_BLUE;
-			break; default: break;
-			}
+	const float angle = -MainViewAngles()[YAW];
+	const int steps = ARRAYSIZE(ROSE);
+	for (int i = 0; i < steps; i += m_separators ? 1 : 2) {
+		const float stepAngle = (float)(i * 360) / steps;
+		float drawAngle = safeAngle(stepAngle - angle + (float)m_fov / 2);
+		if (drawAngle < 0) {
+			drawAngle += 360;
 		}
-		surface()->DrawSetColor(needleColor);
-		surface()->DrawFilledRect(resXHalf - 1, m_resY - yBoxHeight - margin, resXHalf + 1, m_resY - margin);
+		if (drawAngle >= m_fov) {
+			continue;
+		}
+		const float proportion = drawAngle / m_fov;
+		const float alpha = !m_fadeExp ? 1 : 1 - pow(abs(2 * (proportion - 0.5)), m_fadeExp);
+		surface()->DrawSetTextColor(m_textColor.r(), m_textColor.g(), m_textColor.b(), alpha * m_textColor.a());
+		int labelWidth, labelHeight;
+		surface()->GetTextSize(m_hFont, ROSE[i], labelWidth, labelHeight);
+		const float padding = (float)labelHeight;
+		surface()->DrawSetTextPos(m_xPos + padding + (m_width - padding * 2) * proportion - (float)labelWidth / 2, m_yPos + (float)m_height / 2 - (float)labelHeight / 2);
+		surface()->DrawPrintText(ROSE[i], Q_UnicodeLength(ROSE[i]));	
 	}
-
-	surface()->DrawSetTextColor(COLOR_WHITE);
-	surface()->DrawSetTextPos(resXHalf - fontWidth / 2, m_resY - fontHeight - margin);
-	surface()->DrawPrintText(m_wszCompassUnicode, UNICODE_NEO_COMPASS_STR_LENGTH);
 
 	// Print compass objective arrow
-	if (m_objectiveVisible && !player->IsCarryingGhost())
+	if (m_objectiveVisible && !player->IsObjective())
 	{
-		// Point the objective arrow to the ghost, if it exists
-		if (NEORules()->GhostExists())
+		// Point the objective arrow to the relevant objective, if it exists
+		if (NEORules()->GhostExists() || NEORules()->GetJuggernautMarkerPos() != vec3_origin)
 		{
-			int ghostMarkerX, ghostMarkerY;
-			const bool ghostIsInView = GetVectorInScreenSpace(NEORules()->GetGhostPos(), ghostMarkerX, ghostMarkerY);
-			if (ghostIsInView) {
-				// Print a unicode arrow to signify compass needle
-				const wchar_t arrowUnicode[] = L"▼";
+			const float proportion = m_objAngle / m_fov + 0.5;
+			
+			// Print a unicode arrow to signify objective
+			const wchar_t arrowUnicode[] = L"▼";
 
-				ghostMarkerX = clamp(ghostMarkerX, resXHalf - xBoxWidthHalf, resXHalf + xBoxWidthHalf);
+			const int ghosterTeam = NEORules()->GetGhosterTeam();
+			const int ownTeam = player->GetTeam()->GetTeamNumber();
 
-				const int ghosterTeam = NEORules()->GetGhosterTeam();
-				const int ownTeam = player->GetTeam()->GetTeamNumber();
+			const auto teamClr32 = player->GetTeam()->GetRenderColor();
+			const Color teamColor = Color(teamClr32.r, teamClr32.g, teamClr32.b, teamClr32.a);
 
-				const auto teamClr32 = player->GetTeam()->GetRenderColor();
-				const Color teamColor = Color(teamClr32.r, teamClr32.g, teamClr32.b, teamClr32.a);
+			const bool ghostIsBeingCarried = (ghosterTeam == TEAM_JINRAI || ghosterTeam == TEAM_NSF);
+			const bool ghostIsCarriedByEnemyTeam = (ghosterTeam != ownTeam);
 
-				const bool ghostIsBeingCarried = (ghosterTeam == TEAM_JINRAI || ghosterTeam == TEAM_NSF);
-				const bool ghostIsCarriedByEnemyTeam = (ghosterTeam != ownTeam);
-
-				surface()->DrawSetTextColor(ghostIsBeingCarried ? ghostIsCarriedByEnemyTeam ? COLOR_RED : teamColor : COLOR_WHITE);
-				surface()->DrawSetTextPos(ghostMarkerX, m_resY - fontHeight - margin * 2.25f);
-				surface()->DrawPrintText(arrowUnicode, Q_UnicodeLength(arrowUnicode));
-			}
+			surface()->DrawSetTextColor(ghostIsBeingCarried ? ghostIsCarriedByEnemyTeam ? COLOR_RED : teamColor : COLOR_WHITE);
+			int labelWidth, labelHeight;
+			surface()->GetTextSize(m_hFont, arrowUnicode, labelWidth, labelHeight);
+			const float padding = (float)labelHeight;
+			surface()->DrawSetTextPos(m_xPos + padding + (m_width - padding * 2) * proportion - (float)labelWidth / 2, m_yPos - labelHeight);
+			surface()->DrawPrintText(arrowUnicode, Q_UnicodeLength(arrowUnicode));
 		}
 	}
 
-	static const Color FADE_END_COLOR(116, 116, 116, 255);
-	DrawNeoHudRoundedBoxFaded(
-		resXHalf - xBoxWidthHalf, m_resY - yBoxHeight - margin,
-		resXHalf, m_resY - margin,
-		FADE_END_COLOR, 255, 0, true,
-		true, false, true, false);
-	DrawNeoHudRoundedBoxFaded(
-		resXHalf, m_resY - yBoxHeight - margin,
-		resXHalf + xBoxWidthHalf, m_resY - margin,
-		FADE_END_COLOR, 0, 255, true,
-		false, true, false, true);
+	DrawCallouts();
 }
 
-void CNEOHud_Compass::DrawDebugCompass() const
+void CNEOHud_Compass::DrawCallouts() const
 {
-	auto player = C_NEO_Player::GetLocalNEOPlayer();
-	Assert(player);
-
-	// Direction in -180 to 180
-	float angle = -(player->EyeAngles()[YAW]);
-
-	// Clamp in 180 turn range.
-	if (angle > 180)
+	struct CalloutDrawInfo
 	{
-		angle -= 360;
-	}
-	else if (angle < -180)
+		int calloutIdx; // Index into m_GhostCallouts
+		float age;
+		float renderX;
+		float renderY;
+	};
+
+	CUtlVectorFixed<CalloutDrawInfo, MAX_PLAYERS_ARRAY_SAFE> visibleCallouts;
+
+	int latestIdx = -1;
+	float newestAge = 9999.0f;
+
+	const wchar_t arrowUnicode[] = L"▼";
+	int labelWidth, labelHeight;
+	surface()->GetTextSize(m_hFont, arrowUnicode, labelWidth, labelHeight);
+	const float padding = (float)labelHeight;
+
+	// Cache ConVars and View parameters
+	const float maxAge = cl_neo_ghost_callout_compass_time.GetFloat();
+	const Vector viewOrigin = MainViewOrigin();
+	const float viewYaw = MainViewAngles()[YAW];
+
+	// Collect visible callouts
+	for (int i = 0; i < V_ARRAYSIZE(m_GhostCallouts); ++i)
 	{
-		angle += 360;
+		const GhostCallout& callout = m_GhostCallouts[i];
+		
+		if (!callout.timer.HasStarted() || callout.timer.IsElapsed())
+			continue;
+			
+		float age = callout.timer.GetElapsedTime();
+
+		const Vector objVec = callout.worldPos - viewOrigin;
+		const float objYaw = RAD2DEG(atan2f(objVec.y, objVec.x));
+		float drawObjAngle = AngleNormalize(-objYaw + viewYaw);
+		float clampedAngle = Clamp(drawObjAngle, -(float)m_fov / 2, (float)m_fov / 2);
+
+		const float proportion = clampedAngle / m_fov + 0.5;
+
+		float renderX = m_xPos + padding + (m_width - padding * 2) * proportion - (float)labelWidth / 2;
+		float renderY = m_yPos - labelHeight;
+
+		CalloutDrawInfo info;
+		info.calloutIdx = i;
+		info.age = age;
+		info.renderX = renderX;
+		info.renderY = renderY;
+
+		int currentIdx = visibleCallouts.AddToTail(info);
+
+		// Determine latest
+		if (age < newestAge)
+		{
+			newestAge = age;
+			latestIdx = currentIdx;
+		}
 	}
 
-	// Char representation of the compass strip
-	const char rose[] = "N -- ne -- E -- se -- S -- sw -- W -- nw -- ";
-
-	// One compass tick represents this many degrees of rotation
-	const float unitAccuracy = 360.0f / sizeof(rose);
-
-	// How many characters should be visible around each side of the needle position
-	const int numCharsVisibleAroundNeedle = 6;
-
-	// Get index offset for this angle's compass position
-	int offset = RoundFloatToInt((angle / unitAccuracy)) - numCharsVisibleAroundNeedle;
-	if (offset < 0)
+	auto DrawSingleCallout = [&](int idx, bool bDrawText)
 	{
-		offset += sizeof(rose);
-	}
+		CalloutDrawInfo& info = visibleCallouts[idx];
 
-	// Both sides + center + terminator
-	char compass[numCharsVisibleAroundNeedle * 2 + 2];
-	int i;
-	for (i = 0; i < sizeof(compass) - 1; i++)
+		float alphaScale = (maxAge > 0.f) ? (1.0f - Clamp(info.age / maxAge, 0.0f, 1.0f)) : 0.0f;
+		int alpha = Clamp((int)(255.0f * alphaScale), 0, 255);
+		Color calloutColor = Color(255, 0, 0, alpha);
+
+		surface()->DrawSetTextColor(calloutColor);
+		surface()->DrawSetTextPos(info.renderX, info.renderY);
+		surface()->DrawPrintText(arrowUnicode, 1);
+
+		if (bDrawText)
+		{
+			float dist = METERS_PER_INCH * viewOrigin.DistTo(m_GhostCallouts[info.calloutIdx].worldPos);
+
+			wchar_t wszDist[16];
+			V_swprintf_safe(wszDist, L"%im", (int)dist);
+
+			int distWidth, distHeight;
+			surface()->GetTextSize(m_hFontSmall, wszDist, distWidth, distHeight);
+
+			surface()->DrawSetTextFont(m_hFontSmall);
+			surface()->DrawSetTextPos(info.renderX + (labelWidth / 2) - (distWidth / 2), info.renderY - distHeight);
+			surface()->DrawPrintText(wszDist, Q_UnicodeLength(wszDist));
+		}
+	};
+
+	// Draw older ones first
+	for (int i = 0; i < visibleCallouts.Count(); ++i)
 	{
-		// Get our index by circling around the compass strip.
-		// We do modulo -1, because sizeof would land us on NULL
-		// and terminate the string early.
-		const int wrappedIndex = (offset + i) % (sizeof(rose) - 1);
-
-		compass[i] = rose[wrappedIndex];
+		if (i == latestIdx)
+			continue;
+		
+		DrawSingleCallout(i, false);
 	}
-	// Finally, make sure we have a null terminator
-	compass[i] = '\0';
 
-	// Draw the compass for this frame
-	debugoverlay->AddScreenTextOverlay(
-		cl_neo_hud_debug_compass_pos_x.GetFloat(),
-		cl_neo_hud_debug_compass_pos_y.GetFloat(),
-		gpGlobals->frametime,
-		cl_neo_hud_debug_compass_color_r.GetInt(),
-		cl_neo_hud_debug_compass_color_g.GetInt(),
-		cl_neo_hud_debug_compass_color_b.GetInt(),
-		cl_neo_hud_debug_compass_color_a.GetInt(),
-		compass);
+	// Draw the latest one on top with distance text
+	if (latestIdx != -1)
+	{
+		DrawSingleCallout(latestIdx, true);
+	}
 }

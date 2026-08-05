@@ -88,7 +88,9 @@ void CWeaponAA13::PrimaryAttack(void)
 
 	// MUST call sound before removing a round from the clip of a CMachineGun
 	WeaponSound(SINGLE);
-
+#ifdef GAME_DLL
+	CSoundEnt::InsertSound(SOUND_COMBAT, GetAbsOrigin(), SOUNDENT_VOLUME_PISTOL, 0.2, GetOwner(), SOUNDENT_CHANNEL_WEAPON);
+#endif
 	pPlayer->DoMuzzleFlash();
 
 	SendWeaponAnim(ACT_VM_PRIMARYATTACK);
@@ -102,7 +104,8 @@ void CWeaponAA13::PrimaryAttack(void)
 	Vector vecAiming = pPlayer->GetAutoaimVector(AUTOAIM_10DEGREES);
 
 	Vector vecSpread = GetBulletSpread();
-	FireBulletsInfo_t info(5, vecSrc, vecAiming, vecSpread, MAX_TRACE_LENGTH, m_iPrimaryAmmoType);
+	int numBullets = GetNEOWpnData().m_iBullets;
+	FireBulletsInfo_t info(numBullets, vecSrc, vecAiming, vecSpread, MAX_TRACE_LENGTH, m_iPrimaryAmmoType);
 	info.m_pAttacker = pPlayer;
 	info.m_iTracerFreq = 0;
 
@@ -119,4 +122,9 @@ void CWeaponAA13::PrimaryAttack(void)
 
 	pPlayer->ViewPunchReset();
 	AddViewKick();
+}
+
+bool CWeaponAA13::CanBePickedUpByClass(int classId)
+{
+	return classId != NEO_CLASS_JUGGERNAUT;
 }

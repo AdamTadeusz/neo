@@ -21,7 +21,6 @@
 // This is a trick to get the DLL extension off the -D option on the command line.
 #define DLLExtTokenPaste(x) #x
 #define DLLExtTokenPaste2(x) DLLExtTokenPaste(x)
-#define DLL_EXT_STRING DLLExtTokenPaste2( _DLL_EXT )
 
 
 #include "protected_things.h"
@@ -43,6 +42,10 @@
 #endif
 
 #include <stdint.h>
+
+#ifdef NEO
+#include "../../common/neo/bit_cast.h"
+#endif
 
 #define ExecuteNTimes( nTimes, x )	\
 	{								\
@@ -95,6 +98,9 @@ inline T AlignValue( T val, uintptr_t alignment )
 // lower-case) function can generate more expensive code because of the
 // mixed types involved.
 template< class T >
+#ifdef NEO
+constexpr
+#endif
 T Clamp( T const &val, T const &minVal, T const &maxVal )
 {
 	if( val < minVal )
@@ -108,6 +114,9 @@ T Clamp( T const &val, T const &minVal, T const &maxVal )
 // This is the preferred Min operator. Using the MIN macro can lead to unexpected
 // side-effects or more expensive code.
 template< class T >
+#ifdef NEO
+constexpr
+#endif
 T Min( T const &val1, T const &val2 )
 {
 	return val1 < val2 ? val1 : val2;
@@ -116,6 +125,9 @@ T Min( T const &val1, T const &val2 )
 // This is the preferred Max operator. Using the MAX macro can lead to unexpected
 // side-effects or more expensive code.
 template< class T >
+#ifdef NEO
+constexpr
+#endif
 T Max( T const &val1, T const &val2 )
 {
 	return val1 > val2 ? val1 : val2;
@@ -192,7 +204,11 @@ inline unsigned int const& FloatBits( vec_t const& f )
 
 inline vec_t BitsToFloat( unsigned int i )
 {
+#ifdef NEO
+	return neo::bit_cast<vec_t>(i);
+#else
 	return *reinterpret_cast<vec_t*>(&i);
+#endif
 }
 
 inline bool IsFinite( vec_t f )

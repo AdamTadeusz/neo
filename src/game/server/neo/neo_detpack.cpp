@@ -38,9 +38,10 @@ void CNEODeployedDetpack::Spawn(void)
 	BaseClass::Spawn();
 
 	SetElasticity(sv_neo_grenade_cor.GetFloat());
-	SetGravity(sv_neo_grenade_gravity.GetFloat());
+	constexpr float NEO_DETPACK_GRAVITY = 1.f;
+	SetGravity(NEO_DETPACK_GRAVITY);
 	SetFriction(sv_neo_grenade_friction.GetFloat());
-	SetCollisionGroup(COLLISION_GROUP_WEAPON);
+	SetCollisionGroup(COLLISION_GROUP_PROJECTILE);
 
 	m_flDamage = NEO_DETPACK_DAMAGE;
 	m_DmgRadius = NEO_DETPACK_DAMAGE_RADIUS;
@@ -180,7 +181,14 @@ void CNEODeployedDetpack::InputRemoteDetonate(inputdata_t& inputdata)
 					SF_ENVEXPLOSION_NOSPARKS | SF_ENVEXPLOSION_NODLIGHTS | SF_ENVEXPLOSION_NOSMOKE | SF_ENVEXPLOSION_NOSOUND, 0.0f, this);
 	m_hasBeenTriggeredToDetonate = true;
 	DevMsg("CNEODeployedDetpack::InputRemoteDetonate triggered\n");
-	EmitSound("weapon_remotedet.npc_single");
+	if (GetWaterLevel() == 3)
+	{
+		EmitSound("WaterExplosionEffect.Sound");
+	}
+	else
+	{
+		EmitSound("weapon_remotedet.npc_single");
+	}
 	UTIL_Remove(this);
 }
 

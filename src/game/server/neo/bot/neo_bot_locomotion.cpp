@@ -20,11 +20,30 @@ void CNEOBotLocomotion::Update( void )
 	// always 'crouch jump'
 	if ( IsOnGround() )
 	{
+		CNavArea* currentArea = me->GetLastKnownArea();
+		if (currentArea && (currentArea->GetAttributes() & NAV_MESH_CROUCH))
+		{
+			me->PressCrouchButton( 0.3f );
+		}
+#ifdef NEO
+		// NEO JANK resetting of crouch timer moved to NextBotPlayer::PressJumpButton
+		// so far crouch jump seems to still be working, but watch out for a regression
+		// disabled:
+#else
 		me->ReleaseCrouchButton();
+#endif
 	}
 	else
 	{
+#ifdef NEO
+		// Don't try to crouch jump if we are climbing a ladder
+		if (!me->IsBotOnLadder())
+		{
+			me->PressCrouchButton( 0.3f );
+		}
+#else
 		me->PressCrouchButton( 0.3f );
+#endif
 	}
 }
 
@@ -63,9 +82,19 @@ float CNEOBotLocomotion::GetDeathDropHeight( void ) const
 // Get maximum running speed
 float CNEOBotLocomotion::GetRunSpeed( void ) const
 {
-	return hl2_normspeed.GetFloat();
-	// TODO(misyl): Teach bots to sprint.
-	//return hl2_sprintspeed.GetFloat();
+	CNEOBot *me = (CNEOBot *)GetBot()->GetEntity();
+	return me->GetSprintSpeed_WithActiveWepEncumberment();
+}
+
+float CNEOBotLocomotion::GetWalkSpeed( void ) const
+{
+	CNEOBot *me = (CNEOBot *)GetBot()->GetEntity();
+	return me->GetNormSpeed_WithActiveWepEncumberment();
+}
+
+bool CNEOBotLocomotion::IsRunning( void ) const
+{
+	return GetSpeed() > GetWalkSpeed();
 }
 
 
@@ -116,5 +145,6 @@ bool CNEOBotLocomotion::IsEntityTraversable( CBaseEntity* obstacle, TraverseWhen
 		}
 	}
 
-	return PlayerLocomotion::IsEntityTraversable( obstacle, when );
+	const bool bIsTraversable = PlayerLocomotion::IsEntityTraversable( obstacle, when );
+	return bIsTraversable || GetBot()->IsAbleToBreak(obstacle);
 }

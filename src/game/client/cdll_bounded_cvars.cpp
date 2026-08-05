@@ -10,6 +10,9 @@
 #include "convar_serverbounded.h"
 #include "tier0/icommandline.h"
 
+#ifdef NEO
+#include "neo_player_shared.h"
+#endif
 
 bool g_bForceCLPredictOff = false;
 
@@ -65,7 +68,11 @@ class CBoundedCvar_InterpRatio : public ConVar_ServerBounded
 public:
 	CBoundedCvar_InterpRatio() :
 	  ConVar_ServerBounded( "cl_interp_ratio", 
+#ifdef NEO
+		  NEO_CL_INTERP_RATIO_DEFAULT_STR,
+#else
 		  "2.0", 
+#endif
 		  FCVAR_USERINFO | FCVAR_NOT_CONNECTED | FCVAR_ARCHIVE, 
 		  "Sets the interpolation amount (final amount is cl_interp_ratio / cl_updaterate)." )
 	  {
@@ -89,7 +96,7 @@ public:
 static CBoundedCvar_InterpRatio cl_interp_ratio_var;
 ConVar_ServerBounded *cl_interp_ratio = &cl_interp_ratio_var;
 
-
+#ifndef NEO
 // ------------------------------------------------------------------------------------------ //
 // cl_interp
 // ------------------------------------------------------------------------------------------ //
@@ -123,6 +130,7 @@ public:
 
 static CBoundedCvar_Interp cl_interp_var;
 ConVar_ServerBounded *cl_interp = &cl_interp_var;
+#endif
 
 float GetClientInterpAmount()
 {
@@ -131,7 +139,11 @@ float GetClientInterpAmount()
 	{
 		// #define FIXME_INTERP_RATIO
 		const ConVar_ServerBounded *pUpdateRateBounded = static_cast< const ConVar_ServerBounded* >( pUpdateRate );
+#ifdef NEO
+		return cl_interp_ratio->GetFloat() / ( pUpdateRateBounded ? pUpdateRateBounded->GetFloat() : pUpdateRate->GetFloat() );
+#else
 		return MAX( cl_interp->GetFloat(), cl_interp_ratio->GetFloat() / ( pUpdateRateBounded ? pUpdateRateBounded->GetFloat() : pUpdateRate->GetFloat() ) );
+#endif
 	}
 	else
 	{
@@ -139,8 +151,11 @@ float GetClientInterpAmount()
 		{
 			AssertMsgOnce( false, "GetInterpolationAmount: can't get cl_updaterate cvar." );
 		}
-	
+#ifdef NEO
+		return 2.0 / 66;
+#else
 		return 0.1;
+#endif
 	}
 }
 

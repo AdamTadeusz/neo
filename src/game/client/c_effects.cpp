@@ -331,7 +331,7 @@ inline bool CClient_Precipitation::SimulateRain( CPrecipitationParticle* pPartic
 	}
 #ifdef NEO
 	trace_t trace;
-	UTIL_TraceLine( vOldPos, pParticle->m_Pos, MASK_SOLID_BRUSHONLY, this, COLLISION_GROUP_NONE, &trace );
+	UTIL_TraceLine( vOldPos, pParticle->m_Pos, MASK_SOLID_BRUSHONLY & (~CONTENTS_GRATE), this, COLLISION_GROUP_NONE, &trace );
 
 	if ( trace.fraction < 1 || trace.DidHit() )
 	{
@@ -884,7 +884,9 @@ void CClient_Precipitation::CreateAshParticle( void )
 
 		float curTime = gpGlobals->frametime;
 
+#ifndef NEO
 		Vector vPushOrigin;
+#endif
 
 		Vector absmins = WorldAlignMins();
 		Vector absmaxs = WorldAlignMaxs();
@@ -1100,7 +1102,11 @@ void CClient_Precipitation::EmitParticles( float fTimeDelta )
 		vPlayerHeight.z = vPlayerCenter.z;
 
 		trace_t trace;
+#ifdef NEO
+		UTIL_TraceLine( vPlayerHeight, vParticlePos, MASK_SOLID_BRUSHONLY & (~CONTENTS_GRATE), NULL, COLLISION_GROUP_NONE, &trace );
+#else
 		UTIL_TraceLine( vPlayerHeight, vParticlePos, MASK_SOLID_BRUSHONLY, NULL, COLLISION_GROUP_NONE, &trace );
+#endif
 		if ( trace.fraction < 1 )
 		{
 			// If we hit a brush, then don't spawn the particle.
@@ -2078,7 +2084,9 @@ void CSnowFallManager::CreateOutsideVolumeSnowParticles( float flCurrentTime, fl
 //-----------------------------------------------------------------------------
 void CSnowFallManager::CreateInsideVolumeSnowParticles( float flCurrentTime, float flRadius, const Vector &vecEyePos, const Vector &vecForward, float flZoomScale )
 {
+#ifndef NEO
 	Vector vecParticleSpawn;
+#endif
 
 	// Check/Setup for zoom.
 	bool bZoomed = ( flZoomScale > 1.0f );

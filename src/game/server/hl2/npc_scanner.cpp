@@ -48,6 +48,9 @@ extern IMaterialSystemHardwareConfig *g_pMaterialSystemHardwareConfig;
 
 #define SCANNER_HINT_INSPECT_DELAY		15		// Check for hint nodes this often
 	
+#if defined(NEO) && defined(SPOTLIGHT_WIDTH) // Unity build
+#undef SPOTLIGHT_WIDTH
+#endif
 #define	SPOTLIGHT_WIDTH					32
 
 #define SCANNER_SPOTLIGHT_NEAR_DIST		64
@@ -1727,7 +1730,9 @@ Vector CNPC_CScanner::SpotlightCurrentPos(void)
 	//  Calculate new beam direction
 	// ------------------------------
 	m_vSpotlightDir = m_vSpotlightDir + m_vSpotlightAngVelocity;
+#ifndef NEO
 	m_vSpotlightDir = m_vSpotlightDir;
+#endif
 	VectorNormalize(m_vSpotlightDir);
 
 

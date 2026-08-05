@@ -2,6 +2,7 @@
 #include "fmtstr.h"
 
 #include "neo_gamerules.h"
+#include "nav_ladder.h"
 #include "NextBot/NavMeshEntities/func_nav_prerequisite.h"
 
 #include "bot/neo_bot.h"
@@ -11,15 +12,26 @@
 #include "bot/behavior/neo_bot_scenario_monitor.h"
 
 #include "bot/behavior/neo_bot_seek_and_destroy.h"
+#include "bot/behavior/neo_bot_seek_weapon.h"
 #include "bot/behavior/neo_bot_retreat_to_cover.h"
+#include "bot/behavior/neo_bot_retreat_from_grenade.h"
+#include "bot/behavior/neo_bot_ladder_approach.h"
+#include "bot/behavior/neo_bot_ladder_climb.h"
+#include "bot/behavior/neo_bot_path_clear_breakable.h"
+#include "bot/behavior/neo_bot_pause.h"
 #if 0 // NEO TODO (Adam) Fix picking up weapons, search for dropped weapons to pick up ammo
 #include "bot/behavior/neo_bot_get_ammo.h"
 #endif
 #include "bot/behavior/nav_entities/neo_bot_nav_ent_destroy_entity.h"
 #include "bot/behavior/nav_entities/neo_bot_nav_ent_move_to.h"
 #include "bot/behavior/nav_entities/neo_bot_nav_ent_wait.h"
+#include "neo/neo_player_shared.h"
+#include "nav_mesh.h"
 
 ConVar neo_bot_force_jump( "neo_bot_force_jump", "0", FCVAR_CHEAT, "Force bots to continuously jump" );
+
+ConVar neo_bot_scavenge_upgrade_delay( "neo_bot_scavenge_upgrade_delay", "4", FCVAR_GAMEDLL,
+	"Delay in seconds between checking for a better weapon if the bot already has a primary weapon.", true, 1, false, 0 );
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -51,6 +63,14 @@ ActionResult< CNEOBot > CNEODespawn::Update( CNEOBot* me, float interval )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+CNEOBotTacticalMonitor::CNEOBotTacticalMonitor()
+{
+	m_pIgnoredWeapons = std::make_unique<CNEOIgnoredWeaponsCache>();
+}
+
+CNEOBotTacticalMonitor::~CNEOBotTacticalMonitor() = default;
+
+
 Action< CNEOBot > *CNEOBotTacticalMonitor::InitialContainedAction( CNEOBot *me )
 {
 	return new CNEOBotScenarioMonitor;
@@ -60,6 +80,7 @@ Action< CNEOBot > *CNEOBotTacticalMonitor::InitialContainedAction( CNEOBot *me )
 //-----------------------------------------------------------------------------------------
 ActionResult< CNEOBot >	CNEOBotTacticalMonitor::OnStart( CNEOBot *me, Action< CNEOBot > *priorAction )
 {
+	m_pIgnoredWeapons->Reset();
 	return Continue();
 }
 
@@ -127,46 +148,91 @@ void CNEOBotTacticalMonitor::MonitorArmedStickyBombs( CNEOBot *me )
 
 #endif //NEO
 //-----------------------------------------------------------------------------------------
-void CNEOBotTacticalMonitor::AvoidBumpingEnemies( CNEOBot *me )
+void CNEOBotTacticalMonitor::AvoidBumpingFriends( CNEOBot *me )
 {
-	if ( me->GetDifficulty() < CNEOBot::HARD )
-		return;
+	const float avoidRange = 32.0f;
 
-	const float avoidRange = 200.0f;
+	CUtlVector< CNEO_Player * > friendVector;
+	CollectPlayers( &friendVector, me->GetTeamNumber(), COLLECT_ONLY_LIVING_PLAYERS );
 
-	CUtlVector< CNEO_Player * > enemyVector;
-	CollectPlayers( &enemyVector, GetEnemyTeam( me->GetTeamNumber() ), COLLECT_ONLY_LIVING_PLAYERS );
-
-	CNEO_Player *closestEnemy = NULL;
+	CNEO_Player *closestFriend = NULL;
 	float closestRangeSq = avoidRange * avoidRange;
 
-	for( int i=0; i<enemyVector.Count(); ++i )
+	for( int i=0; i<friendVector.Count(); ++i )
 	{
-		CNEO_Player *enemy = enemyVector[i];
+		CNEO_Player *friendly = friendVector[i];
 
-		float rangeSq = ( enemy->GetAbsOrigin() - me->GetAbsOrigin() ).LengthSqr();
+		if ( friendly == me->GetEntity() )
+			continue;
+
+		float rangeSq = ( friendly->GetAbsOrigin() - me->GetAbsOrigin() ).LengthSqr();
 		if ( rangeSq < closestRangeSq )
 		{
-			closestEnemy = enemy;
+			closestFriend = friendly;
 			closestRangeSq = rangeSq;
 		}
 	}
 
-	if ( !closestEnemy )
+	if ( !closestFriend )
 		return;
 
 	// avoid unless hindrance returns a definitive "no"
-	if ( me->GetIntentionInterface()->IsHindrance( me, closestEnemy ) == ANSWER_UNDEFINED )
+	if ( me->GetIntentionInterface()->IsHindrance( me, closestFriend ) == ANSWER_UNDEFINED )
 	{
 		me->ReleaseForwardButton();
 		me->ReleaseLeftButton();
 		me->ReleaseRightButton();
 		me->ReleaseBackwardButton();
 
-		Vector away = me->GetAbsOrigin() - closestEnemy->GetAbsOrigin();
+		Vector away = me->GetAbsOrigin() - closestFriend->GetAbsOrigin();
 
 		me->GetLocomotionInterface()->Approach( me->GetLocomotionInterface()->GetFeet() + away );
 	}
+}
+
+
+
+//-----------------------------------------------------------------------------------------
+ActionResult< CNEOBot > CNEOBotTacticalMonitor::WatchForLadders( CNEOBot *me )
+{
+	// Check if our current path has an approaching ladder segment
+	const PathFollower *path = me->GetCurrentPath();
+	if ( !path || !path->IsValid() )
+	{
+		return Continue();
+	}
+
+	const Path::Segment *goal = path->GetCurrentGoal();
+	if ( !goal || !goal->ladder )
+	{
+		return Continue();
+	}
+
+	// We're approaching a ladder - check distance
+	const float ladderApproachRange = CNEOBotLadderApproach::ALIGN_RANGE;
+	bool goingUp = (goal->how == GO_LADDER_UP);
+	Vector ladderPos = (goal->how == GO_LADDER_UP) 
+		? goal->ladder->m_bottom 
+		: goal->ladder->m_top;
+
+	// Sometimes we accidentally run into a ladder without expecting to
+	if ( me->IsOnLadder() )
+	{
+		return SuspendFor(
+			new CNEOBotLadderClimb( goal->ladder, goingUp ),
+			goingUp ? "Encountered ladder up" : "Encountered ladder down" 
+		);
+	}
+
+	if ( me->GetAbsOrigin().DistToSqr( ladderPos ) < Square(ladderApproachRange) )
+	{
+		return SuspendFor( 
+			new CNEOBotLadderApproach( goal->ladder, goingUp ), 
+			goingUp ? "Approaching ladder up" : "Approaching ladder down" 
+		);
+	}
+
+	return Continue();
 }
 
 
@@ -181,8 +247,17 @@ ActionResult< CNEOBot >	CNEOBotTacticalMonitor::Update( CNEOBot *me, float inter
 		}
 	}
 
-	const CKnownEntity* threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
-	me->EquipBestWeaponForThreat( threat );
+	CBaseEntity *dangerousGrenade = CNEOBotRetreatFromGrenade::FindDangerousGrenade( me );
+	if ( dangerousGrenade )
+	{
+		return SuspendFor( new CNEOBotRetreatFromGrenade( dangerousGrenade ), "Fleeing from grenade!" );
+	}
+
+	ActionResult< CNEOBot > result = WatchForLadders( me );
+	if ( result.IsRequestingChange() )
+	{
+		return result;
+	}
 
 	// check if we need to get to cover
 	QueryResultType shouldRetreat = me->GetIntentionInterface()->ShouldRetreat( me );
@@ -205,6 +280,17 @@ ActionResult< CNEOBot >	CNEOBotTacticalMonitor::Update( CNEOBot *me, float inter
 				}
 			}
 		}
+	}
+
+	if ( CBaseEntity *breakable = CNEOBotPathClearBreakable::GetBreakableInPath( me ) )
+	{
+		return SuspendFor( new CNEOBotPathClearBreakable( breakable ), "Clearing breakable in path" );
+	}
+
+	ActionResult< CNEOBot > scavengeResult = ScavengeForPrimaryWeapon( me );
+	if ( scavengeResult.IsRequestingChange() )
+	{
+		return scavengeResult;
 	}
 
 #if 0 // NEO TODO (Adam) search for dropped weapons to resupply ammunition
@@ -230,7 +316,47 @@ ActionResult< CNEOBot >	CNEOBotTacticalMonitor::Update( CNEOBot *me, float inter
 	MonitorArmedStickyBombs( me );
 #endif
 
+	if ( !(me->m_nButtons & (IN_FORWARD | IN_BACK | IN_MOVELEFT | IN_MOVERIGHT | IN_USE)) )
+	{
+		AvoidBumpingFriends( me );
+	}
+
+	const CKnownEntity *threat = me->GetVisionInterface()->GetPrimaryKnownThreat();
+	if ( !threat )
+	{
+		me->ReloadIfLowClip();
+	}
+
 	me->UpdateDelayedThreatNotices();
+
+	return Continue();
+}
+
+
+//-----------------------------------------------------------------------------------------
+ActionResult< CNEOBot > CNEOBotTacticalMonitor::ScavengeForPrimaryWeapon( CNEOBot *me )
+{
+	if ( !m_maintainTimer.IsElapsed() )
+	{
+		return Continue();
+	}
+
+	// Avoid swapping weapon in the middle of a fight
+	if ( me->GetTimeSinceWeaponFired() < 3.0f )
+	{
+		return Continue();
+	}
+
+	CBaseCombatWeapon *pPrimary = me->Weapon_GetSlot( 0 );
+	const bool bHasPrimaryAmmo = ( pPrimary != nullptr && pPrimary->HasAnyAmmo() );
+	const float flDelay = bHasPrimaryAmmo ? neo_bot_scavenge_upgrade_delay.GetFloat() : 1.0f;
+	m_maintainTimer.Start( flDelay );
+	
+	CBaseEntity *pNearestWeapon = FindNearestPrimaryWeapon( me, false, m_pIgnoredWeapons.get() );
+	if ( pNearestWeapon )
+	{
+		return SuspendFor( new CNEOBotSeekWeapon( pNearestWeapon, m_pIgnoredWeapons.get() ), "Scavenging for a new primary weapon" );
+	}
 
 	return Continue();
 }

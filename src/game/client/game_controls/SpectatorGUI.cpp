@@ -50,6 +50,8 @@ void AddSubKeyNamed( KeyValues *pKeys, const char *pszName );
 #include "c_team.h"
 #include "neo_gamerules.h"
 #include "c_neo_player.h"
+#include "view.h"
+#include "hltvcamera.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -86,12 +88,6 @@ ConVar cl_spec_mode(
 	"1",
 	FCVAR_ARCHIVE | FCVAR_USERINFO | FCVAR_SERVER_CAN_EXECUTE,
 	"spectator mode" );
-
-namespace {
-constexpr char LABEL_JINRAI[] = "CTScoreValue";
-constexpr char LABEL_NSF[] = "TERScoreValue";
-}
-
 
 //-----------------------------------------------------------------------------
 // Purpose: left and right buttons pointing buttons
@@ -506,8 +502,8 @@ void CSpectatorGUI::ApplySchemeSettings(IScheme *pScheme)
 	m_pTopBar->SetVisible( true );
 
 #ifdef NEO
-	m_scoreValueLabelJinrai = nullptr;
-	m_scoreValueLabelNSF = nullptr;
+	m_pTopBar->SetVisible(false);
+	m_pBottomBarBlank->SetVisible(false);
 #endif
 
 	BaseClass::ApplySchemeSettings( pScheme );
@@ -552,21 +548,6 @@ void CSpectatorGUI::OnThink()
 
 	if ( IsVisible() )
 	{
-#ifdef NEO
-		// Temp fix to hide team scores etc when closing scoreboard.
-		auto pLocalNeoPlayer = C_NEO_Player::GetLocalNEOPlayer();
-		if (pLocalNeoPlayer && pLocalNeoPlayer->IsAlive())
-		{
-			auto scoreboard = gViewPortInterface->FindPanelByName(PANEL_SCOREBOARD);
-			Assert(scoreboard);
-			if (!scoreboard->IsVisible())
-			{
-				SetVisible(false);
-				return;
-			}
-		}
-#endif
-
 		if ( m_bSpecScoreboard != spec_scoreboard.GetBool() )
 		{
 			if ( !spec_scoreboard.GetBool() || !gViewPortInterface->GetActivePanel() )
@@ -577,33 +558,11 @@ void CSpectatorGUI::OnThink()
 		}
 
 #ifdef NEO
-		if (!m_scoreValueLabelJinrai)
-		{
-			m_scoreValueLabelJinrai = static_cast<Label*>(FindChildByName(LABEL_JINRAI));
-		}
-		if (!m_scoreValueLabelNSF)
-		{
-			m_scoreValueLabelNSF = static_cast<Label*>(FindChildByName(LABEL_NSF));
-		}
-		Assert(m_scoreValueLabelJinrai);
-		Assert(m_scoreValueLabelNSF);
-
-		auto pJinTeam = GetGlobalTeam(TEAM_JINRAI);
-		auto pNsfTeam = GetGlobalTeam(TEAM_NSF);
-		if (m_scoreValueLabelJinrai && m_scoreValueLabelNSF && pJinTeam && pNsfTeam)
-		{
-			char scoreBuff[3];
-			V_sprintf_safe(scoreBuff, "%d", Max(0, Min(99, pJinTeam->GetRoundsWon())));
-			m_scoreValueLabelJinrai->SetText(scoreBuff);
-			V_sprintf_safe(scoreBuff, "%d", Max(0, Min(99, pNsfTeam->GetRoundsWon())));
-			m_scoreValueLabelNSF->SetText(scoreBuff);
-		}
-
 		// Update player health
 		if (m_pPlayerLabel->IsVisible())
 		{
 			UpdatePlayerLabel();
-                }
+		}
 
 #endif // NEO
 #ifdef TF_CLIENT_DLL
@@ -714,9 +673,13 @@ void CSpectatorGUI::Update()
 	GetHudSize(wide, tall);
 	m_pTopBar->GetBounds( bx, by, bwide, btall );
 
+#ifndef NEO
 	IGameResources *gr = GameResources();
+#endif
 	int specmode = GetSpectatorMode();
+#ifndef NEO
 	int playernum = GetSpectatorTarget();
+#endif
 
 	IViewPortPanel *overview = gViewPortInterface->FindPanelByName( PANEL_OVERVIEW );
 
@@ -782,7 +745,6 @@ void CSpectatorGUI::Update()
 	{
 		m_pPlayerLabel->SetText( L"" );
 	}
-#endif
 
 	// update extra info field
 	wchar_t szEtxraInfo[1024];
@@ -812,6 +774,7 @@ void CSpectatorGUI::Update()
 
 	SetLabelText("extrainfo", szEtxraInfo );
 	SetLabelText("titlelabel", szTitleLabel );
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -844,13 +807,13 @@ void CSpectatorGUI::UpdateTimer()
 }
 
 #ifdef NEO
+extern ConVar cl_neo_hud_health_mode;
 //-----------------------------------------------------------------------------
 // Purpose: Updates the spectated player's health
 //-----------------------------------------------------------------------------
 void CSpectatorGUI::UpdatePlayerLabel()
 {
 	IGameResources* gr = GameResources();
-	int specmode = GetSpectatorMode();
 	int playernum = GetSpectatorTarget();
 
 	// update player name filed, text & color
@@ -864,11 +827,14 @@ void CSpectatorGUI::UpdatePlayerLabel()
 		V_wcsncpy(playerText, L"Unable to find #Spec_PlayerItem*", sizeof(playerText));
 		memset(playerName, 0x0, sizeof(playerName));
 
-		g_pVGuiLocalize->ConvertANSIToUnicode(UTIL_SafeName(gr->GetPlayerName(playernum)), playerName, sizeof(playerName));
-		int iHealth = gr->GetHealth(playernum);
+		C_NEO_Player* pNeoPlayer = ToNEOPlayer(UTIL_PlayerByIndex(playernum));
+		const char* pPlayerDisplayName = pNeoPlayer ? pNeoPlayer->GetPlayerNameWithTakeoverContext(playernum) : gr->GetPlayerName(playernum);
+		g_pVGuiLocalize->ConvertANSIToUnicode(UTIL_SafeName(pPlayerDisplayName), playerName, sizeof(playerName));
+		int healthMode = cl_neo_hud_health_mode.GetInt();
+		int iHealth = gr->GetDisplayedHealth(playernum, healthMode);
 		if (iHealth > 0 && gr->IsAlive(playernum))
 		{
-			_snwprintf(health, ARRAYSIZE(health), L"%i", iHealth);
+			_snwprintf(health, ARRAYSIZE(health), healthMode ? L"%ihp" : L"%i%%", iHealth);
 			g_pVGuiLocalize->ConstructString(playerText, sizeof(playerText), g_pVGuiLocalize->Find("#Spec_PlayerItem_Team"), 2, playerName, health);
 		}
 		else
@@ -1022,5 +988,79 @@ CON_COMMAND_F( spec_player, "Spectate player by partial name, steamid, or userid
 	}
 }
 
+#ifdef NEO
+CON_COMMAND_F( spec_player_under_mouse, "Spectate player by partial name, steamid, or userid", FCVAR_CLIENTCMD_CAN_EXECUTE )
+{
+	if (engine->IsHLTV() && HLTVCamera()->IsPVSLocked())
+	{
+		ConMsg( "%s: HLTV Camera is PVS locked\n", __FUNCTION__ );
+		return;
+	}
+
+	C_NEO_Player *pNeoPlayer = C_NEO_Player::GetLocalNEOPlayer();
+	if ( !pNeoPlayer || !pNeoPlayer->IsObserver() )
+		return;
+
+	C_BaseEntity* currentTarget = pNeoPlayer->GetObserverTarget();
+	C_NEO_Player *target = nullptr;
+	float targetDotProduct = -1;
+	for (int i = 1; i <= gpGlobals->maxClients; i++)
+	{
+		C_NEO_Player* pPlayer = ToNEOPlayer(UTIL_PlayerByIndex(i));
+		if (currentTarget != pPlayer && pNeoPlayer->IsValidObserverTarget(pPlayer) && pPlayer->IsAlive())
+		{
+			Vector vecToTarget = pPlayer->WorldSpaceCenter() - MainViewOrigin();
+			vecToTarget.NormalizeInPlace();
+			float dotProduct = DotProduct(MainViewForward(), vecToTarget);
+			if (dotProduct > targetDotProduct && dotProduct > 0.5)
+			{
+				targetDotProduct = dotProduct;
+				target = pPlayer;
+			}
+		}
+	}
+
+	if (target)
+	{
+		engine->IsHLTV() ? HLTVCamera()->SetPrimaryTarget(target->entindex()) : engine->ClientCmd(VarArgs("spec_player_entity_number %d", target->entindex()));
+	}
+}
+
+CON_COMMAND_F( spec_fastest_player, "Spectate the fastest player", FCVAR_CLIENTCMD_CAN_EXECUTE )
+{
+	C_NEO_Player *pNeoPlayer = C_NEO_Player::GetLocalNEOPlayer();
+	if ( !pNeoPlayer || !pNeoPlayer->IsObserver() )
+		return;
+
+	if (engine->IsHLTV())
+	{
+		if (HLTVCamera()->IsPVSLocked())
+		{
+			ConMsg( "%s: HLTV Camera is PVS locked\n", __FUNCTION__ );
+			return;
+		}
+
+		// We have up to date information on all the players, just do it here
+		float fastestSpeedSquared = 0;
+		CBasePlayer* pFastestEntity = nullptr;
+		for (int i = 1; i <= gpGlobals->maxClients; i++)
+		{
+			CBasePlayer* pPlayer = UTIL_PlayerByIndex(i);
+			if (pPlayer && !pPlayer->IsObserver() && pPlayer->GetAbsVelocity().LengthSqr() > fastestSpeedSquared)
+			{
+				fastestSpeedSquared = pPlayer->GetAbsVelocity().LengthSqr();
+				pFastestEntity = pPlayer;
+			}
+		}
+
+		if (pFastestEntity)
+			HLTVCamera()->SetPrimaryTarget(pFastestEntity->entindex());
+	}
+	else
+	{
+		engine->ClientCmd(VarArgs("spectate_fastest_player"));
+	}
+}
+#endif // NEO
 
 

@@ -4,6 +4,15 @@ add_library(tier1::tier1 ALIAS tier1)
 
 target_compile_definitions(tier1 PRIVATE TIER1_STATIC_LIB)
 
+set(unity_before [[
+#include "tier0/memdbgoff.h"
+]])
+
+set_target_properties(tier1 PROPERTIES
+    UNITY_BUILD ON
+    UNITY_BUILD_MODE GROUP
+    UNITY_BUILD_CODE_BEFORE_INCLUDE "${unity_before}"
+)
 if (OS_LINUX)
     set_target_properties(tier1 PROPERTIES
         POSITION_INDEPENDENT_CODE ON
@@ -15,12 +24,14 @@ target_include_directories(tier1
     ${CMAKE_SOURCE_DIR}/public/tier1
     PRIVATE
     ${CMAKE_SOURCE_DIR}/common
+    ${CMAKE_SOURCE_DIR}/common/neo
     ${CMAKE_SOURCE_DIR}/public
     ${CMAKE_SOURCE_DIR}/public/tier0
 )
 
 if(OS_WINDOWS)
-    target_link_libraries(tier1 PRIVATE Rpcrt4.lib)
+    target_compile_definitions(tier1 PRIVATE fopen=dont_use_fopen)
+    target_link_libraries(tier1 PRIVATE Rpcrt4.lib Ws2_32.lib)
 elseif(OS_LINUX)
     target_link_libraries(tier1 PUBLIC
         dl
@@ -38,10 +49,7 @@ target_link_directories(tier1
     ${LIBPUBLIC}
 )
 
-target_sources_grouped(
-    TARGET tier1
-    NAME "Source Files"
-    FILES
+set(UNITY_SOURCE_TIER1
     bitbuf.cpp
     newbitbuf.cpp
     byteswap.cpp
@@ -55,7 +63,6 @@ target_sources_grouped(
     diff.cpp
     generichash.cpp
     ilocalize.cpp
-    interface.cpp
     KeyValues.cpp
     kvpacker.cpp
     lzmaDecoder.cpp
@@ -66,8 +73,6 @@ target_sources_grouped(
     rangecheckedvar.cpp
     reliabletimer.cpp
     stringpool.cpp
-    strtools.cpp
-    strtools_unicode.cpp
     tier1.cpp
     tokenreader.cpp
     sparsematrix.cpp
@@ -75,11 +80,30 @@ target_sources_grouped(
     utlbuffer.cpp
     utlbufferutil.cpp
     utlstring.cpp
-    utlsymbol.cpp
     utlbinaryblock.cpp
     snappy.cpp
     snappy-sinksource.cpp
     snappy-stubs-internal.cpp
+)
+
+set_source_files_properties(
+    ${UNITY_SOURCE_TIER1}
+    PROPERTIES UNITY_GROUP tier1
+)
+
+target_sources_grouped(
+    TARGET tier1
+    NAME "Source Files"
+    FILES
+    ${UNITY_SOURCE_TIER1}
+    utlsymbol.cpp
+    interface.cpp
+    strtools.cpp
+    strtools_unicode.cpp
+)
+
+set_source_files_properties(interface.cpp PROPERTIES
+    COMPILE_OPTIONS "-D_DLL_EXT=${SRV_SUFFIX}${CMAKE_SHARED_LIBRARY_SUFFIX};-D_EXTERNAL_DLL_EXT=${SRV_SUFFIX}${CMAKE_SHARED_LIBRARY_SUFFIX}"
 )
 
 if(NOT SOURCESDK)
@@ -99,7 +123,10 @@ if(OS_WINDOWS)
         processor_detect.cpp
     )
 
-    set_source_files_properties(processor_detect.cpp PROPERTIES COMPILE_FLAGS /EHsc)
+    # Currently only need exception handling for 32-bit CPU detection code
+    if(CPU_32BIT)
+        set_source_files_properties(processor_detect.cpp PROPERTIES COMPILE_FLAGS /EHsc)
+    endif()
 endif()
 
 if(OS_LINUX OR OS_MACOS)
@@ -134,8 +161,18 @@ target_sources_grouped(
 
 target_sources_grouped(
     TARGET tier1
+    NAME "Tests"
+    FILES
+    ${CMAKE_SOURCE_DIR}/common/neo/test_bit_cast.h
+)
+
+target_sources_grouped(
+    TARGET tier1
     NAME "Header Files"
     FILES
+    ${CMAKE_SOURCE_DIR}/common/neo/bit_cast.h
+    ${CMAKE_SOURCE_DIR}/common/neo/narrow_cast.h
+
     ${CMAKE_SOURCE_DIR}/public/tier1/bitbuf.h
     ${CMAKE_SOURCE_DIR}/public/tier1/byteswap.h
     ${CMAKE_SOURCE_DIR}/public/tier1/callqueue.h

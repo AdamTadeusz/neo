@@ -31,9 +31,14 @@ See [README.md](README.md) in this repo for setting up your build environment (c
 To be safe and avoid problems with VAC, it's recommended to add a [-insecure](https://developer.valvesoftware.com/wiki/Command_Line_Options) launch flag before attaching your debugger.
 
 #### VS2022 + CMake (Windows)
-In the CMake Target View, right-click "client (shared library)" and click on "Add Debug Configuration". This should show a json file. If this doesn't work, try to instead view the main CMakeLists.txt file in the *Folder View*, and choose the corresponding "Add Debug Configuration" menu option from there, instead.
 
-Then, make sure it's similar to this (changing the game path to where you have it):
+> [!NOTE]
+> We do *not* officially support Visual Studio 2026 at this time! If you run into issues, please consider downgrading to VS 2022 for now.
+> 
+
+In the CMake Target View, right-click "client (shared library)" and click on "Add Debug Configuration". This should generate the `src/.vs/launch.vs.json` config file.
+
+Modify the config to fix the directory paths; an example is provided below:
 
 ```
 {
@@ -61,7 +66,13 @@ Then, make sure it's similar to this (changing the game path to where you have i
 ```
 
 #### Qt Creator (Linux)
-On the sidebar, click "Projects" then under your current kit, click "Run". Set the following:
+On the sidebar, click "Projects" then under your current kit, click "Run".
+
+By default, you may have one of the test configurations chosen as the currently active run configuration (`test_neo_crosshair`, etc).
+To create a new configuration, press "Add" and choose "Custom executable" (tested on Qt Creator 13.0.0, but the exact menus and wording
+may depend on your Qt Creator version).
+
+Once you have a fresh *Run configuration* created, set the following properties for it:
 
 | Property | Example value |
 | :---------------------------------- | :------------ |
@@ -78,16 +89,17 @@ SteamEnv=1
 
 Next is finding the 64-bits steam-runtime under the Steam installation. This can be found
 using the following command, replacing `$HOME` if Steam is installed at another directory:
-```
-$ find "$HOME" -type d -name 'steam-runtime' 2> /dev/null
+```bash
+find "$HOME" -type d -name 'steam-runtime' 2> /dev/null
 ```
 
-Assuming default directory, it might be in either: `~/.steam/steam/steamapps/common/SteamLinuxRuntime/var/steam-runtime` or if using a Debian based distribution: `[TODO]`.
+Assuming default directory, it might be in either: `~/.steam/steam/steamapps/common/SteamLinuxRuntime/var/steam-runtime`
+or if using a Debian based distribution: `~/.steam/debian-installation/ubuntu12_32/steam-runtime`.
 
 Then change to that directory and replace `[INSERT_OUTPUT_HERE]` to the output of:
-```
-$ cd <STEAM-RUNTIME-DIR>
-$ ./run.sh printenv LD_LIBRARY_PATH
+```bash
+cd <STEAM-RUNTIME-DIR>
+./run.sh printenv LD_LIBRARY_PATH
 ```
 
 After this, you should be able to run and debug NT;RE, just make sure to have Steam open in the background.
@@ -105,7 +117,7 @@ Example settings for debugging from Visual Studio solutions:
 
 [Break pointing and stepping](https://developer.valvesoftware.com/wiki/Installing_and_Debugging_the_Source_Code) the method [CServerGameDLL::GameFrame](src/game/server/gameinterface.cpp), or relevant methods in [C_NEO_Player](src/game/client/neo/c_neo_player.h) (clientside player) / [CNEO_Player](src/game/server/neo/neo_player.h) (serverside player) can help with figuring out the general game loop. Neo specific files usually live in [game/client/neo](src/game/client/neo), [game/server/neo](src/game/server/neo), or [game/shared/neo](src/game/shared/neo), similar to how most hl2mp code is laid out.
 
-Ochii's impressive [reverse engineering project](https://github.com/Ochii/neotokyo-re) can also serve as reference for figuring things out. However, please refrain from copying reversed instructions line by line, as the plan is to write an open(ed) source (wherever applicable, note the Source SDK license) reimplementation, and steer clear of any potential copyright issues. Same thing applies for original NT assets; you can depend on the original NT installation (it's mounted to the engine filesystem by gameinfo.txt `|appid_244630|`), but avoid pushing those assets in the repo.
+Ochii's impressive [reverse engineering project (archived fork)](https://github.com/Rainyan/neotokyo-re) can also serve as reference for figuring things out. However, please refrain from copying reversed instructions line by line, as the plan is to write an open(ed) source (wherever applicable, note the Source SDK license) reimplementation, and steer clear of any potential copyright issues. Same thing applies for original NT assets; you can depend on the original NT installation (it's mounted to the engine filesystem by gameinfo.txt `|appid_244630|`), but avoid pushing those assets in the repo.
 
 ## Good to know
 
@@ -116,13 +128,59 @@ This project uses the [CMake](https://cmake.org/) build system to generate ninja
 ### Preprocessor definitions
 In shared code, clientside code can be differentiated with CLIENT_DLL, vs. serverside's GAME_DLL. In more general engine files, Neotokyo specific code can be marked with a NEO ifdef.
 
+## Supported compilers
+
+Only the x86-64 architecture is supported.
+
+### Windows
+* MSVC v143 - VS 2022 C++ x64/x86 build tools (Latest)
+* MSVC version used by the latest `windows-2025` [runner image](https://github.com/actions/runner-images/blob/main/images/windows/Windows2025-Readme.md) (Microsoft.VisualStudio.Component.VC.Tools.x86.x64)
+
+### Linux
+* GCC 10 [steamrt3 'sniper'](https://gitlab.steamos.cloud/steamrt/sniper/sdk#toolchains)
+* GCC 14 [steamrt3 'sniper'](https://gitlab.steamos.cloud/steamrt/sniper/sdk#toolchains)
+* GCC 14 [steamrt4](https://gitlab.steamos.cloud/steamrt/steamrt4/sdk#toolchains)
+* Clang 19 [steamrt4](https://gitlab.steamos.cloud/steamrt/steamrt4/sdk#toolchains)
+
 ### Code style
 
-No big restrictions on general code format, just try to more or less match the other SDK code style.
-
-* C++20 within GCC 10+ and MSVC v143+ support.
-* STL generally shouldn't be included in as it may conflicts with existing similar functions.
-* Valve likes to ( space ) their arguments, especially with macros, but it's not necessary to strictly follow everywhere.
+* C++20, within the [supported compilers'](#supported-compilers) capabilities.
+* Formatting:
+  * No big restrictions on general format, but try to more or less match the surrounding SDK code style for consistency. For example this typically means using tabs for whitespace, but generally go with what the file you're editing is doing stylistically.
+* Warnings are treated as errors.
+  * You may choose to suppress a warning with compiler-specific preprocessing directives if it is a false positive, but **please do not suppress valid warnings**; instead resolve it by fixing the underlying issue.
+  * For local development, you may disable warnings-as-errors by modifying your `CMAKE_COMPILE_WARNING_AS_ERROR` option, eg. by modifying the entry in your `CMakeCache.txt` file.
+  * For the CI runners, the following cases are exempt from the *warnings-as-errors* rule:
+    * Tagged release builds (`v<major>.<minor>`...)
+    * Branch name or its latest commit message containing the phrase `nwae` (acronym for: *"no warnings as errors"*)
+      * The `nwae` phrase also works locally, but you may need to refresh the CMake cache for it to take effect.
+  * Please note that the above methods of disabling warnings-as-errors are intended as temporary workarounds to allow devs to resolve exceptional situations (eg. the un-pinned MSVC compiler version changes unexpectedly changing warnings behaviour), and it should *not* be regularly relied upon to dodge warnings. The preferred long-term solution is almost always to properly fix the warning! 
+* STL and platform-specific headers may be used when needed, but generally the SDK libraries should be preferred. If you do use such includes, be careful with not bringing in conflicting macro definitions or performance-costly code.
+* The `min` and `max` from the SDK macros have been disabled, because they were polluting namespaces and making things like like `::max` awkward to use. You may use the templated `Min` and `Max` functions from `basetypes.h` instead.
+* Some nonstandard casting helpers are available:
+  * `assert_cast`:
+    * The preferred cast for pointer conversion where an incompatible cast may occur by accident
+      * If you know for a fact it is always a safe cast, you can use `static_cast` instead
+    * For debug builds, will runtime-validate the cast with `ptr == dynamic_cast<T>(ptr)`
+    * For release builds, it is identical to `static_cast`
+  * `narrow_cast`:
+    * The preferred cast for narrowing conversions where loss of information may occur
+      * Use to mark narrowing conversions where the input could overflow
+      * If you know for a fact it is always a safe cast, you can use `static_cast` instead
+    * For debug builds, will runtime-validate narrowing conversions for:
+      * Roundtrip equality: `value v of type A equals itself after A->B->A type conversion`
+      * Signed/unsigned conversion overflow
+    * For release builds, it is identical to `static_cast`
+  * `neo::bit_cast`:
+    * The preferred bit cast function, for performing a well-formed type pun
+    * Mostly used to avoid strict aliasing rule violations in the SDK code
+    * Acts as a wrapper for `std::bit_cast` when it's available, else will fall back to `memcpy` based conversions (for example on the steamrt3 default GCC compiler)
+    * For debug builds, a runtime assertion test is available as an additional parameter:
+      * `auto output = neo::bit_cast<T>(BC_TEST(input, expectedOutput));`
+      * When replacing ill-formed type puns, this test syntax can be used to ensure the output of `neo::bit_cast<T>(input)` remains identical to `expectedOutput`
+    * For release builds, the above test optimizes away, into:
+      * `auto output = neo::bit_cast<T>(input);`
+* Valve likes to `( space )` indent their parentheses, especially with macros, but it's not necessary to strictly follow everywhere.
 * Tabs are preferred for indentation, to be consistent with the SDK code.
-* When using a TODO/FIXME/HACK... style comment, use the format "// NEO TODO (Your-username): Example comment." to make it easier to search NEO specific todos/fixmes (opposed to Valve ones), and at a glance figure out who has written them.
+* When using a TODO/FIXME/HACK... style comment, use the format `// NEO TODO (Your-username): Example comment.` to make it easier to search for `NEO` specific todos/fixmes (opposed to Valve ones of the original SDK), and at a glance figure out who has written them.
 * For classes running on both client and server, you should generally follow Valve's <i>C_Thing</i> (client) -- <i>CThing</i> (server) convention. On shared files, this might mean #defining serverclass for client, or vice versa. There's plenty of examples of this pattern in Valve's classes for reference, [for example here](https://github.com/NeotokyoRebuild/neo/blob/f749c07a4701d285bbb463686d5a5a50c20b9528/mp/src/game/shared/hl2mp/weapon_357.cpp#L20).

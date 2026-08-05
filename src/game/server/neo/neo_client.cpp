@@ -75,7 +75,10 @@ void FinishClientPutInServer( CNEO_Player *pPlayer )
 	}
 
 	// notify other clients of player joining the game
-	UTIL_ClientPrintAll( HUD_PRINTNOTIFY, "#Game_connected", sName[0] != 0 ? sName : "<unconnected>" );
+	if (!pPlayer->IsBot())
+	{
+		UTIL_ClientPrintAll( HUD_PRINTNOTIFY, "#Game_connected", sName[0] != 0 ? sName : "<unconnected>" );
+	}
 
 	if ( NEORules()->IsTeamplay() == true && NEORules()->GetGameType() != NEO_GAME_TYPE_TUT && gpGlobals->eLoadType != MapLoad_Background )
 	{
@@ -173,7 +176,6 @@ void Precache_HL2MP( void )
 	CBaseEntity::PrecacheScriptSound( "HUDQuickInfo.LowAmmo" );
 	CBaseEntity::PrecacheScriptSound( "HUDQuickInfo.LowHealth" );
 
-	CBaseEntity::PrecacheScriptSound( "FX_AntlionImpact.ShellImpact" );
 	CBaseEntity::PrecacheScriptSound( "Missile.ShotDown" );
 	CBaseEntity::PrecacheScriptSound( "Bullets.DefaultNearmiss" );
 	CBaseEntity::PrecacheScriptSound( "Bullets.GunshipNearmiss" );
@@ -253,7 +255,7 @@ void Precache_NEO_Sounds( void )
 	CBaseEntity::PrecacheScriptSound("weapon_m41l.single");
 	CBaseEntity::PrecacheScriptSound("weapon_m41l.npc_single");
 	CBaseEntity::PrecacheScriptSound("weapon_m41s.single");
-	CBaseEntity::PrecacheScriptSound("weapon_m41s.npc_single");
+	//CBaseEntity::PrecacheScriptSound("weapon_m41s.npc_single");
 
 	CBaseEntity::PrecacheScriptSound("weapon_srs.reload");
 	CBaseEntity::PrecacheScriptSound("weapon_srs.npc_reload");
@@ -309,6 +311,9 @@ void Precache_NEO_Sounds( void )
 	CBaseEntity::PrecacheScriptSound("Grenade.Bounce");
 	CBaseEntity::PrecacheScriptSound("BaseGrenade.Explode");
 	CBaseEntity::PrecacheScriptSound("BaseExplosionEffect.Sound");
+	CBaseEntity::PrecacheScriptSound("WaterExplosionEffect.Sound");
+	CBaseEntity::PrecacheScriptSound("NeoGrenade.Explode");
+	CBaseEntity::PrecacheScriptSound("NeoGrenade.Debris");
 
 	CBaseEntity::PrecacheScriptSound("Weapon_Generic.melee_swing");
 
@@ -322,10 +327,6 @@ void Precache_NEO_Sounds( void )
 	CBaseEntity::PrecacheScriptSound("NeoPlayer.ThermOpticOn");
 	CBaseEntity::PrecacheScriptSound("NeoPlayer.ThermOpticOff");
 	CBaseEntity::PrecacheScriptSound("NeoPlayer.VisionOn");
-	CBaseEntity::PrecacheScriptSound("Victory.Draw");
-	CBaseEntity::PrecacheScriptSound("Victory.Jinrai");
-	CBaseEntity::PrecacheScriptSound("Victory.NSF");
-
 }
 
 //-----------------------------------------------------------------------------

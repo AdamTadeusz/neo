@@ -62,9 +62,15 @@ private:
 	virtual void				ComputePoseParam_AimPitch( CStudioHdr *pStudioHdr );
 	virtual void				ComputePoseParam_AimYaw( CStudioHdr *pStudioHdr );
 	
+#ifdef NEO
+	bool	IsLeaning(CStudioHdr *pStudioHdr);
+#endif // NEO
+	
 	CHL2MP_Player   *m_pHL2MPPlayer;
+#ifndef NEO
 	bool		m_bInAirWalk;
 	float		m_flHoldDeployedPoseUntilTime;
+#endif
 };
 
 CHL2MPPlayerAnimState *CreateHL2MPPlayerAnimState( CHL2MP_Player *pPlayer );

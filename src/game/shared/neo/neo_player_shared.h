@@ -7,22 +7,22 @@
 #include "tier0/valve_minmax_off.h"
 #include <string_view>
 #include <optional>
-#ifndef min
-	#define min(a,b)  (((a) < (b)) ? (a) : (b))
-#endif
-#ifndef max
-	#define max(a,b)  (((a) > (b)) ? (a) : (b))
-#endif
+
+#define USERID2NEOPLAYER(i) ToNEOPlayer( ClientEntityList().GetEnt( engine->GetPlayerForUserID( i ) ) )
 
 #include "neo_predicted_viewmodel.h"
+#include "neo_misc.h"
+#include "shareddefs.h"
+#include "weapon_bits.h"
+#include "neo_enums.h"
 
-#ifdef INCLUDE_WEP_PBK
-// Type to use if we need to ensure more than 32 bits in the mask.
-#define NEO_WEP_BITS_UNDERLYING_TYPE long long int
-#else
-// Using plain int if we don't need to ensure >32 bits in the mask.
-#define NEO_WEP_BITS_UNDERLYING_TYPE int
-#endif
+extern ConVar sv_neo_ghost_delay_secs;
+extern ConVar sv_neo_ghost_view_distance;
+extern ConVar sv_neo_serverside_beacons;
+
+extern ConVar sv_neo_spec_replace_player_bot_enable;
+extern ConVar sv_neo_spec_replace_player_afk_enable;
+extern ConVar sv_neo_spec_replace_player_min_exp;
 
 //////////////////////////////////////////////////////
 // NEO MOVEMENT DEFINITIONS
@@ -41,33 +41,36 @@
 
 // Aim Modifier
 #define NEO_AIM_MODIFIER 0.6
-// Crouch Modifier
-#define NEO_CROUCH_MODIFIER 0.75
-#define NEO_WALK_SPEED 90
-#define NEO_CROUCH_WALK_SPEED 60
+// Crouch/Walk Modifier
+#define NEO_CROUCH_WALK_MODIFIER 0.75
 
 
 // Movement Calculations
 // Recon
 #define NEO_RECON_BASE_SPEED (NEO_BASE_SPEED * NEO_RECON_MODIFIER)
 #define NEO_RECON_SPRINT_SPEED (NEO_RECON_BASE_SPEED * NEO_RECON_SPRINT_MODIFIER)
-#define NEO_RECON_CROUCH_SPEED (NEO_RECON_BASE_SPEED * NEO_CROUCH_MODIFIER)
+#define NEO_RECON_CROUCH_SPEED (NEO_RECON_BASE_SPEED * NEO_CROUCH_WALK_MODIFIER)
 #define NEO_RECON_WALK_SPEED NEO_RECON_CROUCH_SPEED
 // Assault
 #define NEO_ASSAULT_BASE_SPEED (NEO_BASE_SPEED * NEO_ASSAULT_MODIFIER)
 #define NEO_ASSAULT_SPRINT_SPEED (NEO_ASSAULT_BASE_SPEED * NEO_ASSAULT_SPRINT_MODIFIER)
-#define NEO_ASSAULT_CROUCH_SPEED (NEO_ASSAULT_BASE_SPEED * NEO_CROUCH_MODIFIER)
+#define NEO_ASSAULT_CROUCH_SPEED (NEO_ASSAULT_BASE_SPEED * NEO_CROUCH_WALK_MODIFIER)
 #define NEO_ASSAULT_WALK_SPEED NEO_ASSAULT_CROUCH_SPEED
 // Support
 #define NEO_SUPPORT_BASE_SPEED (NEO_BASE_SPEED * NEO_SUPPORT_MODIFIER)
 #define NEO_SUPPORT_SPRINT_SPEED (NEO_SUPPORT_BASE_SPEED * NEO_SUPPORT_SPRINT_MODIFIER) // Redundant, but for future usecases
-#define NEO_SUPPORT_CROUCH_SPEED (NEO_SUPPORT_BASE_SPEED * NEO_CROUCH_MODIFIER)
+#define NEO_SUPPORT_CROUCH_SPEED (NEO_SUPPORT_BASE_SPEED * NEO_CROUCH_WALK_MODIFIER)
 #define NEO_SUPPORT_WALK_SPEED NEO_SUPPORT_CROUCH_SPEED
 // VIP
 #define NEO_VIP_BASE_SPEED NEO_ASSAULT_BASE_SPEED
 #define NEO_VIP_SPRINT_SPEED NEO_ASSAULT_SPRINT_SPEED
 #define NEO_VIP_CROUCH_SPEED NEO_ASSAULT_CROUCH_SPEED
 #define NEO_VIP_WALK_SPEED NEO_VIP_CROUCH_SPEED
+// Juggernaut
+#define NEO_JUGGERNAUT_BASE_SPEED NEO_ASSAULT_BASE_SPEED
+#define NEO_JUGGERNAUT_SPRINT_SPEED NEO_RECON_SPRINT_SPEED
+#define NEO_JUGGERNAUT_CROUCH_SPEED NEO_ASSAULT_CROUCH_SPEED
+#define NEO_JUGGERNAUT_WALK_SPEED NEO_JUGGERNAUT_CROUCH_SPEED
 
 
 // Sanity Checks
@@ -91,6 +94,11 @@ COMPILE_TIME_ASSERT(NEO_VIP_BASE_SPEED > 0);
 COMPILE_TIME_ASSERT(NEO_VIP_SPRINT_SPEED > 0);
 COMPILE_TIME_ASSERT(NEO_VIP_WALK_SPEED > 0);
 COMPILE_TIME_ASSERT(NEO_VIP_CROUCH_SPEED > 0);
+// Juggernaut
+COMPILE_TIME_ASSERT(NEO_JUGGERNAUT_BASE_SPEED > 0);
+COMPILE_TIME_ASSERT(NEO_JUGGERNAUT_SPRINT_SPEED > 0);
+COMPILE_TIME_ASSERT(NEO_JUGGERNAUT_WALK_SPEED > 0);
+COMPILE_TIME_ASSERT(NEO_JUGGERNAUT_CROUCH_SPEED > 0);
 
 
 // Class speeds hierarchy should be: recon > assault > support.
@@ -110,8 +118,56 @@ COMPILE_TIME_ASSERT(NEO_RECON_CROUCH_SPEED > NEO_ASSAULT_CROUCH_SPEED);
 COMPILE_TIME_ASSERT(NEO_ASSAULT_CROUCH_SPEED == NEO_SUPPORT_CROUCH_SPEED);
 COMPILE_TIME_ASSERT(NEO_ASSAULT_CROUCH_SPEED == NEO_VIP_CROUCH_SPEED);
 
-#define NEO_RECON_CROUCH_JUMP_HEIGHT 65.f
-#define NEO_CROUCH_JUMP_HEIGHT 56.f
+// NEO Jank: As an optimization, these constants are calculated for default gravity,
+// and bot climbing behavior may be odd if sv_gravity is changed.
+// See [MD]'s g_bMovementOptimizations for additional context.
+//
+// At time of comment, these constants were only used by neo_bot_locomotion.h
+// where these values determine if a bot will attempt to climb a ledge between NavAreas.
+// At time of analysis, NEO_RECON_CROUCH_JUMP_HEIGHT potentially was historically calculated based on
+// (GAMEMOVEMENT_JUMP_HEIGHT * class multiplier) + (Support Hull Crouch/Stand Difference),
+//
+// From this point on we will refer to (GAMEMOVEMENT_JUMP_HEIGHT * class multiplier) as "Class Jump Height".
+// For sake of consistency, we will use the precomputed jump heights assuming g_bMovementOptimizations = true.
+//
+// Class Jump Height: Derived from `sqrt(2 * gravity * jump_height)` from `gamemovement.cpp`.
+// But for simplicity we use the optimized values provided under the g_bMovementOptimizations = true case:
+//    - Recon:		54.0 units
+//    - Juggernaut:	50.4 units
+//    - Others:		36.0 units
+//
+// Hull Crouch/Stand Difference (aka: "Lift"):
+// ---
+// Derived from neo_gamerules.cpp: Vector viewDelta = ( hullSizeNormal - hullSizeCrouch );
+// Variables are defined in shareddefs.h as VEC_HULL_MAX_SCALED and VEC_DUCK_HULL_MAX_SCALED.
+// Instead of deriving these values by hand, a breakpoint can be placed in CGameMovement::CanUnduck()
+// while configuring the bot class with the bot_class command, to log the variable values.
+//
+// Lift = VEC_HULL_MAX_SCALED.z - VEC_DUCK_HULL_MAX_SCALED.z
+// ---
+// Recon: 64 - 46 = 18
+// Assault: 65 - 48 = 17
+// Support: 70 - 59 = 11
+// VIP: 65 - 48 = 17
+//
+// Juggernaut: 88 - 75 = 13
+//   (Base Hull Max = 70) + (NEO_JUGGERNAUT_MAXHULL_OFFSET.z = 18) = 88
+//   (Base Hull Duck Max = 59) + (NEO_JUGGERNAUT_DUCK_MAXHULL_OFFSET.z = 16) = 75
+//
+// Theoretical max bot crouch jump heights:
+// Formula: (Class Jump Height) + (Lift)
+// ---
+// Recon: 54 + 18 = 72
+// Assault/VIP: 36 + 17 = 53
+// Support: 36 + 11 = 47
+// Juggernaut: 50.4 + 13 = 63.4
+#define NEO_RECON_CROUCH_JUMP_HEIGHT 72.0f
+#define NEO_ASSAULT_CROUCH_JUMP_HEIGHT 53.0f
+#define NEO_SUPPORT_CROUCH_JUMP_HEIGHT 47.0f
+#define NEO_JUGGERNAUT_CROUCH_JUMP_HEIGHT 63.4f
+// To ensure bots can safely clear obstacles, we apply a safety buffer (NEO_BOT_JUMP_HEIGHT_BUFFER)
+// when checking traverseability, by subtracting it from these theoretical max heights.
+#define NEO_BOT_JUMP_HEIGHT_BUFFER 7.0f
 
 // END OF NEO MOVEMENT DEFINITIONS
 //////////////////////////////////////////////////////
@@ -120,7 +176,6 @@ COMPILE_TIME_ASSERT(NEO_ASSAULT_CROUCH_SPEED == NEO_VIP_CROUCH_SPEED);
 #define CLOAK_AUX_COST 1.0f
 #define MIN_CLOAK_AUX 0.1f
 #define SPRINT_START_MIN (2.0f)
-#define THERMALS_OBJECT_COOL_TIME 5.f
 
 // Original NT allows chaining superjumps up ramps,
 // so leaving this zeroed for enabling movement tricks.
@@ -162,10 +217,23 @@ COMPILE_TIME_ASSERT(NEO_ASSAULT_CROUCH_SPEED == NEO_VIP_CROUCH_SPEED);
 #define NEO_ASSAULT_PLAYERMODEL_HEIGHT 67.0
 #define NEO_ASSAULT_PLAYERMODEL_DUCK_HEIGHT 50.0
 
-// These look like magic but are actually taken straight from the og binaries.
-#define NEO_RECON_DAMAGE_MODIFIER 1.485f
-#define NEO_ASSAULT_DAMAGE_MODIFIER 1.2375f
-#define NEO_SUPPORT_DAMAGE_MODIFIER 0.66f
+#define NEO_CL_INTERP_RATIO_DEFAULT 2.0
+static_assert(NEO_CL_INTERP_RATIO_DEFAULT > 0);
+#ifndef xstr
+#define xstr(a) str(a)
+#endif
+#ifndef str
+#define str(a) #a
+#endif
+#define NEO_CL_INTERP_RATIO_DEFAULT_STR xstr(NEO_CL_INTERP_RATIO_DEFAULT)
+
+static constexpr int MAX_HEALTH_FOR_CLASS[NEO_CLASS__ENUM_COUNT] = {
+	100,	// RECON
+	120,	// ASSAULT
+	225,	// SUPPORT
+	100,	// VIP
+	990,	// JUGGERNAUT
+};
 
 #define NEO_ANIMSTATE_LEGANIM_TYPE LegAnimType_t::LEGANIM_9WAY
 #define NEO_ANIMSTATE_USES_AIMSEQUENCES true
@@ -173,41 +241,6 @@ COMPILE_TIME_ASSERT(NEO_ASSAULT_CROUCH_SPEED == NEO_VIP_CROUCH_SPEED);
 
 static constexpr float NEO_ZOOM_SPEED = 0.115f;
 static_assert(NEO_ZOOM_SPEED != 0.0f, "Divide by zero");
-
-enum NeoSkin {
-	NEO_SKIN_FIRST = 0,
-	NEO_SKIN_SECOND,
-	NEO_SKIN_THIRD,
-
-	NEO_SKIN__ENUM_COUNT
-};
-static constexpr int NEO_SKIN_ENUM_COUNT = NEO_SKIN__ENUM_COUNT;
-
-enum NeoClass {
-	NEO_CLASS_RECON = 0,
-	NEO_CLASS_ASSAULT,
-	NEO_CLASS_SUPPORT,
-
-	// NOTENOTE: VIP *must* be last, because we are
-	// using array offsets for recon/assault/support
-	NEO_CLASS_VIP,
-
-	NEO_CLASS__ENUM_COUNT
-};
-static constexpr int NEO_CLASS_ENUM_COUNT = NEO_CLASS__ENUM_COUNT;
-
-enum NeoStar {
-	STAR_NONE = 0,
-	STAR_ALPHA,
-	STAR_BRAVO,
-	STAR_CHARLIE,
-	STAR_DELTA,
-	STAR_ECHO,
-	STAR_FOXTROT,
-
-	STAR__TOTAL
-};
-#define NEO_DEFAULT_STAR STAR_ALPHA
 
 // Implemented by CNEOPlayer::m_fNeoFlags.
 // Rolling our own because Source FL_ flags already reserve all 32 bits,
@@ -237,69 +270,29 @@ extern bool IsThereRoomForLeanSlide(CNEO_Player *player,
 // Is the player allowed to aim zoom with a weapon of this type?
 bool IsAllowedToZoom(CNEOBaseCombatWeapon *pWep);
 
-extern ConVar neo_recon_superjump_intensity;
-
 //ConVar sv_neo_resupply_anywhere("sv_neo_resupply_anywhere", "0", FCVAR_CHEAT | FCVAR_REPLICATED);
 
-inline const char* GetNeoClassName(int neoClassIdx)
+static constexpr const SZWSZTexts SZWSZ_NEO_CLASS_STRS[NEO_CLASS__ENUM_COUNT] = {
+	SZWSZ_INIT("Recon"),
+	SZWSZ_INIT("Assault"),
+	SZWSZ_INIT("Support"),
+	SZWSZ_INIT("VIP"),
+	SZWSZ_INIT("Juggernaut"),
+};
+
+inline const char *GetNeoClassName(const int neoClassIdx)
 {
-	switch (neoClassIdx)
-	{
-	case NEO_CLASS_RECON: return "Recon";
-	case NEO_CLASS_ASSAULT: return "Assault";
-	case NEO_CLASS_SUPPORT: return "Support";
-	case NEO_CLASS_VIP: return "VIP";
-	default: return "";
-	}
+	return (IN_BETWEEN_AR(0, neoClassIdx, NEO_CLASS__ENUM_COUNT)) ? SZWSZ_NEO_CLASS_STRS[neoClassIdx].szStr : "";
 }
 
-inline const char *GetRankName(int xp, bool shortened = false)
+inline const wchar_t *GetNeoClassNameW(const int neoClassIdx)
 {
-	if (xp < 0)
-	{
-		return shortened ? "Dog" : "Rankless Dog";
-	}
-	else if (xp < 4)
-	{
-		return shortened ? "Pvt" : "Private";
-	}
-	else if (xp < 10)
-	{
-		return shortened ? "Cpl" : "Corporal";
-	}
-	else if (xp < 20)
-	{
-		return shortened ? "Sgt" : "Sergeant";
-	}
-	else
-	{
-		return shortened ? "Lt" : "Lieutenant";
-	}
+	return (IN_BETWEEN_AR(0, neoClassIdx, NEO_CLASS__ENUM_COUNT)) ? SZWSZ_NEO_CLASS_STRS[neoClassIdx].wszStr : L"";
 }
 
-inline const int GetRank(int xp)
-{
-	if (xp < 0)
-	{
-		return 0;
-	}
-	else if (xp < 4)
-	{
-		return 1;
-	}
-	else if (xp < 10)
-	{
-		return 2;
-	}
-	else if (xp < 20)
-	{
-		return 3;
-	}
-	else
-	{
-		return 4;
-	}
-}
+int GetRank(const int xp);
+const char *GetRankName(const int xp, const bool shortened = false);
+const wchar_t *GetRankNameW(const int xp, const bool shortened = false);
 
 CBaseCombatWeapon* GetNeoWepWithBits(const CNEO_Player* player, const NEO_WEP_BITS_UNDERLYING_TYPE& neoWepBits);
 
@@ -307,37 +300,41 @@ enum NeoLeanDirectionE {
 	NEO_LEAN_NONE = 0,
 	NEO_LEAN_LEFT,
 	NEO_LEAN_RIGHT,
+
+	NEO_LEAN__ENUM_COUNT
 };
+static constexpr int NEO_LEAN_ENUM_COUNT = NEO_LEAN__ENUM_COUNT;
 
 enum NeoWeponAimToggleE {
-	NEO_TOGGLE_DEFAULT = 0,
+	NEO_TOGGLE_NIL = 0,
 	NEO_TOGGLE_FORCE_AIM,
 	NEO_TOGGLE_FORCE_UN_AIM,
 };
 
-bool ClientWantsAimHold(const CNEO_Player* player);
+void CheckPingButton(CNEO_Player* player);
+void UpdatePingCommands(CNEO_Player* player, const Vector& pingPos);
 
 struct AttackersTotals
 {
-	int dealtDmgs;
-	int dealtHits;
-	int takenDmgs;
-	int takenHits;
-
-	void operator+=(const AttackersTotals &other)
-	{
-		dealtDmgs += other.dealtDmgs;
-		dealtHits += other.dealtHits;
-		takenDmgs += other.takenDmgs;
-		takenHits += other.takenHits;
-	}
+	int iUserID;
+	int iDealtDmgs;
+	int iDealtHits;
+	int iTakenDmgs;
+	int iTakenHits;
 };
 
-int DmgLineStr(char* infoLine, const int infoLineMax,
-	const char* dmgerName, const char* dmgerClass,
-	const AttackersTotals &totals);
+enum ENEOCompactMsgFlag_ : unsigned char
+{
+	NEO_COMPACT_MSG_FLAG_NIL = 0,
+	NEO_COMPACT_MSG_FLAG_DMGS = (1 << 0),
+	NEO_COMPACT_MSG_FLAG_HITS = (1 << 1),
+	NEO_COMPACT_MSG_FLAG_EXTRA = (1 << 2),
+};
 
-void KillerLineStr(char* killByLine, const int killByLineMax,
+typedef unsigned char ENEOCompactMsgFlag;
+
+
+[[deprecated]] void KillerLineStr(char* killByLine, const int killByLineMax,
 	CNEO_Player* neoAttacker, const CNEO_Player* neoVictim, const char* killedWith = "");
 
 [[nodiscard]] auto StrToInt(std::string_view strView) -> std::optional<int>;
@@ -367,25 +364,59 @@ void DMClSortedPlayers(PlayerXPInfo (*pPlayersOrder)[MAX_PLAYERS + 1], int *piTo
 
 inline char gStreamerModeNames[MAX_PLAYERS + 1][MAX_PLAYER_NAME_LENGTH + 1];
 
-static constexpr int NEO_MAX_CLANTAG_LENGTH = 12;
-static constexpr int NEO_MAX_DISPLAYNAME = MAX_PLAYER_NAME_LENGTH + 1 + NEO_MAX_CLANTAG_LENGTH + 1;
-void GetClNeoDisplayName(wchar_t (&pWszDisplayName)[NEO_MAX_DISPLAYNAME],
-						 const wchar_t wszNeoName[MAX_PLAYER_NAME_LENGTH + 1],
-						 const wchar_t wszNeoClantag[NEO_MAX_CLANTAG_LENGTH + 1],
-						 const bool bOnlySteamNick);
+enum EClNeoDisplayNameFlag_
+{
+	CL_NEODISPLAYNAME_FLAG_NONE = 0,
+	CL_NEODISPLAYNAME_FLAG_ONLYSTEAMNICK = 1 << 0,
+	CL_NEODISPLAYNAME_FLAG_CHECK = 1 << 1,
+};
+typedef int EClNeoDisplayNameFlag;
 
-void GetClNeoDisplayName(wchar_t (&pWszDisplayName)[NEO_MAX_DISPLAYNAME],
+static constexpr int NEO_MAX_CLANTAG_LENGTH = 11 + 1; // Includes null character
+static constexpr int NEO_MAX_DISPLAYNAME = MAX_PLAYER_NAME_LENGTH + 1 + NEO_MAX_CLANTAG_LENGTH + 2;
+bool GetClNeoDisplayName(wchar_t (&pWszDisplayName)[NEO_MAX_DISPLAYNAME],
+						 const wchar_t (&wszNeoName)[MAX_PLAYER_NAME_LENGTH],
+						 const wchar_t (&wszNeoClantag)[NEO_MAX_CLANTAG_LENGTH],
+						 const EClNeoDisplayNameFlag flags = CL_NEODISPLAYNAME_FLAG_NONE);
+
+bool GetClNeoDisplayName(wchar_t (&pWszDisplayName)[NEO_MAX_DISPLAYNAME],
 						 const char *pSzNeoName,
 						 const char *pSzNeoClantag,
-						 const bool bOnlySteamNick);
-
-// NEO NOTE (nullsystem): Max string length is 
-// something like: "2;2;-16711936;1;6;1.000;25;25;5;25;1;50;50;"
-// which is ~43 for v2 serialization | 64 length is enough for now till
-// more comes in
-static constexpr const int NEO_XHAIR_SEQMAX = 64;
+						 const EClNeoDisplayNameFlag flags = CL_NEODISPLAYNAME_FLAG_NONE);
 
 #define TUTORIAL_MAP_CLASSES "ntre_class_tut"
 #define TUTORIAL_MAP_SHOOTING "ntre_shooting_tut"
+
+#ifdef GLOWS_ENABLE
+enum NeoGlowStencilBits
+{
+	NEO_GLOW_ZERO = 0,
+	NEO_GLOW_OBSTRUCTED = 1 << 0,
+	NEO_GLOW_NOTOBSTRUCTED = 1 << 1,
+	NEO_GLOW_CLOAKED = 1 << 2,
+	NEO_GLOW_VIEWMODEL = 1 << 3,
+};
+#endif // GLOWS_ENABLE
+
+enum
+{
+	TEAM_JINRAI = LAST_SHARED_TEAM + 1,
+	TEAM_NSF,
+
+	TEAM__TOTAL, // Always last enum in here
+};
+
+#define TEAM_STR_JINRAI "Jinrai"
+#define TEAM_STR_NSF "NSF"
+#define TEAM_STR_SPEC "Spectator"
+
+static constexpr const SZWSZTexts SZWSZ_NEO_TEAM_STRS[TEAM__TOTAL] = {
+	SZWSZ_INIT("Unassigned"), // TEAM_UNASSIGNED
+	SZWSZ_INIT("Spectator"), // TEAM_SPECTATOR
+	X_SZWSZ_INIT(TEAM_STR_JINRAI), // TEAM_JINRAI
+	X_SZWSZ_INIT(TEAM_STR_NSF), // TEAM_NSF
+};
+
+#define NEO_GAME_NAME "NEOTOKYO;REBUILD"
 
 #endif // NEO_PLAYER_SHARED_H

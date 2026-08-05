@@ -14,6 +14,12 @@
 
 #include "tier1/utlvector.h"
 
+#ifdef NEO // Unity build
+#ifdef GetClassName
+#undef GetClassName
+#endif
+#endif
+
 // more flexible than default pointers to members code required for casting member function pointers
 //#pragma pointers_to_members( full_generality, virtual_inheritance )
 
@@ -345,7 +351,9 @@ private:
 	// Next factory in list
 	CBuildFactoryHelper	*m_pNext;
 
+#ifndef NEO
 	int					m_Type;
+#endif
 	PANELCREATEFUNC		m_CreateFunc;
 	char const			*m_pClassName;
 };

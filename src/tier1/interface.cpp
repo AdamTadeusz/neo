@@ -36,6 +36,10 @@
 #include "xbox/xbox_win32stubs.h"
 #endif
 
+#ifdef NEO
+#include <cerrno>
+#include <cstring>
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -190,6 +194,8 @@ uintp ThreadedLoadLibraryFunc( void *pParam )
 
 HMODULE Sys_LoadLibrary( const char *pLibraryName, Sys_Flags flags )
 {
+	#define DLL_EXT_STRING DLLExtTokenPaste2( _DLL_EXT )
+	
 	char str[ 1024 ];
 	// Note: DLL_EXT_STRING can be "_srv.so" or "_360.dll". So be careful
 	//	when using the V_*Extension* routines...
@@ -278,7 +284,18 @@ CSysModule *Sys_LoadModule( const char *pModuleName, Sys_Flags flags /* = SYS_NO
 	if ( !Q_IsAbsolutePath( pModuleName ) )
 	{
 		// full path wasn't passed in, using the current working dir
+#ifdef NEO
+		const auto* getCwdRes =
+#endif
 		_getcwd( szCwd, sizeof( szCwd ) );
+#ifdef NEO
+		if (!getCwdRes)
+		{
+			Assert(false);
+			Warning("%s(%s, 0x%X): _getcwd failed: %s\n", __FUNCTION__, pModuleName, flags, strerror(errno));
+			return nullptr;
+		}
+#endif
 		if ( IsX360() )
 		{
 			int i = CommandLine()->FindParm( "-basedir" );

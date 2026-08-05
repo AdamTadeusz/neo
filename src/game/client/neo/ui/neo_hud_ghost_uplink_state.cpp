@@ -41,6 +41,9 @@ CNEOHud_GhostUplinkState::CNEOHud_GhostUplinkState(const char *pElementName, vgu
 
 	surface()->DrawGetTextureSize(m_pUplinkTextures[0], m_iUplinkTextureWidth, m_iUplinkTextureHeight);
 
+	m_iJGRTexture = surface()->CreateNewTextureID();
+	surface()->DrawSetTextureFile(m_iJGRTexture, "vgui/hud/jgr/jgr_active", 1, false);
+
 	SetVisible(true);
 }
 
@@ -75,31 +78,45 @@ void CNEOHud_GhostUplinkState::UpdateStateForNeoHudElementDraw()
 	}
 }
 
+extern ConVar sv_neo_ctg_ghost_beacons_when_inactive;
 void CNEOHud_GhostUplinkState::DrawNeoHudElement()
 {
 	if (!ShouldDraw())
-	{
 		return;
-	}
 
-	auto localPlayer = C_NEO_Player::GetLocalNEOPlayer();
-	const auto wep = static_cast<C_NEOBaseCombatWeapon*>(localPlayer->GetActiveWeapon());
-	if (!wep || !wep->IsGhost())
+	C_NEO_Player* pLocalPlayer = C_NEO_Player::GetLocalNEOPlayer();
+	if (!pLocalPlayer)
+		return;
+
+	C_NEOBaseCombatWeapon* pActiveWeapon = static_cast<C_NEOBaseCombatWeapon*>(pLocalPlayer->GetActiveWeapon());
+	if ((pActiveWeapon && pActiveWeapon->IsGhost()) || 
+		(sv_neo_ctg_ghost_beacons_when_inactive.GetBool() && (NEORules()->GetGhosterPlayer() == pLocalPlayer->entindex() || pLocalPlayer->IsCarryingGhost())))
+	{
+		if (NEORules()->IsRoundOver())
+			return;
+		
+		if (m_flTimeGhostEquip == 0.f)
+		{
+			m_flTimeGhostEquip = gpGlobals->curtime;
+		}
+
+		surface()->DrawSetColor(COLOR_RED);
+		static constexpr int textureOrder[NUM_TEXTURE_START_TIMES] = { 0, 1, 2, 3, 2, 0, 1, 2, 3, 0, 1 };
+		surface()->DrawSetTexture(m_pUplinkTextures[textureOrder[m_iCurrentTextureIndex]]);
+		surface()->DrawTexturedRect(0, 0, m_iUplinkTextureWidth, m_iUplinkTextureHeight);
+	}
+	else if (pLocalPlayer->IsAlive() && pLocalPlayer->GetClass() == NEO_CLASS_JUGGERNAUT)
+	{
+		surface()->DrawSetColor(COLOR_RED);
+		surface()->DrawSetTexture(m_iJGRTexture);
+		surface()->DrawTexturedRect(0, 0, m_iUplinkTextureWidth, m_iUplinkTextureHeight);
+	}
+	else
 	{
 		m_flTimeGhostEquip = 0.f;
 		m_iCurrentTextureIndex = 0;
 		return;
 	}
-
-	if (m_flTimeGhostEquip == 0.f)
-	{
-		m_flTimeGhostEquip = gpGlobals->curtime;
-	}
-
-	surface()->DrawSetColor(COLOR_RED);
-	static constexpr int textureOrder[NUM_TEXTURE_START_TIMES] = { 0, 1, 2, 3, 2, 0, 1, 2, 3, 0, 1 };
-	surface()->DrawSetTexture(m_pUplinkTextures[textureOrder[m_iCurrentTextureIndex]]);
-	surface()->DrawTexturedRect(0, 0, m_iUplinkTextureWidth, m_iUplinkTextureHeight);
 }
 
 void CNEOHud_GhostUplinkState::Paint()

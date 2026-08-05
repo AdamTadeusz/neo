@@ -83,9 +83,11 @@
 #endif
 
 #ifdef NEO
+#include "../../common/neo/bit_cast.h"
 #include "neo_player.h"
 #include "weapon_tachi.h"
 #include "neo_gamerules.h"
+#include "tier1/convar_serverbounded.h"
 #endif
 
 ConVar autoaim_max_dist( "autoaim_max_dist", "2160" ); // 2160 = 180 feet
@@ -616,8 +618,44 @@ CBasePlayer::CBasePlayer( )
 	m_hZoomOwner = NULL;
 
 	m_bPendingClientSettings = false;
+#ifdef NEO
+	m_nUpdateRate = 0;
+	if (auto sv_maxupdaterate = g_pCVar->FindVar("sv_maxupdaterate"))
+	{
+		m_nUpdateRate = V_atoi(sv_maxupdaterate->GetDefault());
+	}
+	if (m_nUpdateRate == 0)
+	{
+		m_nUpdateRate = 66; // as changed in #1657
+		Assert(false);
+	}
+	m_fLerpTime = NEO_CL_INTERP_RATIO_DEFAULT / m_nUpdateRate;
+
+#ifdef DBGFLAG_ASSERT
+	if (auto sv_client_min_interp_ratio = g_pCVar->FindVar("sv_client_min_interp_ratio"))
+	{
+		const float defaultMin = V_atof(sv_client_min_interp_ratio->GetDefault());
+		Assert(NEO_CL_INTERP_RATIO_DEFAULT >= defaultMin);
+	}
+	else
+	{
+		Assert(false);
+	}
+
+	if (auto sv_client_max_interp_ratio = g_pCVar->FindVar("sv_client_max_interp_ratio"))
+	{
+		const float defaultMax = V_atof(sv_client_max_interp_ratio->GetDefault());
+		Assert(NEO_CL_INTERP_RATIO_DEFAULT <= defaultMax);
+	}
+	else
+	{
+		Assert(false);
+	}
+#endif // DBGFLAG_ASSERT
+#else
 	m_nUpdateRate = 20;  // cl_updaterate defualt
 	m_fLerpTime = 0.1f; // cl_interp default
+#endif // NEO
 	m_bPredictWeapons = true;
 	m_bRequestPredict = true;
 	m_bLagCompensation = false;
@@ -1046,7 +1084,14 @@ void CBasePlayer::DamageEffect(float flDamage, int fDamageType)
 	}
 	else if ( fDamageType & DMG_BULLET )
 	{
+#ifdef NEO
+		if (Q_atoi(engine->GetClientConVarValue(this->entindex(), "cl_neo_taking_damage_sounds")))
+		{
+			EmitSound( "Flesh.BulletImpact" );
+		}
+#else
 		EmitSound( "Flesh.BulletImpact" );
+#endif
 	}
 }
 
@@ -1478,8 +1523,31 @@ void CBasePlayer::OnDamagedByExplosion( const CTakeDamageInfo &info )
 		random->RandomInt( 35, 37 ) : 
 		random->RandomInt( 32, 34 );
 
+#ifdef NEO
+	CRecipientFilter recipients;
+	recipients.MakeReliable();
+	recipients.AddRecipient(this);
+	const int thisClientIdx = ENTINDEX(this);
+	for (int clientIdx = 1; clientIdx <= gpGlobals->maxClients; ++clientIdx)
+	{
+		// Also play the ear-ringing for POV spectators.
+		if (clientIdx != thisClientIdx)
+		{
+			const auto otherPlayer = UTIL_PlayerByIndex(clientIdx);
+			if (!otherPlayer || !otherPlayer->IsObserver() ||
+				otherPlayer->GetObserverMode() != OBS_MODE_IN_EYE ||
+				otherPlayer->GetObserverTarget() != this)
+			{
+				continue;
+			}
+			recipients.AddRecipient(otherPlayer);
+		}
+	}
+	enginesound->SetPlayerDSP(recipients, effect, false);
+#else
 	CSingleUserRecipientFilter user( this );
 	enginesound->SetPlayerDSP( user, effect, false );
+#endif
 }
 
 //=========================================================
@@ -2724,7 +2792,7 @@ bool CBasePlayer::SetObserverTarget(CBaseEntity *target)
 {
 	if ( !IsValidObserverTarget( target ) )
 		return false;
-	
+
 	// set new target
 	m_hObserverTarget.Set( target ); 
 
@@ -3588,7 +3656,9 @@ void CBasePlayer::ClientSettingsChanged()
 		float flLerpRatio = Q_atof( QUICKGETCVARVALUE("cl_interp_ratio") );
 		if ( flLerpRatio == 0 )
 			flLerpRatio = 1.0f;
+#ifndef NEO
 		float flLerpAmount = Q_atof( QUICKGETCVARVALUE("cl_interp") );
+#endif
 
 		static const ConVar *pMin = g_pCVar->FindVar( "sv_client_min_interp_ratio" );
 		static const ConVar *pMax = g_pCVar->FindVar( "sv_client_max_interp_ratio" );
@@ -3602,7 +3672,11 @@ void CBasePlayer::ClientSettingsChanged()
 				flLerpRatio = 1.0f;
 		}
 		// #define FIXME_INTERP_RATIO
+#ifdef NEO
+		this->m_fLerpTime = flLerpRatio / this->m_nUpdateRate;
+#else
 		this->m_fLerpTime = MAX( flLerpAmount, flLerpRatio / this->m_nUpdateRate );
+#endif
 	}
 	else
 	{
@@ -3662,7 +3736,12 @@ void CBasePlayer::ProcessUsercmds( CUserCmd *cmds, int numcmds, int totalcmds,
 		if ( sv_usercmd_custom_random_seed.GetBool() )
 		{
 			float fltTimeNow = float( Plat_FloatTime() * 1000.0 );
+#ifdef NEO
+			pCmd->server_random_seed = neo::bit_cast<decltype(pCmd->server_random_seed)>(
+				BC_TEST(fltTimeNow, *reinterpret_cast<int*>((char*)&fltTimeNow)));
+#else
 			pCmd->server_random_seed = *reinterpret_cast<int*>( (char*)&fltTimeNow );
+#endif
 		}
 		else
 		{
@@ -3916,8 +3995,8 @@ void CBasePlayer::PlayerRunCommand(CUserCmd *ucmd, IMoveHelper *moveHelper)
 				ucmd->impulse = 0;
 			}
 
-			ucmd->buttons &= ~(IN_ATTACK | IN_ATTACK3 | IN_JUMP | IN_SPEED |
-				IN_ALT1 | IN_ALT2 | IN_BACK | IN_FORWARD | IN_MOVELEFT | IN_MOVERIGHT | IN_RUN | IN_ZOOM);
+			ucmd->buttons &= ~(IN_ATTACK | IN_JUMP | IN_SPEED |
+                IN_ALT1 | IN_ALT2 | IN_BACK | IN_FORWARD | IN_MOVELEFT | IN_MOVERIGHT | IN_RUN);
 			const bool isTachi = (dynamic_cast<CWeaponTachi*>(GetActiveWeapon()) != NULL);
 			if (!isTachi)
 			{
@@ -5304,6 +5383,12 @@ void CBasePlayer::Spawn( void )
 	Q_strncpy( m_szLastPlaceName.GetForModify(), "", MAX_PLACE_NAME_LENGTH );
 	
 	CSingleUserRecipientFilter user( this );
+#ifdef NEO
+	// So that the explosion ear-ringing SFX is reliably cleared.
+	// We already do this for the local C_NEO_Player (for faster response to remote clients),
+	// but this is made reliable for POV spectators' benefit.
+	user.MakeReliable();
+#endif
 	enginesound->SetPlayerDSP( user, 0, false );
 
 	CreateViewModel();
@@ -8411,7 +8496,9 @@ void SendProxy_CropFlagsToPlayerFlagBitsLength( const SendProp *pProp, const voi
 
 		SendPropFloat		( SENDINFO( m_flDeathTime ), 0, SPROP_NOSCALE ),
 
+#ifndef NEO
 		SendPropInt			( SENDINFO( m_nWaterLevel ), 2, SPROP_UNSIGNED ),
+#endif // NEO
 		SendPropFloat		( SENDINFO( m_flLaggedMovementValue ), 0, SPROP_NOSCALE ),
 
 	END_SEND_TABLE()
@@ -8450,6 +8537,10 @@ void SendProxy_CropFlagsToPlayerFlagBitsLength( const SendProp *pProp, const voi
 		SendPropEHandle	(SENDINFO(m_hZoomOwner) ),
 		SendPropArray	( SendPropEHandle( SENDINFO_ARRAY( m_hViewModel ) ), m_hViewModel ),
 		SendPropString	(SENDINFO(m_szLastPlaceName) ),
+
+#ifdef NEO
+		SendPropInt			( SENDINFO( m_nWaterLevel ), 2, SPROP_UNSIGNED ),
+#endif // NEO
 
 #if defined USES_ECON_ITEMS
 		SendPropUtlVector( SENDINFO_UTLVECTOR( m_hMyWearables ), MAX_WEARABLES_SENT_FROM_SERVER, SendPropEHandle( NULL, 0 ) ),

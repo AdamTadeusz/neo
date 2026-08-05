@@ -100,12 +100,17 @@ public:
 #define NEO_SUPPORT_DUCK_MAXHULL_OFFSET Vector(0.0f, 0.0f, 0.0f)
 #define NEO_SUPPORT_DUCKED_VIEW_OFFSET Vector(0.0f, 0.0f, 0.0f)
 
-#define VEC_VIEW_NEOSCALE(NeoPlayer) (g_pGameRules->GetViewVectors()->m_vView + ((NeoPlayer->GetClass() == NEO_CLASS_RECON) ? NEO_RECON_VIEW_OFFSET : (NeoPlayer->GetClass() == NEO_CLASS_SUPPORT) ? NEO_SUPPORT_VIEW_OFFSET : NEO_ASSAULT_VIEW_OFFSET))
-#define VEC_DUCK_VIEW_NEOSCALE(NeoPlayer) (g_pGameRules->GetViewVectors()->m_vDuckView + ((NeoPlayer->GetClass() == NEO_CLASS_RECON) ? NEO_RECON_DUCKED_VIEW_OFFSET : (NeoPlayer->GetClass() == NEO_CLASS_SUPPORT) ? NEO_SUPPORT_DUCKED_VIEW_OFFSET : NEO_ASSAULT_DUCKED_VIEW_OFFSET))
+#define NEO_JUGGERNAUT_VIEW_OFFSET Vector(0.0f, 0.0f, 15.0f)
+#define NEO_JUGGERNAUT_MAXHULL_OFFSET Vector(0.0f, 0.0f, 18.0f)
+#define NEO_JUGGERNAUT_DUCK_MAXHULL_OFFSET Vector(0.0f, 0.0f, 16.0f)
+#define NEO_JUGGERNAUT_DUCKED_VIEW_OFFSET Vector(0.0f, 0.0f, 13.0f)
+
+#define VEC_VIEW_NEOSCALE(NeoPlayer) (g_pGameRules->GetViewVectors()->m_vView + ((NeoPlayer->GetClass() == NEO_CLASS_RECON) ? NEO_RECON_VIEW_OFFSET : (NeoPlayer->GetClass() == NEO_CLASS_SUPPORT) ? NEO_SUPPORT_VIEW_OFFSET : (NeoPlayer->GetClass() == NEO_CLASS_JUGGERNAUT) ? NEO_JUGGERNAUT_VIEW_OFFSET : NEO_ASSAULT_VIEW_OFFSET))
+#define VEC_DUCK_VIEW_NEOSCALE(NeoPlayer) (g_pGameRules->GetViewVectors()->m_vDuckView + ((NeoPlayer->GetClass() == NEO_CLASS_RECON) ? NEO_RECON_DUCKED_VIEW_OFFSET : (NeoPlayer->GetClass() == NEO_CLASS_SUPPORT) ? NEO_SUPPORT_DUCKED_VIEW_OFFSET : (NeoPlayer->GetClass() == NEO_CLASS_JUGGERNAUT) ? NEO_JUGGERNAUT_DUCKED_VIEW_OFFSET : NEO_ASSAULT_DUCKED_VIEW_OFFSET))
 #define VEC_HULL_MIN_NEOSCALED(NeoPlayer) (g_pGameRules->GetViewVectors()->m_vHullMin)
-#define VEC_HULL_MAX_NEOSCALED(NeoPlayer) (g_pGameRules->GetViewVectors()->m_vHullMax + ((NeoPlayer->GetClass() == NEO_CLASS_RECON) ? NEO_RECON_MAXHULL_OFFSET : (NeoPlayer->GetClass() == NEO_CLASS_SUPPORT) ? NEO_SUPPORT_MAXHULL_OFFSET : NEO_ASSAULT_MAXHULL_OFFSET ))
+#define VEC_HULL_MAX_NEOSCALED(NeoPlayer) (g_pGameRules->GetViewVectors()->m_vHullMax + ((NeoPlayer->GetClass() == NEO_CLASS_RECON) ? NEO_RECON_MAXHULL_OFFSET : (NeoPlayer->GetClass() == NEO_CLASS_SUPPORT) ? NEO_SUPPORT_MAXHULL_OFFSET : (NeoPlayer->GetClass() == NEO_CLASS_JUGGERNAUT) ? NEO_JUGGERNAUT_MAXHULL_OFFSET : NEO_ASSAULT_MAXHULL_OFFSET ))
 #define VEC_DUCK_HULL_MIN_NEOSCALED(NeoPlayer) (g_pGameRules->GetViewVectors()->m_vDuckHullMin)
-#define VEC_DUCK_HULL_MAX_NEOSCALED(NeoPlayer) (g_pGameRules->GetViewVectors()->m_vDuckHullMax + ((NeoPlayer->GetClass() == NEO_CLASS_RECON) ? NEO_RECON_DUCK_MAXHULL_OFFSET : (NeoPlayer->GetClass() == NEO_CLASS_SUPPORT) ? NEO_SUPPORT_DUCK_MAXHULL_OFFSET : NEO_ASSAULT_DUCK_MAXHULL_OFFSET))
+#define VEC_DUCK_HULL_MAX_NEOSCALED(NeoPlayer) (g_pGameRules->GetViewVectors()->m_vDuckHullMax + ((NeoPlayer->GetClass() == NEO_CLASS_RECON) ? NEO_RECON_DUCK_MAXHULL_OFFSET : (NeoPlayer->GetClass() == NEO_CLASS_SUPPORT) ? NEO_SUPPORT_DUCK_MAXHULL_OFFSET : (NeoPlayer->GetClass() == NEO_CLASS_JUGGERNAUT) ? NEO_JUGGERNAUT_DUCK_MAXHULL_OFFSET : NEO_ASSAULT_DUCK_MAXHULL_OFFSET))
 #endif
 
 // If the player (enemy bots) are scaled, adjust the hull
@@ -788,10 +793,13 @@ struct FireBulletsInfo_t
 		m_vecDirShooting.Init( VEC_T_NAN, VEC_T_NAN, VEC_T_NAN );
 #endif
 		m_bPrimaryAttack = true;
+#ifdef NEO
+		m_bDoServerEffects  = true;
+#endif // NEO
 		m_bUseServerRandomSeed = false;
 	}
 
-	FireBulletsInfo_t( int nShots, const Vector &vecSrc, const Vector &vecDir, const Vector &vecSpread, float flDistance, int nAmmoType, bool bPrimaryAttack = true )
+	FireBulletsInfo_t( int nShots, const Vector &vecSrc, const Vector &vecDir, const Vector &vecSpread, float flDistance, int nAmmoType, bool bPrimaryAttack = true, bool bDoServerEffects = true )
 	{
 		m_iShots = nShots;
 		m_vecSrc = vecSrc;
@@ -810,11 +818,14 @@ struct FireBulletsInfo_t
 		m_flPenetration = 0.0f;
 #endif
 		m_bPrimaryAttack = bPrimaryAttack;
+#ifdef NEO
+		m_bDoServerEffects  = true;
+#endif // NEO
 		m_bUseServerRandomSeed = false;
 	}
 
 #ifdef NEO
-	FireBulletsInfo_t(int nShots, const Vector& vecSrc, const Vector& vecDir, const Vector& vecSpread, float flDistance, int nAmmoType, float flPenetration, bool bPrimaryAttack = true)
+	FireBulletsInfo_t(int nShots, const Vector& vecSrc, const Vector& vecDir, const Vector& vecSpread, float flDistance, int nAmmoType, float flPenetration, bool bPrimaryAttack = true, bool bDoServerEffects = true)
 	{
 		m_iShots = nShots;
 		m_vecSrc = vecSrc;
@@ -831,6 +842,7 @@ struct FireBulletsInfo_t
 		m_flDamageForceScale = 1.0f;
 		m_flPenetration = flPenetration;
 		m_bPrimaryAttack = bPrimaryAttack;
+		m_bDoServerEffects  = bDoServerEffects;
 		m_bUseServerRandomSeed = false;
 	}
 #endif
@@ -852,6 +864,9 @@ struct FireBulletsInfo_t
 	CBaseEntity *m_pAttacker;
 	CBaseEntity *m_pAdditionalIgnoreEnt;
 	bool m_bPrimaryAttack;
+#ifdef NEO
+	bool m_bDoServerEffects ;
+#endif // NEO
 	bool m_bUseServerRandomSeed;
 };
 
@@ -1083,4 +1098,13 @@ struct collidelist_t
 	Vector			origin;
 	QAngle			angles;
 };
+
+#ifdef NEO
+
+#define THERMALS_OBJECT_TEMPERATURE_HELD 1.25f
+#define THERMALS_OBJECT_MAX_TEMPERATURE 3.f
+#define THERMALS_OBJECT_MIN_TEMPERATURE 0.15f // Weapons actually only either have a value of 3 or 0 in ognt, not here though
+#define THERMALS_OBJECT_COOL_RATE 0.5f // Body takes ~6 seconds to cool from 3 to 0.15. NEO TODO (Adam) Newton's law of cooling states the rate of heat loss of a body is directly proportional to the difference in temperature between the body and its surroundings. in nt its constant.
+
+#endif // NEO
 #endif // SHAREDDEFS_H

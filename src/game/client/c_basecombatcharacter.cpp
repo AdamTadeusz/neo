@@ -164,11 +164,7 @@ void C_BaseCombatCharacter::UpdateGlowEffect( void )
 	{
 		float r, g, b;
 		GetGlowEffectColor( &r, &g, &b );
-#ifdef NEO
-		m_pGlowEffect = new CGlowObject( this, Vector( r, g, b ), 1.0, true, true );
-#else
 		m_pGlowEffect = new CGlowObject( this, Vector( r, g, b ), 1.0, true );
-#endif
 	}
 }
 
@@ -206,6 +202,10 @@ BEGIN_RECV_TABLE(C_BaseCombatCharacter, DT_BaseCombatCharacter)
 
 #ifdef INVASION_CLIENT_DLL
 	RecvPropInt( RECVINFO( m_iPowerups ) ),
+#endif
+
+#ifdef NEO
+	RecvPropInt( RECVINFO( m_bloodColor ) ),
 #endif
 
 END_RECV_TABLE()

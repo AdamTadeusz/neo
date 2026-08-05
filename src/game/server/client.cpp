@@ -48,6 +48,7 @@
 #ifdef NEO
 #include "neo_player.h"
 #include "neo_gamerules.h"
+#include "../../common/neo/bit_cast.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -297,7 +298,11 @@ void Host_Say( edict_t *pEdict, const CCommand &args, bool teamonly )
 		Q_snprintf( text, sizeof(text), "%s: ", pszPlayerName );
 	}
 
+#ifdef NEO
+	j = narrow_cast<int>(sizeof(text) - 2 - strlen(text));  // -2 for /n and null terminator
+#else
 	j = sizeof(text) - 2 - strlen(text);  // -2 for /n and null terminator
+#endif
 	if ( (int)strlen(p) > j )
 		p[j] = 0;
 
@@ -696,6 +701,48 @@ BEGIN_DATADESC( CPointServerCommand )
 END_DATADESC()
 
 LINK_ENTITY_TO_CLASS( point_servercommand, CPointServerCommand );
+
+#ifdef NEO
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+class CPointBroadcastClientCommand : public CPointEntity
+{
+public:
+	DECLARE_CLASS( CPointBroadcastClientCommand, CPointEntity );
+	DECLARE_DATADESC();
+	void InputCommand( inputdata_t& inputdata );
+};
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : inputdata - 
+//-----------------------------------------------------------------------------
+void CPointBroadcastClientCommand::InputCommand( inputdata_t& inputdata )
+{
+	if ( !inputdata.value.String()[0] )
+		return;
+
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		CBasePlayer* pl = UTIL_PlayerByIndex( i );
+		if ( !pl )
+			continue;
+
+		edict_t* pClient = pl->edict();
+		if ( !pClient || !pClient->GetUnknown() )
+			continue;
+
+		engine->ClientCommand( pClient, "%s\n", inputdata.value.String() );
+	}
+}
+
+BEGIN_DATADESC( CPointBroadcastClientCommand )
+DEFINE_INPUTFUNC( FIELD_STRING, "Command", InputCommand ),
+END_DATADESC()
+
+LINK_ENTITY_TO_CLASS( point_broadcastclientcommand, CPointBroadcastClientCommand );
+#endif
 
 //------------------------------------------------------------------------------
 // Purpose : Draw a line betwen two points.  White if no world collisions, red if collisions
@@ -1345,7 +1392,11 @@ static float GetHexFloat( const char *pStr )
 	if ( ( pStr[0] == '0' ) && ( pStr[1] == 'x' ) )
 	{
 		uint32 f = (uint32)V_atoi64( pStr );
+#ifdef NEO
+		return neo::bit_cast<float>(BC_TEST(f, *reinterpret_cast<const float*>(&f)));
+#else
 		return *reinterpret_cast< const float * >( &f );
+#endif
 	}
 	
 	return atof( pStr );

@@ -35,6 +35,8 @@ public:
 	virtual int		GetDeaths( int index ) = 0;
 #ifdef NEO
 	virtual int		GetXP(int index) = 0;
+	virtual int		GetDisplayedHealth(int index, int mode) = 0;
+	virtual bool	IsAfk(int index) = 0;
 #endif
 	virtual int		GetFrags( int index ) = 0;
 	virtual int		GetTeam( int index ) = 0;

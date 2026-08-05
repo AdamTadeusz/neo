@@ -1,0 +1,73 @@
+#pragma once
+
+#include "cbase.h"
+#ifdef GAME_DLL
+#include "neo_player.h"
+#else
+#include "c_neo_player.h"
+#endif
+
+#ifdef CLIENT_DLL
+#define CNEO_Juggernaut C_NEO_Juggernaut
+#endif
+
+class CNEO_Juggernaut : public CBaseAnimating
+{
+public:
+	DECLARE_CLASS(CNEO_Juggernaut, CBaseAnimating);
+	
+	static float GetUseDuration();
+	static float GetUseDistanceSquared();
+	CNEO_Juggernaut() { m_bIsHolding = false; }
+#ifdef GAME_DLL
+	virtual ~CNEO_Juggernaut();
+	DECLARE_SERVERCLASS();
+#else
+	DECLARE_CLIENTCLASS();
+#endif
+	DECLARE_DATADESC();
+
+#ifdef GAME_DLL
+	void	Precache(void);
+	void	Spawn(void);
+    void	Use(CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value);
+	virtual int UpdateTransmitState() override;
+
+	CNEO_Player* GetActivatingPlayer() const { return m_hHoldingPlayer.Get(); }
+	bool IsBeingActivated() const { return m_bIsHolding; }
+	const bool IsBeingActivatedByLosingTeam();
+
+	bool	m_bPostDeath = false;
+#endif
+	virtual int	ObjectCaps(void) override { return BaseClass::ObjectCaps() | FCAP_ONOFF_USE; }
+
+	virtual unsigned int PhysicsSolidMaskForEntity() const final override { return MASK_PLAYERSOLID; }
+	virtual void UpdateOnRemove() override;
+
+	CNetworkVar(bool, m_bLocked);
+	CNetworkVar(CHandle<CNEO_Player>, m_hHoldingPlayer);
+	CNetworkVar(bool, m_bIsHolding);
+
+private:
+#ifdef GAME_DLL
+	void	Think(void);
+	void	SetSoftCollision(bool soft);
+	void	MakePushThink();
+	void	DisableSoftCollisionsThink();
+	void	HoldCancel(void);
+	void	AnimThink(void);
+	void	InputLock(inputdata_t& inputData) { m_bLocked = true; }
+	void	InputUnlock(inputdata_t& inputData) { m_bLocked = false; }
+#else
+	int		DrawModel(int flags) override;
+#endif
+
+#ifdef GAME_DLL
+	EHANDLE m_hPush;
+	float m_flWarpedPlaybackRate;
+	float m_flHoldStartTime = 0.0f;
+	bool m_bActivationRemoval = false;
+
+	COutputEvent m_OnPlayerActivate;
+#endif
+};

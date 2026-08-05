@@ -1607,7 +1607,9 @@ void CChangeLevel::WarnAboutActiveLead( void )
 void CChangeLevel::ChangeLevelNow( CBaseEntity *pActivator )
 {
 	CBaseEntity	*pLandmark;
+#ifndef NEO
 	levellist_t	levels[16];
+#endif
 
 	Assert(!FStrEq(m_szMapName, ""));
 
@@ -4690,8 +4692,16 @@ void CTriggerVPhysicsMotion::StartTouch( CBaseEntity *pOther )
 		pPlayer->m_Local.m_bSlowMovement = true;
 	}
 
+#ifdef NEO // Unity build
+	triggerevent_t event;
+	if ( !PhysGetTriggerEvent( &event, this ) )
+	{
+		event = {};
+	}
+#else
 	triggerevent_t event;
 	PhysGetTriggerEvent( &event, this );
+#endif
 	if ( event.pObject )
 	{
 		// these all get done again on save/load, so check
@@ -4728,8 +4738,16 @@ void CTriggerVPhysicsMotion::EndTouch( CBaseEntity *pOther )
 		pPlayer->SetPhysicsFlag( PFLAG_VPHYSICS_MOTIONCONTROLLER, false );
 		pPlayer->m_Local.m_bSlowMovement = false;
 	}
+#ifdef NEO // Unity build
+	triggerevent_t event;
+	if ( !PhysGetTriggerEvent( &event, this ) )
+	{
+		event = {};
+	}
+#else
 	triggerevent_t event;
 	PhysGetTriggerEvent( &event, this );
+#endif
 	if ( event.pObject && m_pController )
 	{
 		m_pController->DetachObject( event.pObject );

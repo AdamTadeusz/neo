@@ -397,8 +397,8 @@
 		"LineMargin"		"2"
 		"MaxDeathNotices" 	"8"
 		"RightJustify"		"1"
-		"BackgroundColor"	"200 200 200 40"
-		"BackgroundColourInvolved"	"20 20 20 220"
+		"BackgroundColour"	"20 20 20 220"
+		"BackgroundColourInvolved"	"150 150 150 60"
 	}
 
 	HudVehicle
@@ -819,11 +819,16 @@
 	{
 		"fieldName"		"NHudCompass"
 		"visible"		"1"
-		"y_bottom_pos"		"3"
-		"needle_visible"	"0"
-		"needle_colored"	"0"
+		"xpos"			"c-100"
+		"ypos"			"469"
+		"wide"			"200"
+		"tall"			"8"
+		"fov"			"90"
+		"separators"	"1"
 		"objective_visible"	"1"
-		"box_color"		"200 200 200 40"
+		"text_fade_exp"	"1"
+		"text_color"	"255 255 255 150"
+		"box_color"		"150 150 150 60"
 	}
 	NHudWeapon
 	{
@@ -834,7 +839,7 @@
 		"ypos"			"446"
 		"wide"			"203"
 		"tall"			"32"
-		"box_color"		"200 200 200 40"
+		"box_color"		"150 150 150 60"
 		"top_left_corner"	"1"
 		"top_right_corner"	"0"
 		"bottom_left_corner"	"1"
@@ -852,6 +857,11 @@
 		"ammo_text_color"	"255 255 255 100"
 		"ammo_color"		"255 255 255 150"
 		"emptied_ammo_color"	"255 255 255 50"
+		"heatbar_xpos"	"23"
+		"heatbar_ypos"	"12"
+		"heatbar_w"		"172"
+		"heatbar_h"		"11"
+		"heat_color"	"255 50 50 200"
 	}
 	NHudHealth
 	{
@@ -862,7 +872,7 @@
 		"ypos"			"446"
 		"wide"			"203"
 		"tall"			"32"
-		"box_color"		"200 200 200 40"
+		"box_color"		"150 150 150 60"
 		"top_left_corner"	"0"
 		"top_right_corner"	"1"
 		"bottom_left_corner"	"0"
@@ -871,7 +881,7 @@
 		"healthtext_ypos"	"2"
 		"healthbar_xpos"	"86"
 		"healthbar_ypos"	"4"
-		"healthbar_w"		"93"
+		"healthbar_w"		"90"
 		"healthbar_h"		"6"
 		"healthnum_xpos"	"198"
 		"healthnum_ypos"	"2"
@@ -881,7 +891,7 @@
 		"camotext_ypos"		"12"
 		"camobar_xpos"		"86"
 		"camobar_ypos"		"14"
-		"camobar_w"		"93"
+		"camobar_w"		"90"
 		"camobar_h"		"6"
 		"camonum_xpos"		"198"
 		"camonum_ypos"		"12"
@@ -891,7 +901,7 @@
 		"sprinttext_ypos"	"22"
 		"sprintbar_xpos"	"86"
 		"sprintbar_ypos"	"24"
-		"sprintbar_w"		"93"
+		"sprintbar_w"		"90"
 		"sprintbar_h"		"6"
 		"sprintnum_xpos"	"198"
 		"sprintnum_ypos"	"22"
@@ -907,8 +917,12 @@
 	NRoundState
 	{
 		"fieldName"		"NRoundState"
-		"box_color"		"200 200 200 40"
+		"box_color"		"150 150 150 60"
 		"health_monochrome"	"1"
+	}
+	NHudPlayerPing
+	{
+		"fieldName"		"NHudPlayerPing"
 	}
 
 	neo_ghost_uplink_state
@@ -949,9 +963,9 @@
 		"text_y_offset" "420"
 	}
 
-	neo_iff
+	NHudFriendlyMarker
 	{
-		"fieldName"		"neo_iff"
+		"fieldName"		"NHudFriendlyMarker"
 		"xpos"	"0"
 		"ypos"	"0"
 		"wide"	"640"
@@ -974,7 +988,7 @@
 		"ypos"	"440"
 		"wide"	"640"
 	}
-	
+
 	neo_message
 	{
 		"fieldName"		"neo_message"
@@ -982,5 +996,21 @@
 		"ypos"	"60"
 		"wide"	"300"
 		"tall"	"200"
+	}
+
+	neo_killer_info
+	{
+		"fieldName"		"neo_killer_info"
+	}
+
+	neo_context_hint
+	{
+		"fieldName" 	"neo_context_hint"
+		"font"      	"NeoUINormal"
+		"padding_x" 	"4"
+		"padding_y" 	"6"
+		"box_y_factor" 	"0.75"
+		"box_color" 	"20 20 20 0"
+		"text_color" 	"255 255 255 255"
 	}
 }

@@ -23,6 +23,12 @@ namespace vgui
 class PageTab;
 class ImagePanel;
 
+#ifdef NEO // Unity build
+#ifdef PropertySheet
+#undef PropertySheet
+#endif
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: Tabbed property sheet.  Holds and displays a set of Panel's
 //-----------------------------------------------------------------------------
@@ -64,8 +70,13 @@ public:
 
 	// focus handling - passed on to current active page
 	virtual void RequestFocus(int direction = 0);
+#ifdef NEO // NEO NOTE (nullsystem): warning: converting to non-pointer type ‘vgui::VPANEL’ {aka ‘long long unsigned int’} from NULL
+	virtual bool RequestFocusPrev(VPANEL panel = 0);
+	virtual bool RequestFocusNext(VPANEL panel = 0);
+#else
 	virtual bool RequestFocusPrev(VPANEL panel = NULL);
 	virtual bool RequestFocusNext(VPANEL panel = NULL);
+#endif
 
 	// returns the ith panel 
 	virtual Panel *GetPage(int i);

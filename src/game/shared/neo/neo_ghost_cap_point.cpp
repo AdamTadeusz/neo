@@ -32,6 +32,7 @@ static constexpr float NEO_CAP_MAX_RADIUS = 10240.0f;
 
 static constexpr int NEO_FGD_TEAMNUM_ATTACKER = 0;
 static constexpr int NEO_FGD_TEAMNUM_DEFENDER = 1;
+static constexpr int NEO_FGD_TEAMNUM_NEUTRAL = 2;
 
 LINK_ENTITY_TO_CLASS(neo_ghost_retrieval_point, CNEOGhostCapturePoint);
 
@@ -40,7 +41,7 @@ IMPLEMENT_SERVERCLASS_ST(CNEOGhostCapturePoint, DT_NEOGhostCapturePoint)
 	SendPropFloat(SENDINFO(m_flCapzoneRadius)),
 
 	SendPropInt(SENDINFO(m_iOwningTeam)),
-	SendPropInt(SENDINFO(m_iSuccessfulCaptorClientIndex)),
+	SendPropInt(SENDINFO(m_iSuccessfulCaptorClientIndex), NumBitsForCount(MAX_PLAYERS_ARRAY_SAFE), SPROP_UNSIGNED),
 
 	SendPropBool(SENDINFO(m_bGhostHasBeenCaptured)),
 	SendPropBool(SENDINFO(m_bIsActive)),
@@ -109,13 +110,17 @@ bool CNEOGhostCapturePoint::IsGhostCaptured(int& outTeamNumber, int& outCaptorCl
 {
 	if (m_bIsActive && m_bGhostHasBeenCaptured)
 	{
-		outTeamNumber = owningTeamAlternate();
 		outCaptorClientIndex = m_iSuccessfulCaptorClientIndex;
 		
 		CBaseEntity* pCaptor = UTIL_PlayerByIndex(m_iSuccessfulCaptorClientIndex);
 		if (!pCaptor) // The capzone will be the activator if we can't find the guy who capped it
 		{
 			pCaptor = this;
+			outTeamNumber = owningTeamAlternate();
+		}
+		else
+		{
+			outTeamNumber = pCaptor->GetTeamNumber();
 		}
 		m_OnCap.FireOutput(pCaptor, this);
 
@@ -128,9 +133,12 @@ bool CNEOGhostCapturePoint::IsGhostCaptured(int& outTeamNumber, int& outCaptorCl
 
 int CNEOGhostCapturePoint::owningTeamAlternate() const
 {
-	const bool alternate = NEORules()->roundAlternate();
+	const bool alternate = NEORules()->roundNumberIsEven();
 	int owningTeam = m_iOwningTeam;
-	if (!alternate) owningTeam = (owningTeam == TEAM_JINRAI) ? TEAM_NSF : (owningTeam == TEAM_NSF) ? TEAM_JINRAI : owningTeam;
+	if (!alternate && owningTeam != TEAM_ANY)
+	{
+		owningTeam = (owningTeam == TEAM_JINRAI) ? TEAM_NSF : (owningTeam == TEAM_NSF) ? TEAM_JINRAI : owningTeam;
+	}
 	return owningTeam;
 }
 
@@ -151,12 +159,18 @@ void CNEOGhostCapturePoint::Spawn(void)
 	{
 		m_iOwningTeam = TEAM_NSF;
 	}
+	else if (m_iOwningTeam == NEO_FGD_TEAMNUM_NEUTRAL)
+	{
+		m_iOwningTeam = TEAM_ANY;
+	}
 	else
 	{
 		// We could recover, but it's probably better to break the capzone
 		// and throw a nag message in console so the mapper can fix their error.
-		Warning("Capzone had an invalid owning team: %i. Expected %i (Jinrai), or %i (NSF).\n",
-			m_iOwningTeam.Get(), NEO_FGD_TEAMNUM_ATTACKER, NEO_FGD_TEAMNUM_DEFENDER);
+		Warning("Capzone at position %.1f %.1f %.1f had an invalid owning team: %i. "
+			"Expected %i (Jinrai), %i (NSF), or %i (neutral).\n",
+			GetAbsOrigin().x, GetAbsOrigin().y, GetAbsOrigin().z,
+			m_iOwningTeam.Get(), NEO_FGD_TEAMNUM_ATTACKER, NEO_FGD_TEAMNUM_DEFENDER, NEO_FGD_TEAMNUM_NEUTRAL);
 
 		// Nobody will be able to cap here.
 		m_iOwningTeam = TEAM_INVALID;
@@ -177,7 +191,7 @@ void CNEOGhostCapturePoint::Spawn(void)
 	m_flCapzoneRadius = clamp(m_flCapzoneRadius, NEO_CAP_MIN_RADIUS, NEO_CAP_MAX_RADIUS);
 
 	// Set cap zone active if we've got a valid owner.
-	SetActive(m_iOwningTeam == TEAM_JINRAI || m_iOwningTeam == TEAM_NSF);
+	SetActive(m_iOwningTeam == TEAM_JINRAI || m_iOwningTeam == TEAM_NSF || m_iOwningTeam == TEAM_ANY);
 
 	RegisterThinkContext("CheckMyRadius");
 	SetContextThink(&CNEOGhostCapturePoint::Think_CheckMyRadius,
@@ -223,7 +237,7 @@ void CNEOGhostCapturePoint::Think_CheckMyRadius(void)
 				const int team = player->GetTeamNumber();
 
 				Assert(team == TEAM_JINRAI || team == TEAM_NSF);
-				bool isNotTeamCap = team != owningTeamAlternate();
+				bool isNotTeamCap = (m_iOwningTeam == TEAM_ANY) ? false : (team != owningTeamAlternate());
 
 				// Is this our team's capzone?
 				// NEO TODO (Rain): newbie UI helpers for attempting wrong team cap

@@ -47,6 +47,10 @@ extern ConVar cam_idealyaw;
 // Need this for steam controller
 #include "clientsteamcontext.h"
 
+#ifdef NEO
+#include "ui/neo_scoreboard.h"
+#endif // NEO
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -260,7 +264,11 @@ int KB_ConvertString( char *in, char **ppout )
 
 	*pOut = '\0';
 
+#ifdef NEO
+	int maxlen = V_strlen( sz ) + 1;
+#else
 	int maxlen = strlen( sz ) + 1;
+#endif
 	pOut = ( char * )malloc( maxlen );
 	Q_strncpy( pOut, sz, maxlen );
 	*ppout = pOut;
@@ -393,7 +401,11 @@ void KeyDown( kbutton_t *b, const char *c )
 		b->down[1] = k;
 	else
 	{
+#ifdef NEO
+		if ( c && c[0] )
+#else
 		if ( c[0] )
+#endif // NEO
 		{
 			DevMsg( 1,"Three keys down for a button '%c' '%c' '%c'!\n", b->down[0], b->down[1], c[0]);
 		}
@@ -404,6 +416,84 @@ void KeyDown( kbutton_t *b, const char *c )
 		return;		// still down
 	b->state |= 1 + 2;	// down + impulse down
 }
+
+#ifdef NEO
+/*
+============
+KeyDown where pressing a hold key will lift a toggle key
+============
+*/
+void KeyDownHoldReplaceToggle( kbutton_t *b, const char *c )
+{
+	int		k = -1;
+	if ( c && c[0] )
+	{
+		k = atoi(c);
+	}
+
+	if (k == b->down[0] || k == b->down[1])
+		return;		// repeating key
+	if (b->down[0] == -1)
+	{
+		b->down[0] = k;
+		return; // state hasn't changed
+	}
+	else if (b->down[1] == -1)
+	{
+		b->down[1] = k;
+		return; // state hasn't changed
+	}
+	else if (!b->down[0])
+		b->down[0] = k;
+	else if (!b->down[1])
+		b->down[1] = k;
+	else
+	{
+		if ( c && c[0] )
+		{
+			DevMsg( 1,"Three keys down for a button '%c' '%c' '%c'!\n", b->down[0], b->down[1], c[0]);
+		}
+		return;
+	}
+	
+	if (b->state & 1)
+		return;		// still down
+	b->state |= 1 + 2;	// down + impulse down
+}
+
+/*
+============
+KeyDown with a minimum time between any two keydowns of a button. Not intended to limit players, rather its to help players not accidentally execute actions bound to the mouse wheel more than once
+============
+*/
+ConVar cl_neo_mouse_wheel_action_cool_down("cl_neo_mouse_wheel_action_cool_down", "0", FCVAR_ARCHIVE, "If the mouse wheel is bound to an action with a mouse wheel delay, controls how long that delay is to prevent accidental activations of the action", true, 0, true, 1.f);
+static float nextMouseWheelUp = 0.f;
+static float nextMouseWheelDown = 0.f;
+void KeyDownWithMouseWheelDelay(kbutton_t* b, const char* c)
+{
+	if (cl_neo_mouse_wheel_action_cool_down.GetFloat() > 0.f && c && c[0])
+	{
+		int k = atoi(&c[0]);
+		if (k == MOUSE_WHEEL_UP)
+		{
+			if (gpGlobals->curtime < nextMouseWheelUp)
+			{
+				return;
+			}
+			nextMouseWheelUp = gpGlobals->curtime + cl_neo_mouse_wheel_action_cool_down.GetFloat();
+		}
+		else if (k == MOUSE_WHEEL_DOWN)
+		{
+			if (gpGlobals->curtime < nextMouseWheelDown)
+			{
+				return;
+			}
+			nextMouseWheelDown = gpGlobals->curtime + cl_neo_mouse_wheel_action_cool_down.GetFloat();
+		}
+	}
+	KeyDown(b, c);
+}
+#endif // NEO
 
 /*
 ============
@@ -441,6 +531,43 @@ void KeyUp( kbutton_t *b, const char *c )
 	b->state |= 4; 		// impulse up
 }
 
+#ifdef NEO
+/*
+============
+Toggle KeyUp
+============
+*/
+void ToggleKeyUp( kbutton_t *b )
+{
+	if (b->down[0] == -1)
+		b->down[0] = 0;
+	else if (b->down[1] == -1)
+		b->down[1] = 0;
+	else
+		return;		// key up without coresponding down (menu pass through)
+
+	if (b->down[0] || b->down[1])
+	{
+		//Msg ("Keys down for button: '%c' '%c' '%c' (%d,%d,%d)!\n", b->down[0], b->down[1], c, b->down[0], b->down[1], c);
+		return;		// some other key is still holding it down
+	}
+
+	if (!(b->state & 1))
+		return;		// still up (this should not happen)
+
+	b->state &= ~1;		// now up
+	b->state |= 4; 		// impulse up
+}
+
+void LiftAllToggleKeys()
+{
+	for (kbutton_t* button : { &in_walk, &in_aim, &in_lean_left, &in_lean_right }) {
+		ToggleKeyUp(button);
+	}
+}
+
+#endif // NEO
+
 void IN_CommanderMouseMoveDown( const CCommand &args ) {KeyDown(&in_commandermousemove, args[1] );}
 void IN_CommanderMouseMoveUp( const CCommand &args ) {KeyUp(&in_commandermousemove, args[1] );}
 void IN_BreakDown( const CCommand &args ) { KeyDown( &in_break , args[1] );}
@@ -475,20 +602,21 @@ void IN_MoveleftDown( const CCommand &args ) {KeyDown(&in_moveleft, args[1] );}
 void IN_MoveleftUp( const CCommand &args ) {KeyUp(&in_moveleft, args[1] );}
 void IN_MoverightDown( const CCommand &args ) {KeyDown(&in_moveright, args[1] );}
 void IN_MoverightUp( const CCommand &args ) {KeyUp(&in_moveright, args[1] );}
-void IN_WalkDown( const CCommand &args ) {KeyDown(&in_walk, args[1] );}
 #ifdef NEO
-void IN_WalkUp( const CCommand &args )
-{
-	int k = atoi(args[1]);
-	if (in_walk.down[0] == -1 && in_walk.down[1] == k)
-	{ // Releasing walk button using hold to walk when walking is already toggled using toggle walk, have to release toggle walk // NEO TODO (Adam) Any way to figure out it was exactly toggle walk that is holding this button down? Does it matter?
-		in_walk.down[0] = k;
-		in_walk.down[1] = 0;
-	};
-	KeyUp(&in_walk, args[1] );
-}
+void IN_WalkDown( const CCommand &args ) {KeyDownHoldReplaceToggle(&in_walk, args[1] );}
 #else
+void IN_WalkDown( const CCommand &args ) {KeyDown(&in_walk, args[1] );}
+#endif // NEO
 void IN_WalkUp( const CCommand &args ) {KeyUp(&in_walk, args[1] );}
+#ifdef NEO
+void IN_LeanReset() { KeyUp(&in_lean_left, nullptr); KeyUp(&in_lean_right, nullptr); }
+void IN_LeanToggleReset()
+{
+	for (kbutton_t* leanButton : { &in_lean_left, &in_lean_right })
+	{
+		ToggleKeyUp(leanButton);
+	}
+}
 #endif // NEO
 void IN_SpeedDown( const CCommand &args ) {KeyDown(&in_speed, args[1] );}
 void IN_SpeedUp( const CCommand &args ) {KeyUp(&in_speed, args[1] );}
@@ -528,22 +656,21 @@ void IN_AimUp( const CCommand &args ) { KeyUp( &in_aim, args[1] ); }
 void IN_AimDown( const CCommand &args ) { KeyDown( &in_aim, args[1] ); }
 
 void IN_LeanLeftUp( const CCommand &args ) { KeyUp( &in_lean_left, args[1] ); }
-void IN_LeanLeftDown( const CCommand &args ) { KeyDown( &in_lean_left, args[1] ); }
+void IN_LeanLeftDown(const CCommand& args) { KeyDown(&in_lean_left, args[1]); IN_LeanToggleReset(); }
 
 void IN_LeanLeft() { KeyUp(&in_lean_right, nullptr); KeyDown(&in_lean_left, nullptr); }
 void IN_LeanRight() { KeyUp(&in_lean_left, nullptr); KeyDown(&in_lean_right, nullptr); }
-void IN_LeanReset() { KeyUp(&in_lean_left, nullptr); KeyUp(&in_lean_right, nullptr); }
 
 void IN_SpeedReset() { KeyUp(&in_speed, nullptr); }
 
 void IN_LeanRightUp( const CCommand &args ) { KeyUp( &in_lean_right, args[1] ); }
-void IN_LeanRightDown( const CCommand &args ) { KeyDown( &in_lean_right, args[1] ); }
+void IN_LeanRightDown(const CCommand& args) { KeyDown(&in_lean_right, args[1]); IN_LeanToggleReset(); }
 
 void IN_ThermOpticUp(const CCommand &args) { KeyUp(&in_thermoptic, args[1]); }
-void IN_ThermOpticDown(const CCommand &args) { KeyDown(&in_thermoptic, args[1]); }
+void IN_ThermOpticDown(const CCommand &args) { KeyDownWithMouseWheelDelay(&in_thermoptic, args[1]); }
 
 void IN_VisionUp(const CCommand &args) { KeyUp(&in_vision, args[1]); }
-void IN_VisionDown(const CCommand &args) { KeyDown(&in_vision, args[1]); }
+void IN_VisionDown(const CCommand &args) { KeyDownWithMouseWheelDelay(&in_vision, args[1]); }
 
 void IN_SpecNextUp(const CCommand &args) { KeyUp(&in_spec_next, args[1]); }
 void IN_SpecNextDown(const CCommand &args) { KeyDown(&in_spec_next, args[1]); }
@@ -574,6 +701,18 @@ void IN_LeanRightToggle(const CCommand& args)
 	{
 		KeyDown(&in_lean_right, args[1]);
 		KeyUp(&in_lean_left, args[1]);
+	}
+}
+
+void IN_SpeedToggle(const CCommand& args)
+{
+	if (::input->KeyState(&in_speed))
+	{
+		KeyUp(&in_speed, args[1]);
+	}
+	else
+	{
+		KeyDown(&in_speed, args[1]);
 	}
 }
 
@@ -629,6 +768,12 @@ void IN_ScoreDown( const CCommand &args )
 	KeyDown( &in_score, args[1] );
 	if ( gViewPortInterface )
 	{
+#ifdef NEO
+		if (g_pNeoScoreBoard)
+		{
+			g_pNeoScoreBoard->ToggleMouseCapture(g_pNeoScoreBoard->InCopyCrosshairPopup());
+		}
+#endif // NEO
 		gViewPortInterface->ShowPanel( PANEL_SCOREBOARD, true );
 	}
 }
@@ -638,6 +783,16 @@ void IN_ScoreUp( const CCommand &args )
 	KeyUp( &in_score, args[1] );
 	if ( gViewPortInterface )
 	{
+#ifdef NEO
+		if (g_pNeoScoreBoard)
+		{
+			if (g_pNeoScoreBoard->InCopyCrosshairPopup())
+			{
+				return;
+			}
+			g_pNeoScoreBoard->ToggleMouseCapture(false);
+		}
+#endif // NEO
 		gViewPortInterface->ShowPanel( PANEL_SCOREBOARD, false );
 		GetClientVoiceMgr()->StopSquelchMode();
 	}
@@ -1577,9 +1732,10 @@ int CInput::GetButtonBits( int bResetState )
 	CalcButtonBits( bits, IN_LEAN_RIGHT, s_ClearInputState, &in_lean_right, bResetState );
 	CalcButtonBits( bits, IN_THERMOPTIC, s_ClearInputState, &in_thermoptic, bResetState);
 	CalcButtonBits( bits, IN_VISION, s_ClearInputState, &in_vision, bResetState);
-	if (KeyState(&in_speed))
+	if (KeyState(&in_speed) && !IsLocalPlayerSpectator())
 	{
-		bits &= ~(IN_WALK);
+		// Cancel walk toggle if sprinting
+		KeyUp(&in_walk, nullptr);
 	}
 #endif
 
@@ -1748,6 +1904,9 @@ static ConCommand endattack3("-attack3", IN_Attack3Up);
 #ifdef TF_CLIENT_DLL
 static ConCommand toggle_duck( "toggle_duck", IN_DuckToggle );
 #endif
+#ifdef NEO
+static ConCommand toggle_duck( "toggle_duck", IN_DuckToggle );
+#endif
 
 // Xbox 360 stub commands
 static ConCommand xboxmove("xmove", IN_XboxStub);
@@ -1757,8 +1916,11 @@ static ConCommand xboxlook("xlook", IN_XboxStub);
 static ConCommand startdrop("+toss", IN_DropDown);
 static ConCommand enddrop("-toss", IN_DropUp);
 
-static ConCommand startaim("+aim", IN_AimDown);
-static ConCommand endaim("-aim", IN_AimUp);
+static ConCommand startaim("+aim", IN_ZoomDown);
+static ConCommand endaim("-aim", IN_ZoomUp);
+
+static ConCommand starttoggleaim("+toggle_aim", IN_AimDown);
+static ConCommand stoptoggleaim("-toggle_aim", IN_AimUp);
 
 static ConCommand startleanleft("+leanl", IN_LeanLeftDown);
 static ConCommand endleanleft("-leanl", IN_LeanLeftUp);
@@ -1774,6 +1936,8 @@ static ConCommand endvision("-vision", IN_VisionUp);
 
 static ConCommand toggle_leanleft("toggle_leanl", IN_LeanLeftToggle);
 static ConCommand toggle_leanright("toggle_leanr", IN_LeanRightToggle);
+
+static ConCommand toggle_sprint("toggle_sprint", IN_SpeedToggle);
 
 static ConCommand toggle_walk("toggle_walk", IN_WalkToggle);
 
@@ -1851,5 +2015,9 @@ void CInput::LevelInit( void )
 	// Remove any IK information
 	m_EntityGroundContact.RemoveAll();
 #endif
+#ifdef NEO
+	nextMouseWheelUp = 0.f;
+	nextMouseWheelDown = 0.f;
+#endif // NEO
 }
 

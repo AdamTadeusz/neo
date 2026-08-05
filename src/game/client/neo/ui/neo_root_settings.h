@@ -1,8 +1,10 @@
 #pragma once
 
+#include "shareddefs.h"
 #include "tier1/convar.h"
 #include "neo_player_shared.h"
-#include "neo_hud_crosshair.h"
+#include "neo_crosshair.h"
+#include "neo_hud_friendly_marker.h"
 
 // NEO TODO (nullsystem): Implement our own file IO dialog
 #include "vgui_controls/FileOpenDialog.h"
@@ -34,36 +36,47 @@ enum XHairExportNotify
 	XHAIREXPORTNOTIFY__TOTAL,
 };
 
+#define NEO_BINDS_TOTAL 96
+
+// Note that this is not necessarily the same as "neo_fov" cvar max value.
+// We are restricted to supporting a max of 90 due to an engine limitation.
+constexpr auto maxSupportedFov = 90;
+static_assert(MIN_FOV <= maxSupportedFov);
+static_assert(MAX_FOV >= maxSupportedFov);
+
 struct NeoSettings
 {
+	enum EquipUtilityPriorityType
+	{
+		EQUIP_UTILITY_PRIORITY_FRAG_SMOKE_DETPACK = 0,
+		EQUIP_UTILITY_PRIORITY_CLASS_SPECIFIC,
+
+		EQUIP_UTILITY_PRIORITY__TOTAL,
+	};
+
 	struct General
 	{
-		wchar_t wszNeoName[MAX_PLAYER_NAME_LENGTH + 1];
-		wchar_t wszNeoClantag[NEO_MAX_CLANTAG_LENGTH + 1];
+		wchar_t wszNeoName[MAX_PLAYER_NAME_LENGTH];
+		wchar_t wszNeoClantag[NEO_MAX_CLANTAG_LENGTH];
 		bool bOnlySteamNick;
 		bool bMarkerSpecOnlyClantag;
-		int iFov;
-		int iViewmodelFov;
-		bool bAimHold;
 		bool bReloadEmpty;
 		bool bViewmodelRighthand;
 		bool bLeanViewmodelOnly;
 		int iLeanAutomatic;
-		bool bShowSquadList;
+		int iEquipUtilityPriority;
+		bool bWeaponFastSwitch;
 		bool bShowPlayerSprays;
-		bool bShowPos;
-		int iShowFps;
 		int iDlFilter;
 		bool bStreamerMode;
 		bool bAutoDetectOBS;
-		bool bEnableRangeFinder;
-		bool bExtendedKillfeed;
+		bool bTachiFullAutoPreferred;
 		int iBackground;
+		bool bTakingDamageSounds;
 	};
 
 	struct Keys
 	{
-		bool bWeaponFastSwitch;
 		bool bDeveloperConsole;
 
 		struct Bind
@@ -73,16 +86,12 @@ struct NeoSettings
 			ButtonCode_t bcNext;
 			ButtonCode_t bcCurrent; // Only used for unbinding
 			ButtonCode_t bcDefault;
+			ButtonCode_t bcSecondaryNext;
+			ButtonCode_t bcSecondaryCurrent;
+			bool bSkipSecondary = false;
 		};
-		Bind vBinds[96];
+		Bind vBinds[NEO_BINDS_TOTAL];
 		int iBindsSize = 0;
-
-		// Will be checked often so cached
-		ButtonCode_t bcConsole;
-		ButtonCode_t bcMP3Player;
-		ButtonCode_t bcTeamMenu;
-		ButtonCode_t bcClassMenu;
-		ButtonCode_t bcLoadoutMenu;
 
 		enum Flags
 		{
@@ -94,6 +103,7 @@ struct NeoSettings
 	struct Mouse
 	{
 		float flSensitivity;
+		float flZoomSensitivityRatio;
 		bool bRawInput;
 		bool bFilter;
 		bool bReverse;
@@ -101,14 +111,28 @@ struct NeoSettings
 		float flExponent;
 	};
 
+	struct Controller
+	{
+		bool bEnabled;
+		bool bReverse;
+		bool bSwapSticks;
+		float flSensHorizontal;
+		float flSensVertical;
+	};
+
 	struct Audio
 	{
 		float flVolMain;
 		float flVolMusic;
+		bool bVolMusicSepInGame;
+		float flVolMusicInGame;
 		float flVolVictory;
+		float flVolPing;
 		int iSoundSetup;
 		int iSoundQuality;
 		bool bMuteAudioUnFocus;
+		bool bPauseMusicInGame;
+		int iMusicStartupType;
 		bool bVoiceEnabled;
 		float flVolVoiceRecv;
 		bool bMicBoost;
@@ -135,6 +159,9 @@ struct NeoSettings
 		bool bMotionBlur;
 		int iHDR;
 		float flGamma;
+		int iFov;
+		int iViewmodelFov;
+		bool bSoftwareCursor;
 
 		// Video modes
 		int iVMListSize;
@@ -144,9 +171,15 @@ struct NeoSettings
 
 	struct Crosshair
 	{
+		ENeoCrosshairWep eXHairWep;
+		EHipfireOpt aeHipfireOpts[CROSSHAIR_WEP__TOTAL];
+
 		CrosshairInfo info;
 		XHairExportNotify eClipboardInfo;
 		bool bNetworkCrosshair;
+		bool bInaccuracyInScope;
+		bool bFriendlyFireWarning;
+		bool bPreviewDynamicAccuracy;
 
 		// Textures
 		struct Texture
@@ -158,17 +191,61 @@ struct NeoSettings
 		Texture arTextures[CROSSHAIR_STYLE__TOTAL];
 	};
 
+	struct HUD
+	{
+		// Miscellaneous
+		bool bShowSquadList;
+		int iHealthMode;
+		int iIFFVerbosity;
+		bool bIFFHealthbars;
+		int iObjVerbosity;
+		bool bShowHints;
+		bool bShowPos;
+		int iShowFps;
+		bool bEnableRangeFinder;
+		int iExtendedKillfeed;
+		bool bShowHudContextHints;
+		bool bShowHudContextHintPlayerTakeover;
+		bool bShowHudContextHintObjectInteract;
+		bool bShowHudContextAdjacentObjects;
+		bool bShowHudContextHintBotInteract;
+		bool bShowHudContextHighlightObject;
+		bool bShowHudContextHighlightPlayer;
+		int iScoreboardPadding;
+
+		// IFF Markers
+		int optionChosen;
+		FriendlyMarkerInfo options[NeoIFFMarkerOption::NEOIFFMARKER_OPTION_TOTAL];
+
+#ifdef GLOWS_ENABLE
+		// Player Xray
+		bool bEnableXray;
+		float flOutlineWidth;
+		float flOutlineAlpha;
+		float flCenterOpacity;
+		float flTexturedOpacity;
+#endif // GLOWS_ENABLE
+	};
+
 	General general;
 	Keys keys;
 	Mouse mouse;
+	Controller controller;
 	Audio audio;
 	Video video;
 	Crosshair crosshair;
+	HUD hud;
+
+	KeyValues* backgrounds;
+	int iCBListSize;
+	wchar_t** p2WszCBList;
 
 	int iCurTab = 0;
 	bool bBack = false;
 	bool bModified = false;
+	bool bIsValid = false;
 	int iNextBinding = -1;
+	bool bNextBindingSecondary = false;
 
 	struct CVR
 	{
@@ -176,16 +253,19 @@ struct NeoSettings
 		CONVARREF_DEF(neo_name);
 		CONVARREF_DEF(neo_clantag);
 		CONVARREF_DEF(cl_onlysteamnick);
-		CONVARREF_DEF(cl_neo_clantag_friendly_marker_spec_only);
 		CONVARREF_DEF(neo_fov);
 		CONVARREF_DEF(neo_viewmodel_fov_offset);
-		CONVARREF_DEF(neo_aim_hold);
+		CONVARREF_DEF(cl_software_cursor);
 		CONVARREF_DEF(cl_autoreload_when_empty);
 		CONVARREF_DEF(cl_righthand);
 		CONVARREF_DEF(cl_neo_lean_viewmodel_only);
 		CONVARREF_DEF(cl_neo_lean_automatic);
 		CONVARREF_DEF(cl_neo_squad_hud_original);
+		CONVARREF_DEF(cl_neo_hud_health_mode);
+		CONVARREF_DEF(cl_neo_hud_worldpos_verbose);
 		CONVARREF_DEF(cl_neo_hud_extended_killfeed);
+		CONVARREF_DEF(cl_neo_tachi_prefer_auto);
+		CONVARREF_DEF(cl_neo_showhints);
 		CONVARREF_DEF(cl_showpos);
 		CONVARREF_DEF(cl_showfps);
 		CONVARREF_DEF(hud_fastswitch);
@@ -194,6 +274,16 @@ struct NeoSettings
 		CONVARREF_DEF(cl_neo_streamermode_autodetect_obs);
 		CONVARREF_DEF(cl_neo_hud_rangefinder_enabled);
 		CONVARREF_DEF(sv_unlockedchapters);
+		CONVARREF_DEF(cl_neo_hud_context_hint_enabled);
+		CONVARREF_DEF(cl_neo_hud_context_hint_show_player_takeover_hint);
+		CONVARREF_DEF(cl_neo_hud_context_hint_show_object_interact_hint);
+		CONVARREF_DEF(cl_neo_hud_context_hint_show_adjacent_interactable_objects);
+		CONVARREF_DEF(cl_neo_hud_context_hint_show_bot_interact_hint);
+		CONVARREF_DEF(cl_neo_hud_context_hint_highlight_object);
+		CONVARREF_DEF(cl_neo_hud_context_hint_highlight_player);
+		CONVARREF_DEF(cl_neo_equip_utility_priority);
+		CONVARREF_DEF(cl_neo_taking_damage_sounds);
+		CONVARREF_DEF(cl_neo_hud_scoreboard_padding);
 
 		// Multiplayer
 		CONVARREF_DEF(cl_spraydisable);
@@ -201,20 +291,33 @@ struct NeoSettings
 
 		// Mouse
 		CONVARREF_DEF(sensitivity);
+		CONVARREF_DEF(zoom_sensitivity_ratio);
 		CONVARREF_DEF(m_filter);
 		CONVARREF_DEF(m_pitch);
 		CONVARREF_DEF(m_customaccel);
 		CONVARREF_DEF(m_customaccel_exponent);
 		CONVARREF_DEF(m_rawinput);
 
+		// Controller
+		CONVARREF_DEF(joystick);
+		CONVARREF_DEF(joy_inverty);
+		CONVARREF_DEF(joy_movement_stick);
+		CONVARREF_DEF(joy_yawsensitivity);
+		CONVARREF_DEF(joy_pitchsensitivity);
+
 		// Audio
 		CONVARREF_DEFNOGLOBALPTR(volume);
 		CONVARREF_DEFNOGLOBALPTR(snd_musicvolume);
+		CONVARREF_DEF(cl_neo_radio_volume_separate_ingame);
+		CONVARREF_DEFNOGLOBALPTR(cl_neo_radio_volume_ingame);
 		CONVARREF_DEFNOGLOBALPTR(snd_victory_volume);
+		CONVARREF_DEFNOGLOBALPTR(snd_ping_volume);
 		CONVARREF_DEF(snd_surround_speakers);
-		CONVARREF_DEF(voice_enable);
+		CONVARREF_DEF(voice_modenable);
 		CONVARREF_DEF(voice_scale);
 		CONVARREF_DEF(snd_mute_losefocus);
+		CONVARREF_DEF(cl_neo_radio_pause_ingame);
+		CONVARREF_DEF(cl_neo_radio_startup);
 		CONVARREF_DEF(snd_pitchquality);
 		CONVARREF_DEF(dsp_slow_cpu);
 
@@ -240,18 +343,41 @@ struct NeoSettings
 		// Crosshair
 		CONVARREF_DEFNOGLOBALPTR(cl_neo_crosshair);
 		CONVARREF_DEF(cl_neo_crosshair_network);
+		CONVARREF_DEF(cl_neo_crosshair_scope_inaccuracy);
+		CONVARREF_DEF(cl_neo_crosshair_friendly_fire_warning);
+
+		// Friendly Markers
+		CONVARREF_DEFNOGLOBALPTR(cl_neo_squad_marker);
+		CONVARREF_DEFNOGLOBALPTR(cl_neo_friendly_marker);
+		CONVARREF_DEFNOGLOBALPTR(cl_neo_spectator_marker);
+#ifdef GLOWS_ENABLE
+		CONVARREF_DEFNOGLOBALPTR(cl_neo_squad_xray_marker);
+		CONVARREF_DEFNOGLOBALPTR(cl_neo_friendly_xray_marker);
+		CONVARREF_DEFNOGLOBALPTR(cl_neo_spectator_xray_marker);
+
+		// Xray
+		CONVARREF_DEF(glow_outline_effect_enable);
+		CONVARREF_DEF(glow_outline_effect_width);
+		CONVARREF_DEF(glow_outline_effect_alpha);
+		CONVARREF_DEF(glow_outline_effect_center_alpha);
+		CONVARREF_DEF(glow_outline_effect_textured_center_alpha);
+#endif // GLOWS_ENABLE
 	};
 	CVR cvr;
 };
 void NeoSettingsInit(NeoSettings *ns);
+void NeoSettingsBackgroundsInit(NeoSettings* ns);
+void NeoSettingsBackgroundWrite(const NeoSettings* ns, const char* backgroundName = nullptr);
 void NeoSettingsDeinit(NeoSettings *ns);
 void NeoSettingsRestore(NeoSettings *ns, const NeoSettings::Keys::Flags flagsKeys = NeoSettings::Keys::NONE);
 void NeoSettingsSave(const NeoSettings *ns);
 void NeoSettingsResetToDefault(NeoSettings *ns);
+void NeoSettingsEndVoiceTweakMode();
 
 void NeoSettings_General(NeoSettings *ns);
 void NeoSettings_Keys(NeoSettings *ns);
-void NeoSettings_Mouse(NeoSettings *ns);
+void NeoSettings_MouseController(NeoSettings *ns);
 void NeoSettings_Audio(NeoSettings *ns);
 void NeoSettings_Video(NeoSettings *ns);
 void NeoSettings_Crosshair(NeoSettings *ns);
+void NeoSettings_HUD(NeoSettings *ns);

@@ -336,19 +336,7 @@ const FileWeaponInfo_t &CBaseCombatWeapon::GetWpnData( void ) const
 //-----------------------------------------------------------------------------
 const char *CBaseCombatWeapon::GetViewModel( int /*viewmodelindex = 0 -- this is ignored in the base class here*/ ) const
 {
-#ifdef NEO
-	auto owner = GetOwner();
-
-	if (!owner)
-	{
-		return GetWpnData().szViewModel;
-	}
-
-	return owner->GetTeamNumber() == TEAM_JINRAI ?
-		GetWpnData().szViewModel : GetWpnData().szViewModel2;
-#else
 	return GetWpnData().szViewModel;
-#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -2947,9 +2935,8 @@ void RecvProxy_m_iClip(const CRecvProxyData* pData, void* pStruct, void* pOut)
 		return;
 	}
 
-	const float bulletHeatCost = pNeoWeapon->GetNeoWepBits() & (NEO_WEP_SUPA7 | NEO_WEP_AA13) ? 0.5 : 0.1; // NEO TODO (Adam) store this in weapon info text file?
-	constexpr float MAX_WEAPON_TEMPERATURE_WHEN_FIRING = -0.5;
-	pNeoWeapon->m_flTemperature = max(MAX_WEAPON_TEMPERATURE_WHEN_FIRING, pNeoWeapon->m_flTemperature - (bulletsFired * bulletHeatCost));
+	const float bulletHeatCost = pNeoWeapon->GetNeoWepBits() & (NEO_WEP_SUPA7 | NEO_WEP_AA13) ? 0.5f : 0.1f; // NEO TODO (Adam) store this in weapon info text file?
+	pNeoWeapon->m_flTemperature = Min(THERMALS_OBJECT_MAX_TEMPERATURE , pNeoWeapon->m_flTemperature + (bulletsFired * bulletHeatCost));
 }
 #endif //CLIENT_DLL
 #endif // NEO

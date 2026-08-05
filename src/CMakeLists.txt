@@ -7,7 +7,8 @@ set(CMAKE_VERBOSE_MAKEFILE TRUE)
 message(STATUS "CMAKE_VERSION: ${CMAKE_VERSION}")
 
 string(TIMESTAMP BUILD_DATETIME UTC)
-message(STATUS "TIMESTAMP: ${BUILD_DATETIME}")
+# NEO TODO (nullsystem): This screwed up nvim's :make
+# message(STATUS "TIMESTAMP: ${BUILD_DATETIME}")
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
@@ -22,6 +23,7 @@ if(NOT OS_WINDOWS AND NOT OS_LINUX AND NOT OS_MACOS)
     message(FATAL_ERROR "Unknown OS")
 endif()
 
+option(CMAKE_COMPILE_WARNING_AS_ERROR "Treat compile warnings as errors" ${DEFAULT_WARN_AS_ERR})
 option(NEO_CI_BUILD "CI build mode" OFF)
 option(NEO_USE_CCACHE "Use ccache" ${OS_LINUX})
 option(NEO_STAGING_ONLY "Staging mode (STAGING_ONLY)" OFF)
@@ -37,6 +39,7 @@ option(NEO_BUILD_MATHLIB "Build mathlib library" ON)
 option(NEO_BUILD_VGUI_CONTROLS "Build vgui_controls library" ON)
 option(NEO_COPY_LIBRARIES "Copy libraries to bin directory by default" ON)
 option(NEO_EXTRA_ASSETS "Copy extra assets into game/neo" ON)
+set(NEO_EXTRA_ASSETS_ALT_PATH "" CACHE PATH "Alternate location to fetch the extra assets")
 if (OS_LINUX)
     set(NEO_OUTPUT_LIBRARY_PATH "${CMAKE_SOURCE_DIR}/../game/neo/bin/linux64" CACHE PATH "Directory for output libraries (linux64)")
 else ()
@@ -44,11 +47,15 @@ else ()
 endif ()
 option(NEO_INSTALL_LIBRARIES "Install game libraries" OFF)
 option(NEO_INSTALL_RESOURCES "Install game resources" OFF)
+option(NEO_INSTALL_LAUNCHER "Install the Steam mod launcher" OFF)
 option(NEO_USE_SEPARATE_BUILD_INFO "Use separate build info on Linux" OFF)
 option(NEO_ENABLE_CPACK "Enable CPack" OFF)
 option(NEO_USE_MEM_DEBUG "Enable USE_MEM_DEBUG defines" OFF)
 option(NEO_GENERATE_GAMEDATA "Generate SourceMod gamedata" ${NEO_DEDICATED})
+option(NEO_BUILD_LAUNCHER "Build the Steam mod launcher" ON)
+set(NEO_MOD_APPID "3172910" CACHE STRING "Steam appid for the mod launcher's steam_appid.txt")
 
+message(STATUS "Treat compile warnings as errors: ${CMAKE_COMPILE_WARNING_AS_ERROR}")
 message(STATUS "CI build mode: ${NEO_CI_BUILD}")
 message(STATUS "Use ccache: ${NEO_USE_CCACHE}")
 message(STATUS "Staging (STAGING_ONLY): ${NEO_STAGING_ONLY}")
@@ -64,11 +71,15 @@ message(STATUS "Build mathlib library: ${NEO_BUILD_MATHLIB}")
 message(STATUS "Build vgui_controls library: ${NEO_BUILD_VGUI_CONTROLS}")
 message(STATUS "Copy libraries to bin directory by default: ${NEO_COPY_LIBRARIES}")
 message(STATUS "Copy extra assets into game/neo: ${NEO_EXTRA_ASSETS}")
+message(STATUS "Alternate location to fetch the extra assets: ${NEO_EXTRA_ASSETS_ALT_PATH}")
 message(STATUS "Directory for output libraries: ${NEO_OUTPUT_LIBRARY_PATH}")
 message(STATUS "Install game libraries: ${NEO_INSTALL_LIBRARIES}")
 message(STATUS "Install game resources: ${NEO_INSTALL_RESOURCES}")
+message(STATUS "Install the Steam mod launcher: ${NEO_INSTALL_LAUNCHER}")
 message(STATUS "Use separate build info on Linux: ${NEO_USE_SEPARATE_BUILD_INFO}")
 message(STATUS "Enable CPack: ${NEO_ENABLE_CPACK}")
+message(STATUS "Build the Steam mod launcher: ${NEO_BUILD_LAUNCHER}")
+message(STATUS "Mod launcher appid override: ${NEO_MOD_APPID}")
 message("")
 
 if(NEO_COPY_LIBRARIES)
@@ -107,33 +118,45 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWith
         NDEBUG
     )
 
-    add_compile_options(
-        #-fno-strict-aliasing
-        -ffast-math
-        -fno-omit-frame-pointer
-        -ftree-vectorize
-    )
+    if (NOT COMPILER_MSVC)
+        add_compile_options(
+            #-fno-strict-aliasing
+            -ffast-math
+            -fno-omit-frame-pointer
+            -ftree-vectorize
+        )
+    endif()
 endif()
+
+add_compile_definitions(
+    # Whether to validate narrowing conversions done with narrow_cast<T>(...)
+    # If not, will simply alias narrow_cast to static_cast
+    $<$<CONFIG:Debug>:PARANOID_NARROWING>
+)
 
 if(NEO_RAD_TELEMETRY_DISABLED)
     add_compile_definitions(RAD_TELEMETRY_DISABLED)
 endif()
 
 if (OS_LINUX)
-    set(PLATSUBDIR "/linux64")
+    set(PLATSUBDIR "linux64")
 elseif (OS_WINDOWS)
-    set(PLATSUBDIR "/x64")
+    set(PLATSUBDIR "x64")
 endif ()
 
 set(STEAM_RUNTIME_PATH /usr)
 set(CRYPTOPPDIR steamrt_sniper64)
 
+if (NEO_DEDICATED AND OS_LINUX)
+    set(SRV_SUFFIX "_srv")
+else()
+    set(SRV_SUFFIX "")
+endif()
+
 add_compile_definitions(
     # SDK2013CE # Cut out since 2025-02-18 TF2 SDK Update
     NEO
     GLOWS_ENABLE
-    _DLL_EXT=${CMAKE_SHARED_LIBRARY_SUFFIX}
-    _EXTERNAL_DLL_EXT=${CMAKE_SHARED_LIBRARY_SUFFIX}
     _GLIBCXX_USE_CXX11_ABI=0
     FRAME_POINTER_OMISSION_DISABLED
     SOURCE1=1
@@ -142,11 +165,15 @@ add_compile_definitions(
     # NEO NOTE (nullsystem): New defines since 2025-02-18 TF2 SDK Update
     PLATFORM_64BITS
     INCLUDED_STEAM2_USERID_STRUCTS
+
+    # NEO NOTE (Rain): Needed to remove platform specific min/max C macro pollution;
+    # instead you can use the Min/Max templated functions from basetypes.h.
+    NOMINMAX
 )
 
 if(OS_WINDOWS)
-    set(LIBPUBLIC "${CMAKE_SOURCE_DIR}/lib/public${PLATSUBDIR}")
-    set(LIBCOMMON "${CMAKE_SOURCE_DIR}/lib/common${PLATSUBDIR}")
+    set(LIBPUBLIC "${CMAKE_SOURCE_DIR}/lib/public/${PLATSUBDIR}")
+    set(LIBCOMMON "${CMAKE_SOURCE_DIR}/lib/common/${PLATSUBDIR}")
 
     set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "EditAndContinue")
 
@@ -161,6 +188,7 @@ if(OS_WINDOWS)
         /errorReport:prompt # ErrorReporting - Prompt Immediately
         /W4
         /Gw # Optimize Global Data
+		/bigobj # Required for unity build
 
         /wd4456
         /wd4457
@@ -189,7 +217,6 @@ if(OS_WINDOWS)
         _ALLOW_RUNTIME_LIBRARY_MISMATCH
         _ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH
         _ALLOW_MSC_VER_MISMATCH
-        fopen=dont_use_fopen
         _MBCS
     )
 
@@ -215,7 +242,6 @@ if(OS_WINDOWS)
             /Zc:forScope
             /Zc:inline
             /Zc:forScope
-            /Oy-
             /MTd
         )
 
@@ -235,16 +261,15 @@ if(OS_WINDOWS)
         add_compile_options(
             #/Z7 # DebugInformationFormat - C7 Compatible
             #/Wp64 # Detect64bitPortabilityIssues
-            #/O2 # Optimization - Maximize Speed
-            /Ob2 # InlineFunctionExpansion - Any Suitable
-            /Oi # EnableIntrinsicFunctions
-            /Ot # FavorSizeOrSpeed - Favor Fast Code
-            /GF # EnableStringPooling
-            /Gy # EnableFunctionLevelLinking
+            /O2 # Optimization - Maximize Speed
             #/Zo
-            /Oy-
             /MT
         )
+
+        if(NOT CPU_64BIT)
+            # In x64 compilers, /Oy and /Oy- are not available.
+            add_compile_options(/Oy-)
+        endif()
 
         add_link_options(
             /NODEFAULTLIB:libcmtd
@@ -281,9 +306,11 @@ if(OS_LINUX OR OS_MACOS)
     add_compile_options(
         # See: https://gcc.gnu.org/onlinedocs/gcc/x86-Options.html
 
-        # core2 - Intel Core 2 CPU with 64-bit extensions, MMX, SSE, SSE2, SSE3, SSSE3, CX16, SAHF and FXSR instruction set support. 
-        -march=core2
-        #-march=x86-64
+        # Baseline any x86_64 CPU (MMX, SSE, SSE2, and FXSR instruction set support)
+        -march=x86-64
+
+        # Optimize for the most common AMD64 processors, doesn't cut out support unlike -march
+        -mtune=generic
 
         # This option enables GCC to generate CMPXCHG16B instructions in 64-bit code to implement compare-and-exchange
         # operations on 16-byte aligned 128-bit objects. This is useful for atomic updates of data structures exceeding
@@ -300,14 +327,15 @@ if(OS_LINUX OR OS_MACOS)
         #-Wextra # if STEAM_BRANCH
         #-Wshadow # if STEAM_BRANCH
 
-        $<$<CXX_COMPILER_ID:GNU>:-mfpmath=sse>
+        # Required for SourceMod gamedata generation
         $<$<COMPILE_LANGUAGE:CXX>:-Wno-invalid-offsetof>
+
+        $<$<CXX_COMPILER_ID:GNU>:-mfpmath=sse>
         $<$<COMPILE_LANGUAGE:CXX>:-Wno-overloaded-virtual>
         $<$<COMPILE_LANGUAGE:CXX>:-Wno-reorder>
         -Wno-multichar
         -Wno-write-strings
         -Wno-unused-variable
-        -Wno-unused-but-set-variable
         -Wno-unused-function
         -Wno-unknown-pragmas
         -Wno-unused-parameter
@@ -317,8 +345,12 @@ if(OS_LINUX OR OS_MACOS)
         -Wno-float-equal
         -Wno-unused-local-typedefs
         -Wno-switch
-        -Wno-strict-aliasing
-        -Wno-address
+        #-Wno-strict-aliasing
+        #-Wno-address
+        $<$<CXX_COMPILER_ID:Clang>:-Wno-inconsistent-missing-override>
+
+        # Unsupported by the steamrt3 Clang compiler
+        $<$<NOT:$<AND:$<COMPILE_LANG_AND_ID:CXX,Clang>,$<CXX_COMPILER_VERSION:11.0.1>>>:-Wno-unused-but-set-variable>
 
         -Werror=return-type
         -fdiagnostics-show-option
@@ -329,10 +361,10 @@ if(OS_LINUX OR OS_MACOS)
         -Ustrncpy
 
         # Fix for non-clickable vgui buttons when using -O2
-        -fno-devirtualize-speculatively
+        $<$<CXX_COMPILER_ID:GNU>:-fno-devirtualize-speculatively>
 
         # Fix for non-clickable vgui buttons when using -O3
-        -fno-ipa-cp-clone
+        $<$<CXX_COMPILER_ID:GNU>:-fno-ipa-cp-clone>
 
         # Fix for "error: cast from pointer to smaller type 'unsigned int' loses information"
         #-fms-extensions
@@ -342,14 +374,14 @@ if(OS_LINUX OR OS_MACOS)
     if(NOT CMAKE_CXX_COMPILER_VERSION STREQUAL "4.8.4")
         add_compile_options(
             $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fabi-compat-version=2>
-            $<$<COMPILE_LANGUAGE:CXX>:-Wno-class-memaccess>
-            $<$<COMPILE_LANGUAGE:CXX>:-Wno-template-id-cdtor>
-            -Wno-nonnull-compare
+            $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wno-class-memaccess>
+            $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wno-template-id-cdtor>
+            $<$<CXX_COMPILER_ID:GNU>:-Wno-nonnull-compare>
         )
     endif()
 
     # We should always specify -Wl,--build-id, as documented at:
-    # http://linux.die.net/man/1/ld and http://fedoraproject.org/wiki/Releases/FeatureBuildId.http://fedoraproject.org/wiki/Releases/FeatureBuildId
+    # http://linux.die.net/man/1/ld and http://fedoraproject.org/wiki/Releases/FeatureBuildId
     add_link_options(
         -Wl,--build-id
         -static-libgcc
@@ -362,8 +394,9 @@ if(OS_LINUX OR OS_MACOS)
 endif()
 
 if(OS_LINUX)
-    set(LIBPUBLIC "${CMAKE_SOURCE_DIR}/lib/public${PLATSUBDIR}")
-    set(LIBCOMMON "${CMAKE_SOURCE_DIR}/lib/common${PLATSUBDIR}")
+    set(LIBPUBLIC_RELATIVE_PATH "lib/public/${PLATSUBDIR}")
+    set(LIBPUBLIC "${CMAKE_SOURCE_DIR}/${LIBPUBLIC_RELATIVE_PATH}")
+    set(LIBCOMMON "${CMAKE_SOURCE_DIR}/lib/common/${PLATSUBDIR}")
 
     add_compile_definitions(
         LINUX
@@ -371,10 +404,15 @@ if(OS_LINUX)
     )
 endif()
 
+# Clang may define GCC or MSVC values as some kind of a compatibility thing,
+# but this can break code that relies on accurately identifying the used compiler.
+# The "ACTUALLY_..." defs here can be used for succintly determining the compiler for real.
 if(COMPILER_MSVC)
     add_compile_definitions(COMPILER_MSVC)
+    add_compile_definitions(ACTUALLY_COMPILER_MSVC)
 elseif(COMPILER_GCC)
     add_compile_definitions(COMPILER_GCC)
+    add_compile_definitions(ACTUALLY_COMPILER_GCC)
 elseif(COMPILER_CLANG)
     add_compile_definitions(COMPILER_CLANG)
 endif()
@@ -401,8 +439,8 @@ if(NEO_GENERATE_GAMEDATA)
 
     FetchContent_Declare(
         gamedata-gen
-        URL https://github.com/NeotokyoRebuild/gamedata-gen/releases/download/v2/gamedata-gen.zip
-        URL_HASH MD5=2a988c84e7e192d33819868c37ad3150
+        URL https://github.com/NeotokyoRebuild/gamedata-gen/releases/download/v3/gamedata-gen.zip
+        URL_HASH MD5=b502c1d8454e6ce9d0e0d8976ce39a8d
         GIT_PROGRESS TRUE
         USES_TERMINAL_DOWNLOAD TRUE
     )
@@ -418,6 +456,10 @@ if(NOT NEO_DEDICATED)
 endif()
 
 add_subdirectory(game/server)
+
+if(NEO_BUILD_LAUNCHER AND NOT NEO_DEDICATED)
+    add_subdirectory(launcher_main)
+endif()
 
 if(NEO_COPY_LIBRARIES)
     set(COPY_ALL_LIBS_FLAG ALL)
@@ -476,8 +518,8 @@ if(NEO_INSTALL_LIBRARIES)
         else()
             install(
                 TARGETS server
-                LIBRARY DESTINATION "${LIBRARY_INSTALL_PATH}${PLATSUBDIR}"
-                RUNTIME DESTINATION "${LIBRARY_INSTALL_PATH}${PLATSUBDIR}"
+                LIBRARY DESTINATION "${LIBRARY_INSTALL_PATH}/${PLATSUBDIR}"
+                RUNTIME DESTINATION "${LIBRARY_INSTALL_PATH}/${PLATSUBDIR}"
             )
         endif()
     else()
@@ -526,50 +568,101 @@ if(NEO_INSTALL_LIBRARIES)
         else()
             install(
                 TARGETS client game_shader_dx9 server
-                LIBRARY DESTINATION "${LIBRARY_INSTALL_PATH}${PLATSUBDIR}"
-                RUNTIME DESTINATION "${LIBRARY_INSTALL_PATH}${PLATSUBDIR}"
+                LIBRARY DESTINATION "${LIBRARY_INSTALL_PATH}/${PLATSUBDIR}"
+                RUNTIME DESTINATION "${LIBRARY_INSTALL_PATH}/${PLATSUBDIR}"
             )
         endif()
     endif()
 
     if(OS_LINUX AND NEO_GENERATE_GAMEDATA)
+        install(
+            FILES "${CMAKE_SOURCE_DIR}/gamedata/core.games/custom/game.neo.txt"
+            DESTINATION "${INSTALL_PATH_PREFIX}-gamedata/neo/addons/sourcemod/gamedata/core.games/custom"
+        )
+
         get_target_property(SERVER_GAMEDATA_SDKHOOKS_OUTPUT_FILE server GAMEDATA_SDKHOOKS_OUTPUT_FILE)
         install(
             FILES ${SERVER_GAMEDATA_SDKHOOKS_OUTPUT_FILE}
-            DESTINATION "${INSTALL_PATH_PREFIX}-gamedata/neo/addons/sourcemod/gamedata/sdkhooks.games"
+            DESTINATION "${INSTALL_PATH_PREFIX}-gamedata/neo/addons/sourcemod/gamedata/sdkhooks.games/custom"
         )
 
         get_target_property(SERVER_GAMEDATA_SDKTOOLS_OUTPUT_FILE server GAMEDATA_SDKTOOLS_OUTPUT_FILE)
         install(
             FILES ${SERVER_GAMEDATA_SDKTOOLS_OUTPUT_FILE}
-            DESTINATION "${INSTALL_PATH_PREFIX}-gamedata/neo/addons/sourcemod/gamedata/sdktools.games"
+            DESTINATION "${INSTALL_PATH_PREFIX}-gamedata/neo/addons/sourcemod/gamedata/sdktools.games/custom"
         )
+    endif()
+endif()
+
+if(NEO_INSTALL_LAUNCHER AND NEO_BUILD_LAUNCHER AND NOT NEO_DEDICATED)
+    # The launcher sits at the install root, next to the neo/ game directory.
+    # steam_api ships with the engine binaries in bin/, so only the launcher
+    # itself is staged here.
+    set(LAUNCHER_INSTALL_PATH "${INSTALL_PATH_PREFIX}-launcher-${CMAKE_SYSTEM_NAME}-${BUILD_TYPE_NAME}")
+
+    if(NEO_USE_SEPARATE_BUILD_INFO)
+        set(LAUNCHER_DEBUG_INFO_INSTALL_PATH "${INSTALL_PATH_PREFIX}-launcher-debuginfo-${CMAKE_SYSTEM_NAME}-${BUILD_TYPE_NAME}")
+
+        if(OS_WINDOWS)
+            install(TARGETS launcher_main RUNTIME DESTINATION "${LAUNCHER_INSTALL_PATH}")
+
+            install(
+                FILES "$<TARGET_PDB_FILE:launcher_main>"
+                DESTINATION "${LAUNCHER_DEBUG_INFO_INSTALL_PATH}"
+            )
+        else()
+            get_target_property(LAUNCHER_STRIPPED_FILE launcher_main STRIPPED_FILE)
+            install(
+                PROGRAMS ${LAUNCHER_STRIPPED_FILE}
+                DESTINATION "${LAUNCHER_INSTALL_PATH}"
+            )
+
+            get_target_property(LAUNCHER_SPLIT_DEBUG_INFO_FILE launcher_main SPLIT_DEBUG_INFO_FILE)
+            install(
+                FILES ${LAUNCHER_SPLIT_DEBUG_INFO_FILE}
+                DESTINATION "${LAUNCHER_DEBUG_INFO_INSTALL_PATH}"
+            )
+        endif()
+    else()
+        install(TARGETS launcher_main RUNTIME DESTINATION "${LAUNCHER_INSTALL_PATH}")
     endif()
 endif()
 
 if(NEO_INSTALL_RESOURCES)
     install(
-        DIRECTORY ${CMAKE_SOURCE_DIR}/../game/neo
+        DIRECTORY
+        ${CMAKE_SOURCE_DIR}/../game/bin
+        ${CMAKE_SOURCE_DIR}/../game/neo
         DESTINATION "${INSTALL_PATH_PREFIX}-resources"
     )
 endif()
 
 if(NEO_EXTRA_ASSETS)
-    include(FetchContent) # once in the project to include the module
+    if(NEO_EXTRA_ASSETS_ALT_PATH)
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${NEO_EXTRA_ASSETS_ALT_PATH}/neo"
+                "${CMAKE_SOURCE_DIR}/../game/neo")
+    else()
+        include(FetchContent)
 
-    FetchContent_Declare(
-        neo_assets
-        GIT_REPOSITORY https://github.com/NeotokyoRebuild/neoAssets.git
-        GIT_TAG master # Replace with a commit hash or other tag to select a specific version of the assets, remove GIT_SHALLOW if using commit hash
-        GIT_SHALLOW 1
-        GIT_PROGRESS TRUE
-        USES_TERMINAL_DOWNLOAD TRUE
-    )
+        FetchContent_Declare(
+            neo_assets
+            GIT_REPOSITORY https://github.com/NeotokyoRebuild/neoAssets.git
+            GIT_TAG master
+            GIT_SHALLOW 1
+            GIT_PROGRESS TRUE
+            USES_TERMINAL_DOWNLOAD TRUE
+        )
 
-    FetchContent_MakeAvailable(neo_assets)
+        FetchContent_MakeAvailable(neo_assets)
 
-    execute_process(
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${neo_assets_SOURCE_DIR}/neo"
-            "${CMAKE_SOURCE_DIR}/../game/neo")
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${neo_assets_SOURCE_DIR}/neo"
+                "${CMAKE_SOURCE_DIR}/../game/neo")
+    endif()
 endif()
+
+add_subdirectory(tests)
+

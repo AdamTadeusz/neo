@@ -134,9 +134,33 @@ function(split_debug_information)
         set(TARGET_OUTPUT_NAME "${PARSED_ARGS_TARGET}")
     endif()
 
-    set(SPLITDEBUG_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_OUTPUT_NAME}.so")
-    set(SPLITDEBUG_TARGET "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT_SUBDIRECTORY}/${TARGET_OUTPUT_NAME}.so")
-    set(SPLITDEBUG_TARGET_DEBUG "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT_SUBDIRECTORY}/${TARGET_OUTPUT_NAME}.so.debug")
+    get_target_property(TARGET_PREFIX ${PARSED_ARGS_TARGET} PREFIX)
+    if("${TARGET_PREFIX}" STREQUAL "TARGET_PREFIX-NOTFOUND")
+        get_target_property(TARGET_TYPE ${PARSED_ARGS_TARGET} TYPE)
+        if(TARGET_TYPE STREQUAL "EXECUTABLE")
+            set(TARGET_PREFIX "")
+        elseif(TARGET_TYPE STREQUAL "SHARED_LIBRARY")
+            set(TARGET_PREFIX "${CMAKE_SHARED_LIBRARY_PREFIX}")
+        else()
+            message(WARNING "Unknown TARGET_TYPE value")
+        endif()
+    endif()
+
+    get_target_property(TARGET_SUFFIX ${PARSED_ARGS_TARGET} SUFFIX)
+    if("${TARGET_SUFFIX}" STREQUAL "TARGET_SUFFIX-NOTFOUND")
+        get_target_property(TARGET_TYPE ${PARSED_ARGS_TARGET} TYPE)
+        if(TARGET_TYPE STREQUAL "EXECUTABLE")
+            set(TARGET_SUFFIX "${CMAKE_EXECUTABLE_SUFFIX}")
+        elseif(TARGET_TYPE STREQUAL "SHARED_LIBRARY")
+            set(TARGET_SUFFIX "${CMAKE_SHARED_LIBRARY_SUFFIX}")
+        else()
+            message(WARNING "Unknown TARGET_TYPE value")
+        endif()
+    endif()
+
+    set(SPLITDEBUG_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_PREFIX}${TARGET_OUTPUT_NAME}${TARGET_SUFFIX}")
+    set(SPLITDEBUG_TARGET "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT_SUBDIRECTORY}/${TARGET_PREFIX}${TARGET_OUTPUT_NAME}${TARGET_SUFFIX}")
+    set(SPLITDEBUG_TARGET_DEBUG "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT_SUBDIRECTORY}/${TARGET_PREFIX}${TARGET_OUTPUT_NAME}${TARGET_SUFFIX}.debug")
 
     add_custom_target(
         ${PARSED_ARGS_TARGET}_split_debug_information
@@ -151,7 +175,7 @@ function(split_debug_information)
     add_custom_command(
         OUTPUT ${SPLITDEBUG_TARGET}
         COMMAND ${CMAKE_OBJCOPY} --only-keep-debug ${OBJCOPY_COMPRESS_DEBUG_SECTIONS_PARAM} ${SPLITDEBUG_SOURCE} ${SPLITDEBUG_TARGET_DEBUG}
-        COMMAND ${CMAKE_STRIP} ${SPLITDEBUG_SOURCE} -o ${SPLITDEBUG_TARGET}
+        COMMAND ${CMAKE_STRIP} --strip-debug ${SPLITDEBUG_SOURCE} -o ${SPLITDEBUG_TARGET}
         COMMAND ${CMAKE_OBJCOPY} --add-gnu-debuglink="${SPLITDEBUG_TARGET_DEBUG}" ${SPLITDEBUG_TARGET}
     )
 
@@ -184,13 +208,13 @@ function(add_gamedata_gen_target)
     set(GAMEDATA_LIBRARY "$<TARGET_FILE:${PARSED_ARGS_TARGET}>")
 
     set(GAMEDATA_INPUT_FILES
-        "${CMAKE_SOURCE_DIR}/gamedata/sdkhooks.games/game.neo.txt.in"
-        "${CMAKE_SOURCE_DIR}/gamedata/sdktools.games/game.neo.txt.in"
+        "${CMAKE_SOURCE_DIR}/gamedata/sdkhooks.games/custom/game.neo.txt.in"
+        "${CMAKE_SOURCE_DIR}/gamedata/sdktools.games/custom/game.neo.txt.in"
     )
 
     set(GAMEDATA_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT_SUBDIRECTORY})
-    set(GAMEDATA_SDKHOOKS_OUTPUT_FILE "${GAMEDATA_OUTPUT_DIR}/sdkhooks.games/game.neo.txt")
-    set(GAMEDATA_SDKTOOLS_OUTPUT_FILE "${GAMEDATA_OUTPUT_DIR}/sdktools.games/game.neo.txt")
+    set(GAMEDATA_SDKHOOKS_OUTPUT_FILE "${GAMEDATA_OUTPUT_DIR}/sdkhooks.games/custom/game.neo.txt")
+    set(GAMEDATA_SDKTOOLS_OUTPUT_FILE "${GAMEDATA_OUTPUT_DIR}/sdktools.games/custom/game.neo.txt")
 
     set(GAMEDATA_OUTPUT_FILES
         "${GAMEDATA_SDKHOOKS_OUTPUT_FILE}"
@@ -198,8 +222,8 @@ function(add_gamedata_gen_target)
     )
 
     set(GAMEDATA_OUTPUT_DIRS
-        "${GAMEDATA_OUTPUT_DIR}/sdkhooks.games"
-        "${GAMEDATA_OUTPUT_DIR}/sdktools.games"
+        "${GAMEDATA_OUTPUT_DIR}/sdkhooks.games/custom"
+        "${GAMEDATA_OUTPUT_DIR}/sdktools.games/custom"
     )
 
     add_custom_target(

@@ -9,7 +9,9 @@
 #include <vgui_controls/Frame.h>
 #include <vgui_controls/EditablePanel.h>
 #include <vgui_controls/Button.h>
+#include <vgui_controls/Label.h>
 #include "neo/game_controls/neo_button.h"
+#include "neo/game_controls/neo_image_button.h"
 #include <vgui_controls/ComboBox.h>
 #include <igameevents.h>
 #include "GameEventListener.h"
@@ -77,9 +79,10 @@ protected:
     void SetLabelText(const char *textEntryName, const char *text);
 	void SetLabelText(const char *textEntryName, wchar_t *text);
 	void MoveLabelToFront(const char *textEntryName);
-	void FindButtons();
+	void FindControls();
 	void UpdateSkinImages(int classNumber = -1, int overrideTeamNumber = -1);
 	void UpdateTimer() { }
+	void UpdateClassButtons();
 
     // vgui overrides
 	virtual void PerformLayout() { }
@@ -89,19 +92,19 @@ protected:
     // Menu pieces. These are defined in the GetResFile() file.
     // --------------------------------------------------------
 
-    // Image panels
-    vgui::ImagePanel *m_pSkinPanel1;
-    vgui::ImagePanel *m_pSkinPanel2;
-    vgui::ImagePanel *m_pSkinPanel3;
-
     // Buttons
-    vgui::CNeoButton*m_pRecon_Button;
-    vgui::CNeoButton*m_pAssault_Button;
-    vgui::CNeoButton*m_pSupport_Button;
-	vgui::Button *m_pSkin1_Button;
-	vgui::Button *m_pSkin2_Button;
-	vgui::Button *m_pSkin3_Button;
-    vgui::CNeoButton*m_pBack_Button;
+    vgui::CNeoButton *m_pRecon_Button;
+    vgui::CNeoButton *m_pAssault_Button;
+    vgui::CNeoButton *m_pSupport_Button;
+	vgui::CNeoImageButton *m_pSkin1_Button;
+	vgui::CNeoImageButton *m_pSkin2_Button;
+	vgui::CNeoImageButton *m_pSkin3_Button;
+    vgui::CNeoButton *m_pBack_Button;
+
+    // Labels
+    vgui::Label *m_pRecon_Label = nullptr;
+    vgui::Label *m_pAssault_Label = nullptr;
+    vgui::Label *m_pSupport_Label = nullptr;
 
     bool m_bClassMenu;
 

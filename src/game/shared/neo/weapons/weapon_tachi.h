@@ -20,6 +20,13 @@
 #define CWeaponTachi C_WeaponTachi
 #endif
 
+namespace Tachi {
+	enum Firemode {
+		Auto = false,
+		Single = true
+	};
+};
+
 class CWeaponTachi : public CNEOBaseCombatWeapon
 {
 	DECLARE_CLASS(CWeaponTachi, CNEOBaseCombatWeapon);
@@ -37,10 +44,11 @@ public:
 	void	ItemPostFrame( void ) override;
 
     virtual void SwitchFireMode( void );
-    virtual void ForceSetFireMode( bool bPrimaryMode,
+    virtual void ForceSetFireMode( Tachi::Firemode primaryMode,
         bool bPlaySound = false, float flSoonestSwitch = 0.0f );
 
-	virtual NEO_WEP_BITS_UNDERLYING_TYPE GetNeoWepBits(void) const override { return NEO_WEP_TACHI; }
+	NEO_WEP_BITS_UNDERLYING_TYPE WeaponIndex() const override { return NEO_WIDX_TACHI; }
+	virtual NEO_WEP_BITS_UNDERLYING_TYPE GetNeoWepBits(void) const override { return NEO_WEP_TACHI | NEO_WEP_FIREARM; }
 	virtual int GetNeoWepXPCost(const int neoClass) const override { return 0; }
 
 	virtual float GetSpeedScale(void) const OVERRIDE { return 0.85f; }
@@ -48,10 +56,12 @@ public:
 	virtual int	GetMinBurst() OVERRIDE { return 1; }
 	virtual int	GetMaxBurst() OVERRIDE { return 3; }
 
-	virtual bool IsAutomatic(void) const OVERRIDE
+	inline virtual bool IsAutomatic(void) const override final
 	{
-		return (m_bIsPrimaryFireMode == false);
+		return (m_bIsPrimaryFireMode == Tachi::Firemode::Auto);
 	}
+
+	bool CanBePickedUpByClass(int classId) OVERRIDE;
 
 protected:
 	virtual float GetFastestDryRefireTime() const OVERRIDE { return 0.2f; }

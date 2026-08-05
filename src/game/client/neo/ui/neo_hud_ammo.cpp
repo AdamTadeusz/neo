@@ -26,17 +26,8 @@
 
 using vgui::surface;
 
-ConVar cl_neo_hud_ammo_enabled("cl_neo_hud_ammo_enabled", "1", FCVAR_USERINFO,
+ConVar cl_neo_hud_ammo_enabled("cl_neo_hud_ammo_enabled", "1", FCVAR_ARCHIVE,
 	"Whether the HUD ammo is enabled or not.", true, 0, true, 1);
-
-ConVar cl_neo_hud_debug_ammo_color_r("cl_neo_hud_debug_ammo_color_r", "190", FCVAR_USERINFO | FCVAR_CHEAT,
-	"Red color value of the ammo, in range 0 - 255.", true, 0.0f, true, 255.0f);
-ConVar cl_neo_hud_debug_ammo_color_g("cl_neo_hud_debug_ammo_color_g", "185", FCVAR_USERINFO | FCVAR_CHEAT,
-	"Green color value of the ammo, in range 0 - 255.", true, 0.0f, true, 255.0f);
-ConVar cl_neo_hud_debug_ammo_color_b("cl_neo_hud_debug_ammo_color_b", "205", FCVAR_USERINFO | FCVAR_CHEAT,
-	"Blue value of the ammo, in range 0 - 255.", true, 0.0f, true, 255.0f);
-ConVar cl_neo_hud_debug_ammo_color_a("cl_neo_hud_debug_ammo_color_a", "255", FCVAR_USERINFO | FCVAR_CHEAT,
-	"Alpha color value of the ammo, in range 0 - 255.", true, 0.0f, true, 255.0f);
 
 DECLARE_NAMED_HUDELEMENT(CNEOHud_Ammo, NHudWeapon);
 
@@ -160,11 +151,11 @@ void CNEOHud_Ammo::DrawAmmo() const
 	int magSizeMax = 0;
 	int magSizeCurrent = 0;
 		
-	if (activeWep->UsesClipsForAmmo1() && !(activeWep->GetNeoWepBits() & NEO_WEP_THROWABLE)) 
+	if ((activeWep->UsesClipsForAmmo1() && !(activeWep->GetNeoWepBits() & NEO_WEP_THROWABLE)) || (activeWep->GetNeoWepBits() & NEO_WEP_BALC))
 	{
 		char fireModeText[2]{ '\0' };
 
-		ammoChar = activeWep->GetWpnData().szBulletCharacter;
+		ammoChar = activeWep->GetNEOWpnData().szBulletCharacter;
 		magSizeMax = activeWep->GetMaxClip1();
 		magSizeCurrent = activeWep->Clip1();
 			
@@ -203,6 +194,12 @@ void CNEOHud_Ammo::DrawAmmo() const
 		}			
 	}
 
+	if (activeWep->GetNeoWepBits() & NEO_WEP_BALC)
+	{
+		DrawHeatMeter(activeWep);
+		return;
+	}
+
 	surface()->DrawSetTextColor(ammo_color);
 	if (digit_as_number && activeWep->UsesClipsForAmmo1())
 	{ // Draw bullets in magazine in number form
@@ -236,7 +233,7 @@ void CNEOHud_Ammo::DrawAmmo() const
 	constexpr auto maxBullets = 100; // PZ Mag Size
 
 	char bullets[maxBullets + 1];
-	magSizeMax = min(magSizeMax, sizeof(bullets));
+	magSizeMax = Min(magSizeMax, narrow_cast<int>(sizeof(bullets) - 1));
 	int i;
 	for(i = 0; i < magSizeMax; i++)
 	{
@@ -248,7 +245,8 @@ void CNEOHud_Ammo::DrawAmmo() const
 		
 	if(bulletsOverflowing)
 	{
-		bullets[magSizeMax - 1] = '+';
+		if (magSizeMax > 0)
+			bullets[magSizeMax - 1] = '+';
 
 		if(maxClip == magSizeCurrent)
 		{
@@ -294,4 +292,31 @@ void CNEOHud_Ammo::DrawNeoHudElement()
 	{
 		DrawAmmo();
 	}
+}
+
+void CNEOHud_Ammo::DrawHeatMeter(C_NEOBaseCombatWeapon* activeWep) const
+{
+	float flHeatAmount = (1.0f - (activeWep->GetPrimaryAmmoCount() / (float)activeWep->GetDefaultClip1()));
+	Color heatColorLerp = LerpColor(ammo_color,heat_color, flHeatAmount);
+	
+	if (activeWep->GetPrimaryAmmoCount() == 0)
+	{
+		surface()->DrawSetTextFont(m_hSmallTextFont);
+		surface()->DrawSetTextPos(heatbar_xpos + xpos, (heatbar_ypos + ypos) - 22);
+		surface()->DrawPrintText(L"OVERHEAT", 8);
+	}
+
+	surface()->DrawSetColor(heatColorLerp);
+	surface()->DrawFilledRect(
+		heatbar_xpos + xpos,
+		heatbar_ypos + ypos,
+		heatbar_xpos + xpos + (heatbar_w * flHeatAmount),
+		heatbar_ypos + ypos + heatbar_h);
+
+	surface()->DrawSetColor(ammo_text_color);
+	surface()->DrawOutlinedRect(
+		heatbar_xpos + xpos,
+		heatbar_ypos + ypos,
+		heatbar_xpos + xpos + heatbar_w,
+		heatbar_ypos + ypos + heatbar_h);
 }

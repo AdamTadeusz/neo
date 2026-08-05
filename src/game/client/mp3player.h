@@ -34,7 +34,9 @@ namespace vgui
 	class DirectorySelectDialog;
 };
 
+#ifndef NEO
 class CMP3FileSheet;
+#endif
 class CMP3TreeControl;
 class CMP3SongProgress;
 
@@ -242,9 +244,6 @@ public:
 
 protected:
 	virtual void			OnCommand( char const *cmd );
-#ifdef NEO
-	void					OnKeyCodePressed(vgui::KeyCode code) override;
-#endif // NEO
 	virtual void			ApplySchemeSettings( vgui::IScheme *pScheme );
 	virtual void			OnTick();
 
@@ -274,12 +273,20 @@ protected:
 	int						FindSong( char const *relative );
 #ifdef NEO
 public:
+	void					SetVolumeSlider(int value);
+	void					SetInGameVolumeSlider(int value);
 #endif // NEO
 	void					PlaySong( int songIndex, float skipTime = 0.0f );
 #ifdef NEO
 protected:
 #endif // NEO
+
+#ifdef NEO
+	void					GetLocalCopyOfSong( const MP3File_t &mp3, char *outsong, int outlen );
+#else
 	void					GetLocalCopyOfSong( const MP3File_t &mp3, char *outsong, size_t outlen );
+#endif
+
 	float					GetMP3Duration( char const *songname );
 	void					OnNextTrack();
 	void					OnPrevTrack();
@@ -287,7 +294,9 @@ protected:
 	void					OnPlay();
 	void					OnStop();
 #ifdef NEO
+public:
 	void					OnPause();
+protected:
 #endif // NEO
 	void					OnChangeVolume( float newVol );
 #ifdef NEO
@@ -334,7 +343,9 @@ private:
 // UI elements
 	vgui::MenuButton		*m_pOptions;
 	CMP3TreeControl			*m_pTree;
+#ifndef NEO
 	CMP3FileSheet			*m_pFileSheet;
+#endif
 	vgui::Label				*m_pCurrentSong;
 	vgui::Label				*m_pDuration;
 	CMP3SongProgress		*m_pSongProgress;
@@ -346,6 +357,7 @@ private:
 	vgui::Slider			*m_pVolume;
 #ifdef NEO
 	vgui::Slider			*m_pVolumeInGame;
+	vgui::CheckButton		*m_pMenuPause;
 	vgui::CheckButton		*m_pGamePause;
 
 	bool					m_bFirstEverTick = true;
@@ -369,6 +381,7 @@ private:
 	bool					m_bMuted;
 #ifdef NEO
 	bool					m_bShuffle;
+	bool					m_bPauseInMenu;
 	bool					m_bPauseInGame;
 #endif // NEO
 
@@ -408,10 +421,5 @@ private:
 
 	bool					m_bEnableAutoAdvance;
 };
-
-#ifdef NEO
-// Singleton
-static CMP3Player* g_pPlayer;
-#endif // NEO
 
 #endif // !MP3PLAYER_H

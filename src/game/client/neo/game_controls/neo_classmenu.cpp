@@ -28,6 +28,7 @@
 #endif
 
 #include "c_neo_player.h"
+#include "c_team.h"
 
 #include <vgui_controls/TextEntry.h>
 #include <vgui_controls/Panel.h>
@@ -60,24 +61,24 @@ CNeoClassMenu *g_pNeoClassMenu = NULL;
 using namespace vgui;
 
 const char* playerModels[]{
-	"cm/jinrai_scout01",
-	"cm/jinrai_scout02",
-	"cm/jinrai_scout03",
-	"cm/jinrai_assault01",
-	"cm/jinrai_assault02",
-	"cm/jinrai_assault03",
-	"cm/jinrai_heavy01",
-	"cm/jinrai_heavy02",
-	"cm/jinrai_heavy03",
-	"cm/nsf_scout01",
-	"cm/nsf_scout02",
-	"cm/nsf_scout03",
-	"cm/nsf_assault01",
-	"cm/nsf_assault02",
-	"cm/nsf_assault03",
-	"cm/nsf_heavy01",
-	"cm/nsf_heavy02",
-	"cm/nsf_heavy03",
+	"vgui/cm/jinrai_scout01",
+	"vgui/cm/jinrai_scout02",
+	"vgui/cm/jinrai_scout03",
+	"vgui/cm/jinrai_assault01",
+	"vgui/cm/jinrai_assault02",
+	"vgui/cm/jinrai_assault03",
+	"vgui/cm/jinrai_heavy01",
+	"vgui/cm/jinrai_heavy02",
+	"vgui/cm/jinrai_heavy03",
+	"vgui/cm/nsf_scout01",
+	"vgui/cm/nsf_scout02",
+	"vgui/cm/nsf_scout03",
+	"vgui/cm/nsf_assault01",
+	"vgui/cm/nsf_assault02",
+	"vgui/cm/nsf_assault03",
+	"vgui/cm/nsf_heavy01",
+	"vgui/cm/nsf_heavy02",
+	"vgui/cm/nsf_heavy03",
 };
 
 CNeoClassMenu::CNeoClassMenu(IViewPort *pViewPort)
@@ -103,18 +104,18 @@ CNeoClassMenu::CNeoClassMenu(IViewPort *pViewPort)
 	//SetKeyBoardInputEnabled(true); // Leaving here to highlight menu navigation with keyboard is possible atm
 	SetTitleBarVisible(false);
 
-	FindButtons();
+	FindControls();
 	ListenForGameEvent("player_team");
 }
 
 CNeoClassMenu::~CNeoClassMenu()
 {
-	m_pSkinPanel1->SetAutoDelete(true);
-	m_pSkinPanel2->SetAutoDelete(true);
-	m_pSkinPanel3->SetAutoDelete(true);
 	m_pSkin1_Button->SetAutoDelete(true);
 	m_pSkin2_Button->SetAutoDelete(true);
 	m_pSkin3_Button->SetAutoDelete(true);
+	m_pRecon_Label->SetAutoDelete(true);
+	m_pAssault_Label->SetAutoDelete(true);
+	m_pSupport_Label->SetAutoDelete(true);
 	m_pRecon_Button->SetAutoDelete(true);
 	m_pAssault_Button->SetAutoDelete(true);
 	m_pSupport_Button->SetAutoDelete(true);
@@ -139,14 +140,30 @@ void CNeoClassMenu::FireGameEvent(IGameEvent* event)
 	}
 }
 
-void CNeoClassMenu::FindButtons()
+void CNeoClassMenu::FindControls()
 {
-	m_pSkinPanel1 = FindControl<ImagePanel>("Model1_ImagePanel");
-	m_pSkinPanel2 = FindControl<ImagePanel>("Model2_ImagePanel");
-	m_pSkinPanel3 = FindControl<ImagePanel>("Model3_ImagePanel");
-	m_pSkin1_Button = FindControl<Button>("Skin1_Button");
-	m_pSkin2_Button = FindControl<Button>("Skin2_Button");
-	m_pSkin3_Button = FindControl<Button>("Skin3_Button");
+	m_pSkin1_Button = FindControl<CNeoImageButton>("Skin1_Button");
+	if (m_pSkin1_Button)
+	{
+		m_pSkin1_Button->SetButtonTexture("vgui/cm/jinrai_assault01");
+	}
+
+	m_pSkin2_Button = FindControl<CNeoImageButton>("Skin2_Button");
+	if (m_pSkin2_Button)
+	{
+		m_pSkin2_Button->SetButtonTexture("vgui/cm/jinrai_assault02");
+	}
+
+	m_pSkin3_Button = FindControl<CNeoImageButton>("Skin3_Button");
+	if (m_pSkin3_Button)
+	{
+		m_pSkin3_Button->SetButtonTexture("vgui/cm/jinrai_assault03");
+	}
+	
+	m_pRecon_Label = FindControl<Label>("Recon_Label");
+	m_pAssault_Label = FindControl<Label>("Assault_Label");
+	m_pSupport_Label = FindControl<Label>("Support_Label");
+
 	m_pRecon_Button = FindControl<CNeoButton>("Scout_Button");
 	m_pAssault_Button = FindControl<CNeoButton>("Assault_Button");
 	m_pSupport_Button = FindControl<CNeoButton>("Heavy_Button");
@@ -170,7 +187,6 @@ void CNeoClassMenu::CommandCompletion()
 
 	SetMouseInputEnabled(false);
 	//SetKeyBoardInputEnabled(false);
-	SetCursorAlwaysVisible(false);
 }
 
 void CNeoClassMenu::OnClose()
@@ -188,6 +204,20 @@ void CNeoClassMenu::OnCommand(const char *command)
 		// No command
 		return;
 	}
+	
+	C_NEO_Player* player = C_NEO_Player::GetLocalNEOPlayer();
+	if (!player)
+	{
+		Assert(false);
+		return;
+	}
+
+	C_Team* team = player->GetTeam();
+	if (!team)
+	{
+		Assert(false);
+		return;
+	}
 
 	char commandBuffer[20]; // Needs to be large enough to hold longest command sent from this menu
 	V_strcpy_safe(commandBuffer, command);
@@ -195,6 +225,9 @@ void CNeoClassMenu::OnCommand(const char *command)
 	if (Q_stristr(commandBuffer, "setclass") != 0)
 	{ // Picking class, stay on this screen
 		int classNumber = commandBuffer[9] - '1'; // Needed for skin images, 0 indexed, recon class is 1
+		if (team->IsClassFull(classNumber))
+			return;
+
 		UpdateSkinImages(classNumber);
 		engine->ClientCmd(commandBuffer);
 		return;
@@ -234,24 +267,47 @@ void CNeoClassMenu::ChangeMenu(const char* menuName = NULL)
 
 void CNeoClassMenu::OnKeyCodeReleased(vgui::KeyCode code)
 {
-	if (code == g_pNeoRoot->m_ns.keys.bcClassMenu)
+	if (code == gameuifuncs->GetButtonCodeForBind("classmenu"))
 	{
 		ChangeMenu(NULL);
 		return;
 	}
 
+	C_NEO_Player* player = C_NEO_Player::GetLocalNEOPlayer();
+	if (!player)
+	{
+		Assert(false);
+		return;
+	}
+
+	C_Team* team = player->GetTeam();
+	if (!team)
+	{
+		Assert(false);
+		return;
+	}
+
 	switch (code) {
 	case KEY_1:
-		UpdateSkinImages(0);
-		engine->ClientCmd("setclass 1");
+		if (!team->IsClassFull(NEO_CLASS_RECON))
+		{
+			UpdateSkinImages(0);
+			engine->ClientCmd("setclass 1");
+		}
 		break;
 	case KEY_2:
-		UpdateSkinImages(1);
-		engine->ClientCmd("setclass 2");
+		if (!team->IsClassFull(NEO_CLASS_ASSAULT))
+		{
+			UpdateSkinImages(1);
+			engine->ClientCmd("setclass 2");
+		}
 		break;
 	case KEY_3:
-		UpdateSkinImages(2);
-		engine->ClientCmd("setclass 3");
+		if (!team->IsClassFull(NEO_CLASS_SUPPORT))
+		{
+			UpdateSkinImages(2);
+			engine->ClientCmd("setclass 3");
+		}
 		break;
 	case KEY_SPACE: // Continue with currently selected class and skin
 		ChangeMenu("loadoutmenu");
@@ -280,15 +336,24 @@ void CNeoClassMenu::UpdateSkinImages(int classNumber, int overrideTeamNumber)
 
 	if (classNumber > NEO_CLASS_SUPPORT || classNumber < NEO_CLASS_RECON)
 	{
-		m_pSkinPanel1->SetImage("cm/none");
-		m_pSkinPanel2->SetImage("cm/none");
-		m_pSkinPanel3->SetImage("cm/none");
+		m_pSkin1_Button->SetButtonTexture("vgui/cm/none");
+		m_pSkin2_Button->SetButtonTexture("vgui/cm/none");
+		m_pSkin3_Button->SetButtonTexture("vgui/cm/none");
+		return;
+	}
+	
+	if (NEORules()->IsCyberspace())
+	{
+		teamNumber = player->GetTeamNumber();
+		m_pSkin1_Button->SetButtonTexture(classNumber == NEO_CLASS_RECON ? (teamNumber == TEAM_JINRAI ? "vgui/cm/jinrai_dummy" : "vgui/cm/nsf_dummy") : "vgui/cm/none");
+		m_pSkin2_Button->SetButtonTexture(classNumber == NEO_CLASS_ASSAULT ? (teamNumber == TEAM_JINRAI ? "vgui/cm/jinrai_dummy" : "vgui/cm/nsf_dummy") : "vgui/cm/none");
+		m_pSkin3_Button->SetButtonTexture(classNumber == NEO_CLASS_SUPPORT ? (teamNumber == TEAM_JINRAI ? "vgui/cm/jinrai_dummy" : "vgui/cm/nsf_dummy") : "vgui/cm/none");
 		return;
 	}
 
-	m_pSkinPanel1->SetImage(playerModels[teamNumber * 9 + (classNumber * 3) + 0]);
-	m_pSkinPanel2->SetImage(playerModels[teamNumber * 9 + (classNumber * 3) + 1]);
-	m_pSkinPanel3->SetImage(playerModels[teamNumber * 9 + (classNumber * 3) + 2]);
+	m_pSkin1_Button->SetButtonTexture(playerModels[teamNumber * 9 + (classNumber * 3) + 0]);
+	m_pSkin2_Button->SetButtonTexture(playerModels[teamNumber * 9 + (classNumber * 3) + 1]);
+	m_pSkin3_Button->SetButtonTexture(playerModels[teamNumber * 9 + (classNumber * 3) + 2]);
 }
 
 void CNeoClassMenu::OnMessage(const KeyValues *params, VPANEL fromPanel)
@@ -309,7 +374,7 @@ void CNeoClassMenu::ApplySchemeSettings(vgui::IScheme *pScheme)
 	SetPaintBackgroundEnabled(false);
 	SetBorder(NULL);
 
-	FindButtons();
+	FindControls();
 
     m_pRecon_Button->SetUseCaptureMouse(true);
     m_pRecon_Button->SetMouseInputEnabled(true);
@@ -385,7 +450,72 @@ void CNeoClassMenu::ShowPanel( bool bShow )
     }
 }
 
+extern ConVar sv_neo_class_limit_recon;
+extern ConVar sv_neo_class_limit_assault;
+extern ConVar sv_neo_class_limit_support;
 void CNeoClassMenu::OnThink()
 {
 	BaseClass::OnThink();
+
+	C_NEO_Player* pLocalPlayer = C_NEO_Player::GetLocalNEOPlayer();
+	if (!pLocalPlayer)
+	{
+		Assert(false);
+		return;
+	}
+
+	const int iLocalPlayerTeam = pLocalPlayer->GetTeamNumber();
+	if (iLocalPlayerTeam != TEAM_JINRAI && iLocalPlayerTeam != TEAM_NSF)
+		return;
+
+	C_Team* localPlayerTeam = GetGlobalTeam(iLocalPlayerTeam);
+	if (!localPlayerTeam)
+	{
+		Assert(false);
+		return;
+	}
+
+	auto updateClassButtonAndLabel = [&pLocalPlayer, &localPlayerTeam](vgui::Label *pClassLabel, vgui::Button *pClassButton, int neoClass, ConVar *classLimit)
+		{
+			if (!pClassLabel || !pClassButton)
+			{
+				Assert(false);
+				return;
+			}
+
+			const int numClassPlayers = localPlayerTeam->GetClassCount(neoClass);
+			char textBuff[9 + 1];
+
+			if (classLimit->GetInt() == 0)
+			{
+				V_sprintf_safe(textBuff, "DISABLED");
+				pClassButton->SetEnabled(false);
+			}
+			else if (classLimit->GetInt() > 0)
+			{
+				V_sprintf_safe(textBuff, "%d/%d", numClassPlayers, classLimit->GetInt());
+				pClassButton->SetEnabled(numClassPlayers < classLimit->GetInt());
+			}
+			else
+			{
+				V_sprintf_safe(textBuff, "%d", numClassPlayers);
+				pClassButton->SetEnabled(true);
+			}
+			pClassLabel->SetText(textBuff);
+
+			if (pLocalPlayer->GetClass() == neoClass)
+			{
+				pClassButton->SetBlink(true);
+				pClassButton->SetEnabled(true);
+				pClassButton->InvalidateLayout(); // NEO JANK (Adam) When this is the only enabled button, the button doesn't blink without invalidating the layout
+			}
+			else
+			{
+				pClassButton->SetBlink(false);
+			}
+		};
+
+	updateClassButtonAndLabel(m_pRecon_Label, m_pRecon_Button, NEO_CLASS_RECON, &sv_neo_class_limit_recon);
+	updateClassButtonAndLabel(m_pAssault_Label, m_pAssault_Button, NEO_CLASS_ASSAULT, &sv_neo_class_limit_assault);
+	updateClassButtonAndLabel(m_pSupport_Label, m_pSupport_Button, NEO_CLASS_SUPPORT, &sv_neo_class_limit_support);
 }

@@ -72,6 +72,7 @@ extern ConVar replay_rendersetting_renderglow;
 #include <GameUI/IGameUI.h>
 #include "ui/neo_loading.h"
 #include "neo_gamerules.h"
+#include "ui/neo_scoreboard.h"
 #endif
 
 #ifdef GLOWS_ENABLE
@@ -86,6 +87,7 @@ CLIENTEFFECT_REGISTER_BEGIN(PrecachePostProcessingEffectsGlow)
 CLIENTEFFECT_MATERIAL("dev/glow_color")
 CLIENTEFFECT_MATERIAL("dev/halo_add_to_screen")
 CLIENTEFFECT_MATERIAL("dev/halo_add_to_screen_outline")
+CLIENTEFFECT_MATERIAL("dev/halo_textured_add_to_screen")
 CLIENTEFFECT_REGISTER_END_CONDITIONAL(engine->GetDXSupportLevel() >= 90)
 #endif
 #define ACHIEVEMENT_ANNOUNCEMENT_MIN_TIME 10
@@ -184,6 +186,9 @@ CON_COMMAND( hud_reloadscheme, "Reloads hud layout and animation scripts." )
 CON_COMMAND_F( crash, "Crash the client. Optional parameter -- type of crash:\n 0: read from NULL\n 1: write to NULL\n 2: DmCrashDump() (xbox360 only)", FCVAR_CHEAT )
 {
 	int crashtype = 0;
+#ifdef NEO
+	volatile
+#endif
 	int dummy;
 	if ( args.ArgC() > 1 )
 	{
@@ -192,11 +197,19 @@ CON_COMMAND_F( crash, "Crash the client. Optional parameter -- type of crash:\n 
 	switch (crashtype)
 	{
 		case 0:
+#ifdef NEO
+			dummy = *((volatile int*)NULL);
+#else
 			dummy = *((int *) NULL);
+#endif
 			Msg("Crashed! %d\n", dummy); // keeps dummy from optimizing out
 			break;
 		case 1:
+#ifdef NEO
+			*((volatile int*)NULL) = 42;
+#else
 			*((int *)NULL) = 42;
+#endif
 			break;
 #if defined( _X360 )
 		case 2:
@@ -573,6 +586,19 @@ void ClientModeShared::OverrideMouseInput( float *x, float *y )
 //-----------------------------------------------------------------------------
 bool ClientModeShared::ShouldDrawViewModel()
 {
+#ifdef NEO
+	auto pWeapon = static_cast<C_NEOBaseCombatWeapon *>(GetActiveWeapon());
+	if (pWeapon && pWeapon->GetNeoWepBits() & NEO_WEP_SCOPEDWEAPON)
+	{
+		auto pPlayer = C_NEO_Player::GetLocalNEOPlayer();
+		auto pTargetPlayer = static_cast<C_NEO_Player *>(pPlayer->GetObserverTarget());
+		if (pPlayer->GetObserverMode() == OBS_MODE_IN_EYE && pTargetPlayer)
+		{
+			return !pTargetPlayer->IsInAim();
+		}
+		return !pPlayer->IsInAim();
+	}
+#endif
 	return true;
 }
 
@@ -757,6 +783,17 @@ int	ClientModeShared::KeyInput( int down, ButtonCode_t keynum, const char *pszCu
 	}
 #endif
 
+#ifdef NEO
+	// Scoreboard right-click mouse capture, higher precedence than spectator
+	// mouse clicks
+	if (gViewPortInterface && g_pNeoScoreBoard && g_pNeoScoreBoard->IsVisible()
+			&& down && MOUSE_RIGHT == keynum && false == g_pNeoScoreBoard->IsMouseInputEnabled())
+	{
+		g_pNeoScoreBoard->ToggleMouseCapture(true);
+		return 0;
+	}
+#endif // NEO
+
 	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
 
 	// if ingame spectator mode, let spectator input intercept key event here
@@ -782,9 +819,9 @@ int	ClientModeShared::KeyInput( int down, ButtonCode_t keynum, const char *pszCu
 	return 1;
 }
 
-#ifdef NEO
+#if defined NEO && defined GLOWS_ENABLE
 extern ConVar glow_outline_effect_enable;
-#endif // NEO
+#endif // NEO && GLOWS_ENABLE
 //-----------------------------------------------------------------------------
 // Purpose: See if spectator input occurred. Return 0 if the key is swallowed.
 //-----------------------------------------------------------------------------
@@ -814,7 +851,7 @@ int ClientModeShared::HandleSpectatorKeyInput( int down, ButtonCode_t keynum, co
 	}
 #ifdef NEO
 	else if (down && pszCurrentBinding &&
-			 (Q_strcmp(pszCurrentBinding, "+specprevplayer") == 0 || Q_strcmp(pszCurrentBinding, "+aim") == 0))
+			 (Q_strcmp(pszCurrentBinding, "+specprevplayer") == 0 || Q_strcmp(pszCurrentBinding, "+aim") == 0 || Q_strcmp(pszCurrentBinding, "+toggle_aim") == 0))
 #else
 	else if ( down && pszCurrentBinding && Q_strcmp( pszCurrentBinding, "+attack2" ) == 0 )
 #endif
@@ -835,13 +872,37 @@ int ClientModeShared::HandleSpectatorKeyInput( int down, ButtonCode_t keynum, co
 #endif
 		return 0;
 	}
-#ifdef GLOWS_ENABLE
+#if defined NEO && defined GLOWS_ENABLE
 	else if (down && pszCurrentBinding && Q_strcmp(pszCurrentBinding, "+attack2") == 0)
 	{
 		glow_outline_effect_enable.SetValue(!glow_outline_effect_enable.GetBool());
 		return 0;
 	}
-#endif // GLOWS_ENABLE
+#endif // NEO && GLOWS_ENABLE
+#ifdef NEO
+	else if (down && pszCurrentBinding && Q_strcmp(pszCurrentBinding, "+use") == 0)
+	{
+		C_BasePlayer* pLocalPlayer = C_BasePlayer::GetLocalPlayer();
+
+		if (pLocalPlayer)
+		{
+			auto eObserverMode = pLocalPlayer->GetObserverMode();
+
+			if ((eObserverMode == OBS_MODE_CHASE) || (eObserverMode == OBS_MODE_IN_EYE))
+			{
+				C_BaseEntity* pObserverTarget = pLocalPlayer->GetObserverTarget();
+				C_NEO_Player* pPlayerToTakeover = ToNEOPlayer(pObserverTarget);
+
+				if (pPlayerToTakeover) // ToNEOPlayer checks valid pObserverTarget
+				{
+					// Verify on server-side that player is a valid replacement target
+					engine->ServerCmd(VarArgs("spectatortakeoverplayer %d", pPlayerToTakeover->GetUserID()));
+				}
+			}
+		}
+		return 0;
+	}
+#endif // NEO
 
 	return 1;
 }
@@ -1193,17 +1254,6 @@ void ClientModeShared::FireGameEvent( IGameEvent *event )
 	else if ( Q_strcmp( "player_team", eventname ) == 0 )
 	{
 		C_BasePlayer *pPlayer = USERID2PLAYER( event->GetInt("userid") );
-#ifdef NEO
-#ifdef GLOWS_ENABLE
-		if (pPlayer && glow_outline_effect_enable.GetBool())
-		{ // NEO JANK (Adam) bots join their final team before they are created client side, so pPlayer here will be null for them, and setting clientsideglow on them in c_neo_player::Spawn() results in an incorrect glow colour. This works for players though
-			float r, g, b;
-			NEORules()->GetTeamGlowColor(event->GetInt("team"), r, g, b);
-			pPlayer->SetGlowEffectColor(r, g, b);
-			pPlayer->SetClientSideGlowEnabled(true);
-		}
-#endif // GLOWS_ENABLE
-#endif // NEO
 
 		if ( !hudChat )
 			return;
@@ -1293,6 +1343,12 @@ void ClientModeShared::FireGameEvent( IGameEvent *event )
 			// that's me
 			pPlayer->TeamChange( team );
 		}
+#if defined NEO && defined GLOWS_ENABLE
+		if (auto pNeoPlayer = static_cast<C_NEO_Player*>(pPlayer))
+		{
+			pNeoPlayer->UpdateGlowEffects(team);
+		}
+#endif // NEO && GLOWS_ENABLE
 	}
 #ifdef NEO
 	else if (Q_strcmp("player_changename", eventname) == 0 || Q_strcmp("player_changeneoname", eventname) == 0)

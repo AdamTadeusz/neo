@@ -11,11 +11,13 @@ BEGIN_NETWORK_TABLE(CWeaponSupa7, DT_WeaponSupa7)
 	RecvPropBool(RECVINFO(m_bSlugLoaded)),
 	RecvPropBool(RECVINFO(m_bWeaponRaised)),
 	RecvPropBool(RECVINFO(m_bShellInChamber)),
+	RecvPropFloat(RECVINFO(m_flNextReload)),
 #else
 	SendPropBool(SENDINFO(m_bSlugDelayed)),
 	SendPropBool(SENDINFO(m_bSlugLoaded)),
 	SendPropBool(SENDINFO(m_bWeaponRaised)),
 	SendPropBool(SENDINFO(m_bShellInChamber)),
+	SendPropFloat(SENDINFO(m_flNextReload)),
 #endif
 END_NETWORK_TABLE()
 
@@ -25,6 +27,7 @@ BEGIN_PREDICTION_DATA(CWeaponSupa7)
 	DEFINE_PRED_FIELD(m_bSlugLoaded, FIELD_BOOLEAN, FTYPEDESC_INSENDTABLE),
 	DEFINE_PRED_FIELD(m_bWeaponRaised, FIELD_BOOLEAN, FTYPEDESC_INSENDTABLE),
 	DEFINE_PRED_FIELD(m_bShellInChamber, FIELD_BOOLEAN, FTYPEDESC_INSENDTABLE),
+	DEFINE_PRED_FIELD(m_flNextReload, FIELD_FLOAT, FTYPEDESC_INSENDTABLE),
 END_PREDICTION_DATA()
 #endif
 
@@ -38,6 +41,7 @@ BEGIN_DATADESC(CWeaponSupa7)
 	DEFINE_FIELD(m_bSlugLoaded, FIELD_BOOLEAN),
 	DEFINE_FIELD(m_bWeaponRaised, FIELD_BOOLEAN),
 	DEFINE_FIELD(m_bShellInChamber, FIELD_BOOLEAN),
+	DEFINE_FIELD(m_flNextReload, FIELD_FLOAT),
 END_DATADESC()
 #endif
 
@@ -68,6 +72,7 @@ CWeaponSupa7::CWeaponSupa7(void)
 	m_bSlugLoaded = false;
 	m_bWeaponRaised = false;
 	m_bShellInChamber = true;
+	m_flNextReload = 0.0f;
 
 	m_fMinRange1 = 0.0;
 	m_fMaxRange1 = 500;
@@ -117,6 +122,7 @@ bool CWeaponSupa7::StartReload(void)
 
 	pOwner->m_flNextAttack = gpGlobals->curtime;
 	ProposeNextAttack(gpGlobals->curtime + SequenceDuration());
+	m_flNextReload = gpGlobals->curtime + SequenceDuration();
 
 	m_bInReload = true;
 	return true;
@@ -153,6 +159,7 @@ bool CWeaponSupa7::StartReloadSlug(void)
 
 	pOwner->m_flNextAttack = gpGlobals->curtime;
 	ProposeNextAttack(gpGlobals->curtime + SequenceDuration());
+	m_flNextReload = gpGlobals->curtime + SequenceDuration();
 
 	return true;
 }
@@ -185,7 +192,8 @@ bool CWeaponSupa7::Reload(void)
 
 	pOwner->m_flNextAttack = gpGlobals->curtime;
 	constexpr float TIME_BETWEEN_SHELLS_LOADED = 0.5f;
-	ProposeNextAttack(gpGlobals->curtime + TIME_BETWEEN_SHELLS_LOADED);
+	// ProposeNextAttack(gpGlobals->curtime + TIME_BETWEEN_SHELLS_LOADED);
+	m_flNextReload = gpGlobals->curtime + TIME_BETWEEN_SHELLS_LOADED;
 
 	return true;
 }
@@ -223,7 +231,9 @@ bool CWeaponSupa7::ReloadSlug(void)
 	pOwner->DoAnimationEvent(PLAYERANIMEVENT_RELOAD);
 
 	pOwner->m_flNextAttack = gpGlobals->curtime;
-	ProposeNextAttack(gpGlobals->curtime + SequenceDuration());
+	// ProposeNextAttack(gpGlobals->curtime + SequenceDuration());
+	m_flNextReload = gpGlobals->curtime + SequenceDuration();
+
 	return true;
 }
 
@@ -252,7 +262,7 @@ void CWeaponSupa7::FinishReload(void)
 	}
 
 	pOwner->m_flNextAttack = gpGlobals->curtime;
-	ProposeNextAttack(gpGlobals->curtime + SequenceDuration());
+	// ProposeNextAttack(gpGlobals->curtime + SequenceDuration());
 }
 
 // Purpose: Play finish reload anim and fill clip
@@ -307,7 +317,7 @@ void CWeaponSupa7::PrimaryAttack(void)
 		return;
 	}
 
-	int numBullets = 7;
+	int numBullets = GetNEOWpnData().m_iBullets;
 	Vector bulletSpread = GetBulletSpread();
 	int ammoType = m_iPrimaryAmmoType;
 	Vector vecSrc = pPlayer->Weapon_ShootPosition();
@@ -326,6 +336,9 @@ void CWeaponSupa7::PrimaryAttack(void)
 		// MUST call sound before removing a round from the clip of a CMachineGun
 		WeaponSound(SINGLE);
 	}
+#ifdef GAME_DLL
+	CSoundEnt::InsertSound(SOUND_COMBAT, GetAbsOrigin(), SOUNDENT_VOLUME_PISTOL, 0.2, GetOwner(), SOUNDENT_CHANNEL_WEAPON);
+#endif
 
 	FireBulletsInfo_t info(numBullets, vecSrc, vecAiming, bulletSpread, MAX_TRACE_LENGTH, ammoType);
 	if (m_bSlugLoaded)
@@ -411,7 +424,7 @@ void CWeaponSupa7::ItemPostFrame(void)
 			// This is a slight nerf to the supa where the gun has to be racked before it is fired
 			FinishReload();
 		}
-		else if (m_flNextPrimaryAttack <= gpGlobals->curtime)
+		else if (m_flNextReload <= gpGlobals->curtime)
 		{
 			// If we're supposed to have a slug loaded, load it
 			if (m_bSlugDelayed)
@@ -482,12 +495,12 @@ void CWeaponSupa7::ItemPostFrame(void)
 		}
 	}
 
-	if (!(pOwner->m_nButtons & IN_ATTACK) && pOwner->m_nButtons & IN_RELOAD && UsesClipsForAmmo1() && !m_bInReload)
+	if (!(pOwner->m_nButtons & IN_ATTACK) && m_flNextPrimaryAttack <= gpGlobals->curtime && pOwner->m_nButtons & IN_RELOAD && UsesClipsForAmmo1() && !m_bInReload)
 	{
 		// reload when reload is pressed, or if no buttons are down and weapon is empty.
 		StartReload();
 	}
-	else if (!(pOwner->m_nButtons & IN_ATTACK) && pOwner->m_nButtons & IN_ATTACK2 && UsesClipsForAmmo1() && !m_bInReload)
+	else if (!(pOwner->m_nButtons & IN_ATTACK) && m_flNextPrimaryAttack <= gpGlobals->curtime && pOwner->m_nButtons & IN_ATTACK2 && UsesClipsForAmmo1() && !m_bInReload)
 	{
 		StartReloadSlug();
 	}
@@ -528,4 +541,9 @@ void CWeaponSupa7::Drop(const Vector& vecVelocity)
 {
 	ClearDelayedInputs();
 	CNEOBaseCombatWeapon::Drop(vecVelocity);
+}
+
+bool CWeaponSupa7::CanBePickedUpByClass(int classId)
+{
+	return classId != NEO_CLASS_JUGGERNAUT;
 }

@@ -5,11 +5,15 @@
 #endif
 
 #include "in_buttons.h"
+#include "neo_crosshair.h"
 
 class C_NEO_Player;
 #include "c_hl2mp_player.h"
 
 #include "neo_player_shared.h"
+
+#define NEO_THERMAL_MODEL_MATERIAL "dev/thermal_model"
+#define NEO_MOTION_MODEL_MATERIAL "dev/motion_model"
 
 class C_NEOPredictedViewModel;
 class INEOPlayerAnimState;
@@ -30,8 +34,8 @@ public:
 	static C_NEO_Player *GetVisionTargetNEOPlayer()
 	{ // Returns the player we are spectating if in first person mode, or local player
 		auto localNeoPlayer = GetLocalNEOPlayer();
-		if (localNeoPlayer->IsObserver() && localNeoPlayer->m_iObserverMode == OBS_MODE_IN_EYE)
-		{ // NEOTOD (Adam) clear m_hObserverTarget instead when exiting observer mode?
+		if (localNeoPlayer->IsObserver() && localNeoPlayer->GetObserverMode() == OBS_MODE_IN_EYE)
+		{ // NEOTODO (Adam) clear m_hObserverTarget instead when exiting observer mode?
 			auto targetNeoPlayer = static_cast<C_NEO_Player*>(localNeoPlayer->GetObserverTarget());
 			if (targetNeoPlayer) { return targetNeoPlayer; }
 		}
@@ -40,7 +44,7 @@ public:
 
 	virtual int DrawModel( int flags );
 	virtual void AddEntity( void );
-	virtual void AddPoints(int score, bool bAllowNegativeScore);
+	virtual void AddPoints(int score, bool bAllowNegativeScore, bool bIgnorePlayerTakeover = false);
 
 	virtual void PreDataUpdate(DataUpdateType_t updateType) OVERRIDE;
 
@@ -66,10 +70,15 @@ public:
 	virtual bool ShouldReceiveProjectedTextures( int flags );
 	virtual void PostDataUpdate( DataUpdateType_t updateType );
 	virtual void PlayStepSound( Vector &vecOrigin, surfacedata_t *psurface, float fvol, bool force );
+	const char* GetOverrideStepSound(const char* pBaseStepSound) override;
+	virtual void Splash() override;
 	virtual void DoImpactEffect( trace_t &tr, int nDamageType );
 	IRagdoll* GetRepresentativeRagdoll() const;
 	virtual void CalcView( Vector &eyeOrigin, QAngle &eyeAngles, float &zNear, float &zFar, float &fov );
 	virtual const QAngle& EyeAngles( void );
+	
+	virtual bool IsUseableEntity( CBaseEntity *pEntity, unsigned int requiredCaps ) override final;
+	virtual CBaseEntity* FindUseEntity() override final;
 
 	virtual void ModifyFireBulletsDamage(CTakeDamageInfo* dmgInfo) OVERRIDE;
 
@@ -103,6 +112,8 @@ public:
 	virtual const Vector GetPlayerMins(void) const OVERRIDE;
 	virtual const Vector GetPlayerMaxs(void) const OVERRIDE;
 
+	virtual int GetMaxHealth(void) const override;
+
 	float CloakPower_CurrentVisualPercentage(void) const;
 
 	float GetNormSpeed_WithActiveWepEncumberment(void) const;
@@ -129,9 +140,10 @@ public:
 
 	int GetClass() const { return m_iNeoClass; }
 	int GetStar() const { return m_iNeoStar; }
-	int GetDisplayedHealth(bool asPercent) const;
+	int GetDisplayedHealth(int mode) const;
 
 	bool IsCarryingGhost(void) const;
+	bool IsObjective(void) const;
 
 	virtual void SetLocalViewAngles( const QAngle &viewAngles ) OVERRIDE
 	{
@@ -153,14 +165,12 @@ public:
 
 	C_NEOPredictedViewModel *GetNEOViewModel() { return static_cast<C_NEOPredictedViewModel*>(GetViewModel()); }
 
-	bool IsCloaked() const { return m_bInThermOpticCamo; }
+	inline bool IsCloaked() const { return m_bInThermOpticCamo; }
+	bool IsDrawnTransparent() const;
 	float GetCloakFactor() const { return m_flTocFactor; }
 	bool IsAirborne() const { return (!(GetFlags() & FL_ONGROUND)); }
 	bool IsInVision() const { return m_bInVision; }
 	bool IsInAim() const { return m_bInAim; }
-
-	int GetAttackersScores(const int attackerIdx) const;
-	int GetAttackerHits(const int attackerIdx) const;
 
 	const char *InternalGetNeoPlayerName() const;
 	const char *GetNeoPlayerName() const;
@@ -170,7 +180,27 @@ public:
 	virtual void CalcDeathCamView( Vector& eyeOrigin, QAngle& eyeAngles, float& fov ) override;
 	virtual void TeamChange(int iNewTeam) override;
 
+	// Spectator takeover
+	bool m_bCopyOverTakeoverPlayerDetails{ false };
+	CNetworkHandle(C_NEO_Player, m_hSpectatorTakeoverPlayerTarget);
+	CNetworkHandle(C_NEO_Player, m_hSpectatorTakeoverPlayerImpersonatingMe);
+	C_NEO_Player* GetSpectatorTakeoverPlayerTarget() const { return m_hSpectatorTakeoverPlayerTarget.Get(); }
+	C_NEO_Player* GetSpectatorTakeoverPlayerImpersonatingMe() const { return m_hSpectatorTakeoverPlayerImpersonatingMe.Get(); }
+
+	void CSpectatorTakeoverPlayerUpdateOnDataChanged();
+	void CSpectatorTakeoverPlayerUpdate(C_NEO_Player* pPlayerTakeoverTarget);
+	const char* GetPlayerNameWithTakeoverContext(int player_index);
+#ifdef GLOWS_ENABLE
+	void UpdateGlowEffects(int iNewTeam);
+#endif // GLOWS_ENABLE
+	C_NEO_Player* PlayerUseTraceLine();
+	virtual void PlayerUse() override;
+	
+	bool ValidTakeoverTargetFor(CNEO_Player* pPlayerTakingOver);
+
 private:
+	char m_sNameWithTakeoverContextProcessingBuffer[MAX_PLAYER_NAME_LENGTH];
+	void CheckAimButtons();
 	void CheckThermOpticButtons();
 	void CheckVisionButtons();
 	void CheckLeanButtons();
@@ -178,6 +208,12 @@ private:
 	void SetCloakState(bool state);
 
 	bool IsAllowedToSuperJump(void);
+
+	void ClearLocalPlayerDmgReports();
+
+	// Spectator takeover player related functionality
+	bool IsAFK() const;
+	bool IsFakePlayer() const;
 
 public:
 	CNetworkVar(bool, m_bShowTestMessage);
@@ -187,16 +223,16 @@ public:
 	CNetworkVar(int, m_iXP);
 	CNetworkVar(int, m_iLoadoutWepChoice);
 	CNetworkVar(int, m_iNextSpawnClassChoice);
-
-	CNetworkArray(int, m_rfAttackersScores, (MAX_PLAYERS + 1));
-	CNetworkArray(float, m_rfAttackersAccumlator, (MAX_PLAYERS + 1));
-	CNetworkArray(int, m_rfAttackersHits, (MAX_PLAYERS + 1));
 	
 	CNetworkVar(bool, m_bHasBeenAirborneForTooLongToSuperJump);
 
 	CNetworkVar(float, m_flCamoAuxLastTime);
 	CNetworkVar(int, m_nVisionLastTick);
 	CNetworkVar(float, m_flJumpLastTime);
+
+	CNetworkVar(float, m_flNextPingTime);
+
+	CNetworkArray(Vector, m_vLastPingByStar, STAR__TOTAL);
 
 	CNetworkVar(bool, m_bInThermOpticCamo);
 	CNetworkVar(bool, m_bLastTickInThermOpticCamo);
@@ -205,10 +241,13 @@ public:
 	CNetworkVar(int, m_bInLean);
 	CNetworkVar(bool, m_bCarryingGhost);
 	CNetworkVar(bool, m_bIneligibleForLoadoutPick);
+	CNetworkHandle(CBaseEntity, m_hServerRagdoll);
+	CNetworkHandle(CBasePlayer, m_hCommandingPlayer);
 
 	CNetworkVar(int, m_iNeoClass);
 	CNetworkVar(int, m_iNeoSkin);
 	CNetworkVar(int, m_iNeoStar);
+	CNetworkVar(int, m_iClassBeforeTakeover);
 
 	CNetworkString(m_szNeoName, MAX_PLAYER_NAME_LENGTH);
 	CNetworkString(m_szNeoClantag, NEO_MAX_CLANTAG_LENGTH);
@@ -219,10 +258,13 @@ public:
 	unsigned char m_NeoFlags;
 
 private:
+	friend C_HL2MP_Player;
+
 	bool m_bFirstAliveTick;
 	bool m_bFirstDeathTick;
 	bool m_bPreviouslyReloading;
 	bool m_bIsAllowedToToggleVision;
+	bool m_bSpecRefreshedStates;
 
 	float m_flLastAirborneJumpOkTime;
 	float m_flLastSuperJumpTime;

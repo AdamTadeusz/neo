@@ -21,6 +21,7 @@
 #ifdef NEO
 #include "c_neo_player.h"
 #include "neo_player_shared.h"
+#include "in_main.h"
 #endif
 
 // Don't alias here
@@ -145,6 +146,8 @@ static inline float GetAuxChargeRate(C_BaseCombatCharacter *player)
 		return 2.5f;	// 100 units in 40 seconds
 	case NEO_CLASS_VIP:
 		return 2.5f;	// 100 units in 40 seconds
+	case NEO_CLASS_JUGGERNAUT:
+		return 10.0f;	// 100 units in 10 seconds
 	default:
 		break;
 	}
@@ -258,6 +261,7 @@ void C_HL2MP_Player::TraceAttack( const CTakeDamageInfo &info, const Vector &vec
 
 		int blood = BloodColor();
 		
+#ifndef NEO
 		CBaseEntity *pAttacker = info.GetAttacker();
 
 		if ( pAttacker )
@@ -265,6 +269,7 @@ void C_HL2MP_Player::TraceAttack( const CTakeDamageInfo &info, const Vector &vec
 			if ( HL2MPRules()->IsTeamplay() && pAttacker->InSameTeam( this ) == true )
 				return;
 		}
+#endif // NEO
 
 		if ( blood != DONT_BLEED )
 		{
@@ -867,6 +872,14 @@ void C_HL2MP_Player::PostDataUpdate( DataUpdateType_t updateType )
 	{
 		MoveToLastReceivedPosition( true );
 		ResetLatched();
+#ifdef NEO
+		// NEO NOTE (nullsystem): Respawning doesn't trigger
+		// C_NEO_Player::Spawn/m_bFirstAliveTick without this
+		if (IsLocalPlayer())
+		{
+			static_cast<C_NEO_Player *>(this)->m_bFirstAliveTick = true;
+		}
+#endif
 		m_iSpawnInterpCounterCache = m_iSpawnInterpCounter;
 	}
 
@@ -958,6 +971,12 @@ void C_HL2MP_Player::StartSprinting( void )
 #endif
 
 	m_fIsSprinting = true;
+#ifdef NEO
+	if (IsLocalPlayer())
+	{
+		IN_LeanToggleReset();
+	}
+#endif // NEO
 }
 
 //-----------------------------------------------------------------------------
@@ -1127,12 +1146,14 @@ void C_HL2MP_Player::ItemPreFrame( void )
 	if ( GetFlags() & FL_FROZEN )
 		 return;
 
+#ifndef NEO
 	// Disallow shooting while zooming
 	if ( m_nButtons & IN_ZOOM )
 	{
 		//FIXME: Held weapons like the grenade get sad when this happens
 		m_nButtons &= ~(IN_ATTACK|IN_ATTACK2);
 	}
+#endif
 
 	BaseClass::ItemPreFrame();
 
@@ -1382,7 +1403,15 @@ void C_HL2MPRagdoll::CreateHL2MPRagdoll( void )
 	matrix3x4_t currentBones[MAXSTUDIOBONES];
 	const float boneDt = 0.05f;
 
+#ifdef NEO
+	// NEO HACK DG: Crazy mismatch between the JGR model and the old
+	// playermodel sends the ragdoll flying (when turning into the JGR)
+	// Probably because of the time based stuff in GetRagdollInitBoneArrays()
+	C_NEO_Player* pNEOPlayer = ToNEOPlayer(pPlayer);
+	if (pNEOPlayer && !pNEOPlayer->IsDormant() && (pNEOPlayer->GetClass() != NEO_CLASS_JUGGERNAUT))
+#else
 	if ( pPlayer && !pPlayer->IsDormant() )
+#endif
 	{
 		pPlayer->GetRagdollInitBoneArrays( boneDelta0, boneDelta1, currentBones, boneDt );
 	}
@@ -1392,6 +1421,13 @@ void C_HL2MPRagdoll::CreateHL2MPRagdoll( void )
 	}
 
 	InitAsClientRagdoll( boneDelta0, boneDelta1, currentBones, boneDt );
+#ifdef NEO
+	if (m_pRagdoll)
+	{
+		m_pRagdoll->SetInitialVelocity(GetInitialRagdollVelocity());
+		m_pRagdoll->SetLastOrigin(GetInitialRagdollOrigin());
+	}
+#endif // NEO
 }
 
 
@@ -1456,11 +1492,7 @@ extern ConVar glow_outline_effect_enable;
 #endif // GLOWS_ENABLE
 int C_HL2MPRagdoll::DrawModel(int flags)
 {
-#ifdef GLOWS_ENABLE
-	auto pTargetPlayer = glow_outline_effect_enable.GetBool() ? C_NEO_Player::GetLocalNEOPlayer() : C_NEO_Player::GetVisionTargetNEOPlayer();
-#else
-	auto pTargetPlayer = C_NEO_Player::GetTargetNEOPlayer();
-#endif // GLOWS_ENABLE
+	auto pTargetPlayer = C_NEO_Player::GetVisionTargetNEOPlayer();
 	if (!pTargetPlayer)
 	{
 		Assert(false);
@@ -1470,7 +1502,7 @@ int C_HL2MPRagdoll::DrawModel(int flags)
 	bool inThermalVision = pTargetPlayer ? (pTargetPlayer->IsInVision() && pTargetPlayer->GetClass() == NEO_CLASS_SUPPORT) : false;
 	if (inThermalVision)
 	{
-		IMaterial* pass = materials->FindMaterial("dev/thermal_ragdoll_model", TEXTURE_GROUP_MODEL);
+		IMaterial* pass = materials->FindMaterial(NEO_THERMAL_MODEL_MATERIAL, TEXTURE_GROUP_MODEL);
 		modelrender->ForcedMaterialOverride(pass);
 		int ret = BaseClass::DrawModel(flags);
 		modelrender->ForcedMaterialOverride(nullptr);
@@ -1565,7 +1597,9 @@ void C_HL2MP_Player::CalculateIKLocks( float currentTime )
 
 	for (int i = 0; i < targetCount; i++)
 	{
+#ifndef NEO
 		trace_t trace;
+#endif
 		CIKTarget *pTarget = &m_pIk->m_target[i];
 
 		if (!pTarget->IsActive())

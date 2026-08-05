@@ -246,7 +246,8 @@ Scheme
 			"1"
 			{
 				"name"		"Verdana"
-				"tall"		"12"
+				"tall"		"12" [!$LINUX]
+				"tall"      "15" [$LINUX]
 				"weight"	"900"
 				"antialias"	"1"
 				"yres"		"480 599"
@@ -254,7 +255,8 @@ Scheme
 			"2"
 			{
 				"name"		"Verdana"
-				"tall"		"13"
+				"tall"		"13" [!$LINUX]
+				"tall"		"16" [$LINUX]
 				"weight"	"900"
 				"antialias"	"1"
 				"yres"		"600 767"
@@ -262,7 +264,8 @@ Scheme
 			"3"
 			{
 				"name"		"Verdana"
-				"tall"		"14"
+				"tall"		"14" [!$LINUX]
+				"tall"		"18" [$LINUX]
 				"weight"	"900"
 				"antialias" "1"
 				"yres"	"768 1023"
@@ -270,7 +273,8 @@ Scheme
 			"4"
 			{
 				"name"		"Verdana"
-				"tall"		"16" // "20"
+				"tall"		"16" [!$LINUX] //"20"
+				"tall"		"20" [$LINUX]
 				"weight"	"900"
 				"antialias" "1"
 				"yres"	"1024 1199"
@@ -278,7 +282,8 @@ Scheme
 			"5"
 			{
 				"name"		"Verdana"
-				"tall"		"16" // "24"
+				"tall"		"16" [!$LINUX] //"24"
+				"tall"		"20" [$LINUX]
 				"weight"	"900"
 				"antialias" "1"
 				"yres"	"1200 10000"
@@ -286,7 +291,8 @@ Scheme
 			"6"
 			{
 				"name"		"Verdana"
-				"tall"		"12"
+				"tall"		"12" [!$LINUX]
+				"tall"      "15" [$LINUX]
 				"range"		"0x0000 0x00FF"
 				"weight"	"900"
 			}
@@ -321,7 +327,8 @@ Scheme
 			"1"
 			{
 				"name"		"Verdana"
-				"tall"		"12"
+				"tall"		"12" [!$LINUX]
+				"tall"      "13" [$LINUX]
 				"weight"	"0"
 				"range"		"0x0000 0x017F"
 				"yres"	"480 599"
@@ -329,7 +336,8 @@ Scheme
 			"2"
 			{
 				"name"		"Verdana"
-				"tall"		"13"
+				"tall"		"13" [!$LINUX]
+				"tall"		"14" [$LINUX]
 				"weight"	"0"
 				"range"		"0x0000 0x017F"
 				"yres"	"600 767"
@@ -337,7 +345,8 @@ Scheme
 			"3"
 			{
 				"name"		"Verdana"
-				"tall"		"14"
+				"tall"		"14" [!$LINUX]
+				"tall"		"16" [$LINUX]
 				"weight"	"0"
 				"range"		"0x0000 0x017F"
 				"yres"	"768 1023"
@@ -346,7 +355,8 @@ Scheme
 			"4"
 			{
 				"name"		"Verdana"
-				"tall"		"16" //"20"
+				"tall"		"16" [!$LINUX] //"20"
+				"tall"		"18" [$LINUX]
 				"weight"	"0"
 				"range"		"0x0000 0x017F"
 				"yres"	"1024 1199"
@@ -355,7 +365,8 @@ Scheme
 			"5"
 			{
 				"name"		"Verdana"
-				"tall"		""16" //24"
+				"tall"		"16" [!$LINUX] //"24"
+				"tall"		"18" [$LINUX]
 				"weight"	"0"
 				"range"		"0x0000 0x017F"
 				"yres"	"1200 6000"
@@ -374,7 +385,8 @@ Scheme
 			"1"
 			{
 				"name"		"Verdana"
-				"tall"		"12"
+				"tall"		"12" [!$LINUX]
+				"tall"      "13" [$LINUX]
 				"weight"	"0"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"480 599"
@@ -382,7 +394,8 @@ Scheme
 			"2"
 			{
 				"name"		"Verdana"
-				"tall"		"13"
+				"tall"		"13" [!$LINUX]
+				"tall"		"14" [$LINUX]
 				"weight"	"0"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"600 767"
@@ -390,7 +403,8 @@ Scheme
 			"3"
 			{
 				"name"		"Verdana"
-				"tall"		"14"
+				"tall"		"14" [!$LINUX]
+				"tall"		"16" [$LINUX]
 				"weight"	"0"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"768 1023"
@@ -399,7 +413,8 @@ Scheme
 			"4"
 			{
 				"name"		"Verdana"
-				"tall"		"16" //"20"
+				"tall"		"16" [!$LINUX] //"20"
+				"tall"		"18" [$LINUX]
 				"weight"	"0"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"1024 1199"
@@ -408,7 +423,8 @@ Scheme
 			"5"
 			{
 				"name"		"Verdana"
-				"tall"		"16" //"24"
+				"tall"		"16" [!$LINUX] //"24"
+				"tall"		"18" [$LINUX]
 				"weight"	"0"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"1200 6000"
@@ -417,7 +433,8 @@ Scheme
 			"6"
 			{
 				"name"		"Verdana"
-				"tall"		"12"
+				"tall"		"12" [!$LINUX]
+				"tall"      "13" [$LINUX]
 				"range" 		"0x0000 0x00FF"
 				"weight"		"0"
 			}
@@ -434,35 +451,40 @@ Scheme
 			"1"
 			{
 				"name"		"Verdana"
-				"tall"		"12"
+				"tall"		"12" [!$LINUX]
+				"tall"      "15" [$LINUX]
 				"weight"	"700"
 				"yres"	"480 599"
 			}
 			"2"
 			{
 				"name"		"Verdana"
-				"tall"		"13"
+				"tall"		"13" [!$LINUX]
+				"tall"		"16" [$LINUX]
 				"weight"	"700"
 				"yres"	"600 767"
 			}
 			"3"
 			{
 				"name"		"Verdana"
-				"tall"		"14"
+				"tall"		"14" [!$LINUX]
+				"tall"		"18" [$LINUX]
 				"weight"	"700"
 				"yres"	"768 1023"
 			}
 			"4"
 			{
 				"name"		"Verdana"
-				"tall"		"20"
+				"tall"		"20" [!$LINUX]
+				"tall"		"26" [$LINUX]
 				"weight"	"700"
 				"yres"	"1024 1199"
 			}
 			"5"
 			{
 				"name"		"Verdana"
-				"tall"		"24"
+				"tall"		"24" [!$LINUX]
+				"tall"		"32" [$LINUX]
 				"weight"	"700"
 				"yres"	"1200 10000"
 			}
@@ -507,7 +529,8 @@ Scheme
 			"1"
 			{
 				"name"		"Verdana"
-				"tall"		"11"
+				"tall"		"11" [!$LINUX]
+				"tall"		"14" [$LINUX]
 				"weight"	"700"
 				"antialias" "1"
 				"additive"	"1"
@@ -520,7 +543,8 @@ Scheme
 			"1"
 			{
 				"name"		"Verdana"
-				"tall"		"8"
+				"tall"		"8" [!$LINUX]
+				"tall"		"10" [$LINUX]
 				"weight"	"700"
 				"antialias" "1"
 				"yres"	"1 599"
@@ -530,7 +554,8 @@ Scheme
 			"2"
 			{
 				"name"		"Verdana"
-				"tall"		"10"
+				"tall"		"10" [!$LINUX]
+				"tall"		"13" [$LINUX]
 				"weight"	"700"
 				"antialias" "1"
 				"yres"	"600 767"
@@ -540,7 +565,8 @@ Scheme
 			"3"
 			{
 				"name"		"Verdana"
-				"tall"		"12"
+				"tall"		"12" [!$LINUX]
+				"tall"		"15" [$LINUX]
 				"weight"	"900"
 				"antialias" "1"
 				"yres"	"768 1023"
@@ -549,7 +575,8 @@ Scheme
 			"4"
 			{
 				"name"		"Verdana"
-				"tall"		"16"
+				"tall"		"16" [!$LINUX]
+				"tall"		"20" [$LINUX]
 				"weight"	"900"
 				"antialias" "1"
 				"yres"	"1024 1199"
@@ -558,7 +585,8 @@ Scheme
 			"5"
 			{
 				"name"		"Verdana"
-				"tall"		"17"
+				"tall"		"17" [!$LINUX]
+				"tall"		"22" [$LINUX]
 				"weight"	"1000"
 				"antialias" "1"
 				"yres"	"1200 10000"
@@ -678,7 +706,8 @@ Scheme
 			"1"
 			{
 				"name"  "neotokyo_press_N" // neotokyo_press_n
-				"tall"  "60"
+				"tall"  "60" [!$LINUX]
+				"tall"  "102" [$LINUX]
 				"weight" "0"
 				"additive" "0"
 				"antialias" "1"
@@ -688,7 +717,8 @@ Scheme
 			"2"
 			{
 				"name"  "neotokyo_press_N" // neotokyo_press_n
-				"tall"  "100"
+				"tall"  "100" [!$LINUX]
+				"tall"  "170" [$LINUX]
 				"weight" "0"
 				"additive" "0"
 				"antialias" "1"
@@ -698,7 +728,8 @@ Scheme
 			"3"
 			{
 				"name"  "neotokyo_press_N" // neotokyo_press_n
-				"tall"  "127"
+				"tall"  "127" [!$LINUX]
+				"tall"  "216" [$LINUX]
 				"weight" "0"
 				"additive" "0"
 				"antialias" "1"
@@ -712,7 +743,8 @@ Scheme
 			"1"
 			{
 				"name"  "neotokyo_press_N" // neotokyo_press_n
-				"tall"  "42"
+				"tall"  "42" [!$LINUX]
+				"tall"  "72" [$LINUX]
 				"weight" "0"
 				"additive" "0"
 				"antialias" "1"
@@ -722,7 +754,8 @@ Scheme
 			"2"
 			{
 				"name"  "neotokyo_press_N" // neotokyo_press_n
-				"tall"  "72"
+				"tall"  "72" [!$LINUX]
+				"tall"  "122" [$LINUX]
 				"weight" "0"
 				"additive" "0"
 				"antialias" "1"
@@ -732,7 +765,8 @@ Scheme
 			"3"
 			{
 				"name"  "neotokyo_press_N" // neotokyo_press_n
-				"tall"  "92"
+				"tall"  "92" [!$LINUX]
+				"tall"  "156" [$LINUX]
 				"weight" "0"
 				"additive" "0"
 				"antialias" "1"
@@ -1001,7 +1035,8 @@ Scheme
 			"1"
 			{
 				"name"		"Verdana"
-				"tall"		"12"
+				"tall"		"12" [!$LINUX]
+				"tall"      "15" [$LINUX]
 				"weight"	"700"
 				"yres"	"480 599"
 				"dropshadow"	"1"
@@ -1009,7 +1044,8 @@ Scheme
 			"2"
 			{
 				"name"		"Verdana"
-				"tall"		"13"
+				"tall"		"13" [!$LINUX]
+				"tall"		"16" [$LINUX]
 				"weight"	"700"
 				"yres"	"600 767"
 				"dropshadow"	"1"
@@ -1017,7 +1053,8 @@ Scheme
 			"3"
 			{
 				"name"		"Verdana"
-				"tall"		"14"
+				"tall"		"14" [!$LINUX]
+				"tall"		"18" [$LINUX]
 				"weight"	"700"
 				"yres"	"768 1023"
 				"dropshadow"	"1"
@@ -1025,7 +1062,8 @@ Scheme
 			"4"
 			{
 				"name"		"Verdana"
-				"tall"		"16" //"20"
+				"tall"		"16" [!$LINUX] //"20"
+				"tall"		"20" [$LINUX]
 				"weight"	"700"
 				"yres"	"1024 1199"
 				"dropshadow"	"1"
@@ -1033,7 +1071,8 @@ Scheme
 			"5"
 			{
 				"name"		"Verdana"
-				"tall"		"16" //"24"
+				"tall"		"16" [!$LINUX] //"24"
+				"tall"		"20" [$LINUX]
 				"weight"	"700"
 				"yres"	"1200 10000"
 				"dropshadow"	"1"
@@ -1095,19 +1134,6 @@ Scheme
 				"weight"	"900"
 				"antialias" "1"
 				"additive"	"1"
-			}
-		}
-
-		"HL2MPTypeDeath"
-		{
-			"1"
-			{
-				"name"  "HL2MP" // csd.ttf
-				"tall"  "32"
-				"weight" "0"
-				"additive" "1"
-				"antialias" "1"
-				"custom" "1" [$OSX]
 			}
 		}
 		NHudText
@@ -1232,11 +1258,75 @@ Scheme
 				"additive"	"1"
 			}
 		}
+		NHudOCRSmallerNoAdditive
+		{
+			"1"
+			{
+				"name"		"Neuropol2"
+				"tall"		"10"
+				"weight"	"600"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"480 599"
+			}
+			"2"
+			{
+				"name"		"Neuropol2"
+				"tall"		"12"
+				"weight"	"600"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"600 767"
+			}
+			"3"
+			{
+				"name"		"Neuropol2"
+				"tall"		"14"
+				"weight"	"600"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"768 1023"
+				"antialias"	"1"
+			}
+			"4"
+			{
+				"name"		"Neuropol2"
+				"tall"		"17"
+				"weight"	"600"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"1024 1199"
+				"antialias"	"1"
+			}
+			"5"
+			{
+				"name"		"Neuropol2"
+				"tall"		"20"
+				"weight"	"600"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"1200 1440"
+				"antialias"	"1"
+			}
+			"6"
+			{
+				"name"		"Neuropol2"
+				"tall"		"24"
+				"weight"	"600"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"1441 1599"
+				"antialias"	"1"
+			}
+			"7"
+			{
+				"name"		"Neuropol2"
+				"tall"		"26"
+				"weight"	"600"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"1600 6000"
+				"antialias"	"1"
+			}
+		}
 		NHudKillfeedIcons
 		{
 			"1"
 			{
-				"name"		"KillfeedIcons"
+				"name"		"killfeedicons"
 				"tall"		"12"
 				"weight"	"600"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
@@ -1245,7 +1335,7 @@ Scheme
 			}
 			"2"
 			{
-				"name"		"KillfeedIcons"
+				"name"		"killfeedicons"
 				"tall"		"14"
 				"weight"	"600"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
@@ -1254,7 +1344,7 @@ Scheme
 			}
 			"3"
 			{
-				"name"		"KillfeedIcons"
+				"name"		"killfeedicons"
 				"tall"		"16"
 				"weight"	"600"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
@@ -1264,7 +1354,7 @@ Scheme
 			}
 			"4"
 			{
-				"name"		"KillfeedIcons"
+				"name"		"killfeedicons"
 				"tall"		"20"
 				"weight"	"600"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
@@ -1274,7 +1364,7 @@ Scheme
 			}
 			"5"
 			{
-				"name"		"KillfeedIcons"
+				"name"		"killfeedicons"
 				"tall"		"24"
 				"weight"	"600"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
@@ -1284,7 +1374,7 @@ Scheme
 			}
 			"6"
 			{
-				"name"		"KillfeedIcons"
+				"name"		"killfeedicons"
 				"tall"		"26"
 				"weight"	"600"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
@@ -1294,13 +1384,77 @@ Scheme
 			}
 			"7"
 			{
-				"name"		"KillfeedIcons"
+				"name"		"killfeedicons"
 				"tall"		"28"
 				"weight"	"600"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"1600 6000"
 				"antialias"	"1"
 				"additive"	"0"
+			}
+		}
+		NHudOCRSmallerNoAdditive
+		{
+			"1"
+			{
+				"name"		"Neuropol2"
+				"tall"		"10"
+				"weight"	"600"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"480 599"
+			}
+			"2"
+			{
+				"name"		"Neuropol2"
+				"tall"		"12"
+				"weight"	"600"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"600 767"
+			}
+			"3"
+			{
+				"name"		"Neuropol2"
+				"tall"		"14"
+				"weight"	"600"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"768 1023"
+				"antialias"	"1"
+			}
+			"4"
+			{
+				"name"		"Neuropol2"
+				"tall"		"18"
+				"weight"	"600"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"1024 1199"
+				"antialias"	"1"
+			}
+			"5"
+			{
+				"name"		"Neuropol2"
+				"tall"		"22"
+				"weight"	"600"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"1200 1440"
+				"antialias"	"1"
+			}
+			"6"
+			{
+				"name"		"Neuropol2"
+				"tall"		"24"
+				"weight"	"600"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"1441 1599"
+				"antialias"	"1"
+			}
+			"7"
+			{
+				"name"		"Neuropol2"
+				"tall"		"26"
+				"weight"	"600"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"1600 6000"
+				"antialias"	"1"
 			}
 		}
 		NHudOCRSmall
@@ -1928,31 +2082,31 @@ Scheme
 				//"additive"	"1"
 			}
 		}
-		NeoUINormal
+		NeoUISmall
 		{
 			"1"
 			{
-				"name"		"Green Mountain 3"
-				"tall"		"16"
-				"weight"	"900"
+				"name"		"Montserrat"
+				"tall"		"18"
+				"weight"	"550"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"480 599"
 				//"additive"	"1"
 			}
 			"2"
 			{
-				"name"		"Green Mountain 3"
-				"tall"		"18"
-				"weight"	"900"
+				"name"		"Montserrat"
+				"tall"		"20"
+				"weight"	"550"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"600 767"
 				//"additive"	"1"
 			}
 			"3"
 			{
-				"name"		"Green Mountain 3"
+				"name"		"Montserrat"
 				"tall"		"22"
-				"weight"	"900"
+				"weight"	"550"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"768 1023"
 				"antialias"	"1"
@@ -1960,9 +2114,9 @@ Scheme
 			}
 			"4"
 			{
-				"name"		"Green Mountain 3"
+				"name"		"Montserrat"
 				"tall"		"24"
-				"weight"	"900"
+				"weight"	"550"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"1024 1199"
 				"antialias"	"1"
@@ -1970,9 +2124,9 @@ Scheme
 			}
 			"5"
 			{
-				"name"		"Green Mountain 3"
+				"name"		"Montserrat"
 				"tall"		"26"
-				"weight"	"900"
+				"weight"	"550"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"1200 1440"
 				"antialias"	"1"
@@ -1980,9 +2134,9 @@ Scheme
 			}
 			"6"
 			{
-				"name"		"Green Mountain 3"
+				"name"		"Montserrat"
 				"tall"		"30"
-				"weight"	"900"
+				"weight"	"550"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"1441 1599"
 				"antialias"	"1"
@@ -1990,9 +2144,82 @@ Scheme
 			}
 			"7"
 			{
-				"name"		"Green Mountain 3"
+				"name"		"Montserrat"
 				"tall"		"32"
-				"weight"	"900"
+				"weight"	"550"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"1600 6000"
+				"antialias"	"1"
+				//"additive"	"1"
+			}
+		}
+		NeoUINormal
+		{
+			"1"
+			{
+				"name"		"Montserrat"
+				"tall"		"22"
+				"weight"	"550"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"480 599"
+				"antialias"	"1"
+				//"additive"	"1"
+			}
+			"2"
+			{
+				"name"		"Montserrat"
+				"tall"		"24"
+				"weight"	"550"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"600 767"
+				"antialias"	"1"
+				//"additive"	"1"
+			}
+			"3"
+			{
+				"name"		"Montserrat"
+				"tall"		"28"
+				"weight"	"550"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"768 1023"
+				"antialias"	"1"
+				//"additive"	"1"
+			}
+			"4"
+			{
+				"name"		"Montserrat"
+				"tall"		"30"
+				"weight"	"550"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"1024 1199"
+				"antialias"	"1"
+				//"additive"	"1"
+			}
+			"5"
+			{
+				"name"		"Montserrat"
+				"tall"		"32"
+				"weight"	"550"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"1200 1440"
+				"antialias"	"1"
+				//"additive"	"1"
+			}
+			"6"
+			{
+				"name"		"Montserrat"
+				"tall"		"36"
+				"weight"	"550"
+				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
+				"yres"	"1441 1599"
+				"antialias"	"1"
+				//"additive"	"1"
+			}
+			"7"
+			{
+				"name"		"Montserrat"
+				"tall"		"38"
+				"weight"	"550"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"1600 6000"
 				"antialias"	"1"
@@ -2003,9 +2230,9 @@ Scheme
 		{
 			"1"
 			{
-				"name"		"Green Mountain 3"
-				"tall"		"22"
-				"weight"	"900"
+				"name"		"Montserrat"
+				"tall"		"28"
+				"weight"	"550"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"480 599"
 				"antialias"	"1"
@@ -2013,9 +2240,9 @@ Scheme
 			}
 			"2"
 			{
-				"name"		"Green Mountain 3"
-				"tall"		"25"
-				"weight"	"900"
+				"name"		"Montserrat"
+				"tall"		"31"
+				"weight"	"550"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"600 767"
 				"antialias"	"1"
@@ -2023,9 +2250,9 @@ Scheme
 			}
 			"3"
 			{
-				"name"		"Green Mountain 3"
-				"tall"		"32"
-				"weight"	"900"
+				"name"		"Montserrat"
+				"tall"		"38"
+				"weight"	"550"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"768 1023"
 				"antialias"	"1"
@@ -2033,9 +2260,9 @@ Scheme
 			}
 			"4"
 			{
-				"name"		"Green Mountain 3"
-				"tall"		"35"
-				"weight"	"900"
+				"name"		"Montserrat"
+				"tall"		"41"
+				"weight"	"550"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"1024 1199"
 				"antialias"	"1"
@@ -2043,9 +2270,9 @@ Scheme
 			}
 			"5"
 			{
-				"name"		"Green Mountain 3"
-				"tall"		"38"
-				"weight"	"900"
+				"name"		"Montserrat"
+				"tall"		"44"
+				"weight"	"550"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"1200 1440"
 				"antialias"	"1"
@@ -2053,9 +2280,9 @@ Scheme
 			}
 			"6"
 			{
-				"name"		"Green Mountain 3"
-				"tall"		"41"
-				"weight"	"900"
+				"name"		"Montserrat"
+				"tall"		"47"
+				"weight"	"550"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"1441 1599"
 				"antialias"	"1"
@@ -2063,9 +2290,9 @@ Scheme
 			}
 			"7"
 			{
-				"name"		"Green Mountain 3"
-				"tall"		"43"
-				"weight"	"900"
+				"name"		"Montserrat"
+				"tall"		"49"
+				"weight"	"550"
 				"range"		"0x0000 0x017F" //	Basic Latin, Latin-1 Supplement, Latin Extended-A
 				"yres"	"1600 6000"
 				"antialias"	"1"
@@ -2092,6 +2319,16 @@ Scheme
 				"weight"	"1000"
 				"additive"	"1"
 				"antialias" "1"
+			}
+		}
+		NHudTinyText
+		{
+			"1"
+			{
+				"name"		"Verdana"
+				"tall"		"10"
+				"weight"	"0"
+				"antialias"	"1"
 			}
 		}
 		MVP
@@ -2922,6 +3159,18 @@ Scheme
 				}
 			}
 		}
+		
+		NeoImageButtonBorder
+		{
+		}
+		
+		NeoImageButtonDepressedBorder
+		{
+		}
+		
+		NeoImageButtonKeyFocusBorder
+		{
+		}
 	}
 
 	//////////////////////// CUSTOM FONT FILES /////////////////////////////
@@ -2930,19 +3179,19 @@ Scheme
 	CustomFontFiles
 	{
 		"1"		"resource/HALFLIFE2.ttf"
-		"2"		"resource/HL2MP.ttf"
-		"3"		"resource/HL2crosshairs.ttf"
-		"4"		"resource/cs.ttf"
-		"5"		"resource/csd.ttf"
-		"6"		"resource/Cstrike.ttf"
-		"7"		"resource/X-SCALE_.TTF"
-		"8"		"resource/greenm03.ttf"
-		"9"		"resource/zrnic___.ttf"
-		"10"		"resource/AFL.ttf"
-		"11"		"resource/nocr.ttf"
-		"12"		"resource/NEUROPOL2.ttf"
-		"13"		"resource/neotokyo_press_n.ttf"
-		"14"		"resource/KillfeedIcons.ttf"
+		"2"		"resource/HL2crosshairs.ttf"
+		"3"		"resource/cs.ttf"
+		"4"		"resource/csd.ttf"
+		"5"		"resource/Cstrike.ttf"
+		"6"		"resource/x-scale_.ttf"
+		"7"		"resource/greenm03.ttf"
+		"8"		"resource/zrnic___.ttf"
+		"9"		"resource/AFL.ttf"
+		"10"		"resource/nocr.ttf"
+		"11"		"resource/neuropol2.ttf"
+		"12"		"resource/neotokyo_press_n.ttf"
+		"13"		"resource/killfeedicons.ttf"
+		"14"		"resource/montserrat-regular.ttf"
 	}
 
 }

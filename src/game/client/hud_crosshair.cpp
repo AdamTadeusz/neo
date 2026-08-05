@@ -17,7 +17,7 @@
 #include "VGuiMatSurface/IMatSystemSurface.h"
 #include "client_virtualreality.h"
 #include "sourcevr/isourcevirtualreality.h"
-#include "ui/neo_hud_crosshair.h"
+#include "neo_crosshair.h"
 
 #ifdef SIXENSE
 #include "sixense/in_sixense.h"
@@ -29,6 +29,7 @@
 
 #ifdef NEO
 #include "weapon_neobasecombatweapon.h"
+#include "weapon_srs.h"
 #include "neo_gamerules.h"
 #endif
 
@@ -60,6 +61,9 @@ void CVGlobal_NeoClCrosshair(IConVar *var, [[maybe_unused]] const char *pOldStri
 		crosshair->m_bRefreshCrosshair = true;
 	}
 }
+
+ConVar cl_neo_crosshair_scope_inaccuracy("cl_neo_crosshair_scope_inaccuracy", "1", FCVAR_ARCHIVE, "Show the player's inaccuracy when scoped", true, 0, true, 1);
+ConVar cl_neo_crosshair_friendly_fire_warning("cl_neo_crosshair_friendly_fire_warning", "1", FCVAR_ARCHIVE, "Replace crosshair with friendly fire warning where applicable", true, 0, true, 1);
 #endif
 
 CHudCrosshair::CHudCrosshair( const char *pElementName ) :
@@ -96,7 +100,18 @@ CHudCrosshair::CHudCrosshair( const char *pElementName ) :
 
 	m_vecCrossHairOffsetAngle.Init();
 
+#ifdef NEO
+	m_hCrosshairLight = surface()->CreateNewTextureID();
+	Assert(m_hCrosshairLight > 0);
+	// NEO TODO (Adam) This is a copy of the original with everything but the center cross removed, perhaps move to ApplySchemeSettings and workout this name based off of the name of m_pCrosshair
+	// in case of custom scopes (if we want to allow custom scopes I guess)
+	surface()->DrawSetTextureFile(m_hCrosshairLight, "vgui/hud/scopes/scope03-1", 1, false);
+	surface()->DrawGetTextureSize(m_hCrosshairLight, m_iCrosshairLightWidth, m_iCrosshairLightHeight);
+
+	SetHiddenBits( HIDEHUD_PLAYERDEAD );
+#else
 	SetHiddenBits( HIDEHUD_PLAYERDEAD | HIDEHUD_CROSSHAIR );
+#endif // NEO
 }
 
 CHudCrosshair::~CHudCrosshair()
@@ -113,6 +128,9 @@ void CHudCrosshair::ApplySchemeSettings( IScheme *scheme )
 	m_pDefaultCrosshair = gHUD.GetIcon("crosshair_default");
 	SetPaintBackgroundEnabled( false );
 
+#ifdef NEO
+	m_iHalfScreenWidth = ScreenWidth() * 0.5;
+#endif // NEO
     SetSize( ScreenWidth(), ScreenHeight() );
 
 	SetForceStereoRenderToFrameBuffer( true );
@@ -125,16 +143,84 @@ void CHudCrosshair::ApplySchemeSettings( IScheme *scheme )
 //-----------------------------------------------------------------------------
 bool CHudCrosshair::ShouldDraw( void )
 {
+#ifdef NEO
+	if (!m_pCrosshair)
+		return false;
+
+	if ( m_bHideCrosshair )
+		return false;
+
+	const auto* player = C_NEO_Player::GetLocalNEOPlayer();
+	if (!player)
+		return false;
+
+	if (player->IsObserver())
+	{
+		switch (player->GetObserverMode())
+		{
+		case OBS_MODE_IN_EYE:
+			player = ToNEOPlayer(player->GetObserverTarget());
+			if (engine->IsHLTV() && player && player->IsObserver())
+			{ // HLTV can spectate other spectators (and doesn't switch away from dead players by default)
+				return false;
+			}
+			break;
+			// NEO NOTE (Adam) technically cl_observercrosshair should allow us to see a crosshair when roaming, but we're early returning in the draw function anyway if we dont have a valid target so 
+			// I removed the OBS_MODE_ROAMING clause here so stv demo watchers, who still have an observer target even when roaming, dont see a crosshair when normal spectators watching live dont.
+			// NEO TODO Fix cl_observercrosshair for both
+		default:
+			return false;
+		}
+	}
+
+	if (!player)
+		return false;
+	else
+		Assert(!player->IsObserver());
+
+	if (player->m_lifeState != LIFE_ALIVE)
+		return false;
+
+	if (player->GetFlags() & FL_FROZEN)
+		return false;
+
+	// This is the HL2 player logic from the ifndef NEO path below
+	// that is commented out in the SDK code also.
+	//if (player->m_HL2Local.m_bZooming)
+	//	return false;
+
+	if (player->IsInVGuiInputMode())
+		return false;
+
+	if (!crosshair.GetBool())
+		return false;
+
+	if (!CHudElement::ShouldDraw())
+		return false;
+
+	auto *wep = player->GetActiveWeapon();
+	if (!wep || !wep->ShouldDrawCrosshair())
+		return false;
+
+	if (engine->IsDrawingLoadingImage())
+		return false;
+
+	if (engine->IsPaused())
+		return false;
+
+	if (!g_pClientMode->ShouldDrawCrosshair())
+		return false;
+
+	return true;
+
+#else
+
 	bool bNeedsDraw;
 
 	if ( m_bHideCrosshair )
 		return false;
 
-#ifdef NEO
-	C_BasePlayer* pPlayer = IsLocalPlayerSpectator() ? UTIL_PlayerByIndex(GetSpectatorTarget()) : C_BasePlayer::GetLocalPlayer();
-#else
 	C_BasePlayer* pPlayer = C_BasePlayer::GetLocalPlayer();
-#endif // NEO
 	if ( !pPlayer )
 		return false;
 
@@ -163,11 +249,7 @@ bool CHudCrosshair::ShouldDraw( void )
 			( !pPlayer->IsSuitEquipped() || g_pGameRules->IsMultiplayer() ) &&
 			g_pClientMode->ShouldDrawCrosshair() &&
 			!( pPlayer->GetFlags() & FL_FROZEN ) &&
-#ifdef NEO
-			( GetLocalPlayerIndex() == render->GetViewEntity()) &&
-#else
 			( pPlayer->entindex() == render->GetViewEntity() ) &&
-#endif // NEO
 			( pPlayer->IsAlive() ||	( pPlayer->GetObserverMode() == OBS_MODE_IN_EYE ) || ( cl_observercrosshair.GetBool() && pPlayer->GetObserverMode() == OBS_MODE_ROAMING ) );
 	}
 	else
@@ -178,16 +260,13 @@ bool CHudCrosshair::ShouldDraw( void )
 			!engine->IsPaused() && 
 			g_pClientMode->ShouldDrawCrosshair() &&
 			!( pPlayer->GetFlags() & FL_FROZEN ) &&
-#ifdef NEO
-			(GetLocalPlayerIndex() == render->GetViewEntity()) &&
-#else
 			( pPlayer->entindex() == render->GetViewEntity() ) &&
-#endif // NEO
 			!pPlayer->IsInVGuiInputMode() &&
 			( pPlayer->IsAlive() ||	( pPlayer->GetObserverMode() == OBS_MODE_IN_EYE ) || ( cl_observercrosshair.GetBool() && pPlayer->GetObserverMode() == OBS_MODE_ROAMING ) );
 	}
 
 	return ( bNeedsDraw && CHudElement::ShouldDraw() );
+#endif
 }
 
 #ifdef TF_CLIENT_DLL
@@ -290,6 +369,17 @@ void CHudCrosshair::GetDrawPosition ( float *pX, float *pY, bool *pbBehindCamera
 ConVar cl_neo_scope_restrict_to_rectangle("cl_neo_scope_restrict_to_rectangle", "1", FCVAR_CHEAT,
 	"Whether to enforce rectangular sniper scope shape regardless of screen ratio.", true, 0.0, true, 1.0);
 
+#ifdef NEO
+
+void CHudCrosshair::resetPlayersCrosshair()
+{
+	V_memset(m_szLocalStrPlayersCrosshair, 0, sizeof(m_szLocalStrPlayersCrosshair));
+	V_memset(m_playersCrosshairInfos, 0, sizeof(m_playersCrosshairInfos));
+	V_memset(m_aflLastCheckedPlayersCrosshair, 0, sizeof(m_aflLastCheckedPlayersCrosshair));
+}
+
+#endif // NEO
+
 void CHudCrosshair::Paint( void )
 {
 	if ( !m_pCrosshair )
@@ -299,12 +389,13 @@ void CHudCrosshair::Paint( void )
 		return;
 
 #ifdef NEO
-	C_BasePlayer* pPlayer = IsLocalPlayerSpectator() ? UTIL_PlayerByIndex(GetSpectatorTarget()) : C_BasePlayer::GetLocalPlayer();
+	if (!ShouldDraw())
+		return;
 #else
 	C_BasePlayer* pPlayer = C_BasePlayer::GetLocalPlayer();
-#endif // NEO
 	if ( !pPlayer )
 		return;
+#endif // NEO
 
 	float x, y;
 	bool bBehindCamera;
@@ -330,13 +421,22 @@ void CHudCrosshair::Paint( void )
 		return;
 	}
 
-	C_BaseCombatWeapon *pWeapon = pPlayer->GetActiveWeapon();
-	CNEOBaseCombatWeapon* pNeoWep = NULL;
+
+	C_NEO_Player* pPlayer = C_NEO_Player::GetLocalNEOPlayer();
+	if (!pPlayer)
+		return;
+
+	if (pPlayer->IsObserver())
+	{
+		pPlayer = ToNEOPlayer(ClientEntityList().GetBaseEntity(GetSpectatorTarget()));
+		if (!pPlayer)
+			return;
+	}
+	auto *pWeapon = static_cast<CNEOBaseCombatWeapon *>(pPlayer->GetActiveWeapon());
 	if ( pWeapon )
 	{
 		// NEO HACK (Rain): this should get implemented in virtual pNeoWep->GetWeaponCrosshairScale
-		pNeoWep = static_cast<CNEOBaseCombatWeapon *>(pWeapon);
-		if (pNeoWep && pNeoWep->GetNeoWepBits() & NEO_WEP_SCOPEDWEAPON)
+		if (pWeapon && pWeapon->GetNeoWepBits() & NEO_WEP_SCOPEDWEAPON)
 		{
 			int screenWidth, screenHeight;
 			GetHudSize(screenWidth, screenHeight);
@@ -390,7 +490,7 @@ void CHudCrosshair::Paint( void )
 
 	// NEO TODO (nullsystem): Probably be better if the entire class refreshed to our own
 	// thing and can do away with that CHudTexture nonsense entirely
-	const bool bIsScoped = pNeoWep && pNeoWep->GetNeoWepBits() & NEO_WEP_SCOPEDWEAPON;
+	const bool bIsScopedWep = pWeapon && pWeapon->GetNeoWepBits() & NEO_WEP_SCOPEDWEAPON;
 
 	bool bThisFrameRefreshCrosshair = m_bRefreshCrosshair;
 	auto *pNeoPlayer = static_cast<C_NEO_Player *>(pPlayer);
@@ -405,7 +505,6 @@ void CHudCrosshair::Paint( void )
 		if (bPlayerIdxValid)
 		{
 			bTakeSpecCrosshair = true;
-			m_playersCrosshairInfos;
 			bThisFrameRefreshCrosshair = false;
 			pCrosshairInfo = &m_playersCrosshairInfos[iPlayerIdx];
 			pszNeoCrosshair = pNeoPlayer->m_szNeoCrosshair.Get();
@@ -432,25 +531,44 @@ void CHudCrosshair::Paint( void )
 		{
 			// NEO NOTE (nullsystem): Don't revert, just enforce default if it
 			// is not given properly
-			ImportCrosshair(pCrosshairInfo, CL_NEO_CROSSHAIR_DEFAULT);
+			ResetCrosshairToDefault(pCrosshairInfo);
 		}
 		if (!bTakeSpecCrosshair)
 		{
 			m_bRefreshCrosshair = false;
 		}
 	}
-	const int iXHairStyle = pCrosshairInfo->iStyle;
 
-	trace_t iffTrace;
-	if (NEORules()->GetGameType() != NEO_GAME_TYPE_DM)
+	bool bHideCrosshair = (NEORules() && NEORules()->GetHiddenHudElements() & NEO_HUD_ELEMENT_CROSSHAIR);
+
+	ENeoCrosshairWep eNeoXHairWep = CROSSHAIR_WEP_DEFAULT;
+	if (pWeapon)
 	{
+		int iNeoXHairWep = MAP_WEAPON_TYPE_TO_XHAIR[NEO_WEAPON_TYPE[pWeapon->WeaponIndex()]];
+		if (iNeoXHairWep >= CROSSHAIR_WEP_DEFAULT
+				&& iNeoXHairWep < CROSSHAIR_WEP_DEFAULT_HIPFIRE
+				&& false == pNeoPlayer->m_bInAim)
+		{
+			iNeoXHairWep += CROSSHAIR_WEP_DEFAULT_HIPFIRE;
+		}
+		eNeoXHairWep = static_cast<ENeoCrosshairWep>(
+				UseCrosshairIndexFor(pCrosshairInfo, iNeoXHairWep, &bHideCrosshair));
+	}
+	CrosshairWepInfo *crh = &pCrosshairInfo->wep[eNeoXHairWep];
+	const int iTexXHId = m_iTexXHId[clamp(crh->iStyle, 0, CROSSHAIR_STYLE__TOTAL - 1)];
+
+	bool showFriendlyFireCrosshair = false;
+	if (NEORules()->GetGameType() != NEO_GAME_TYPE_DM && cl_neo_crosshair_friendly_fire_warning.GetBool())
+	{
+		trace_t iffTrace;
 		CTraceFilterSimpleList iffTraceFilter(COLLISION_GROUP_NONE);
 		iffTraceFilter.AddEntityToIgnore(pPlayer);
 		constexpr int IFF_TRACELINE_LENGTH = 8192; // a little over 200m
 		UTIL_TraceLine(pPlayer->Weapon_ShootPosition(), pPlayer->Weapon_ShootPosition() + pPlayer->GetAutoaimVector(0) * IFF_TRACELINE_LENGTH, MASK_SHOT_HULL, &iffTraceFilter, &iffTrace);
+		showFriendlyFireCrosshair = IsPlayerIndex(iffTrace.GetEntityIndex()) && iffTrace.m_pEnt->GetTeamNumber() == pPlayer->GetTeamNumber();
 	}
 
-	if (bIsScoped)
+	if (bIsScopedWep && pPlayer->m_bInAim)
 	{
 		m_pCrosshair->DrawSelfCropped (
 			iX-(iWidth/2), iY-(iHeight/2),
@@ -463,33 +581,72 @@ void CHudCrosshair::Paint( void )
 			COLOR_WHITE
 #endif
 		);
+
+		// NEO NOTE (Rain): If we "need" to bolt the gun, don't show the xhair inaccuracy.
+		// This is a special case for SRS handling when un-scoping right after firing a bullet.
+		// If we don't do this check, the player could see the scope inaccuracy effect for a
+		// few frames after shooting, which can hinder the scope's visibility especially at long range
+		// without offering any useful info to the player in return (i.e. the SRS post-fire
+		// inaccuracy doesn't matter because they cannot shoot again anyway until it has decayed).
+		bool weaponNeedsToBeBolted = false;
+		if (pWeapon->GetNeoWepBits() & NEO_WEP_SRS)
+		{
+			weaponNeedsToBeBolted = assert_cast<CWeaponSRS*>(pWeapon)->GetNeedsBolting();
+		}
+		if (!weaponNeedsToBeBolted)
+		{
+			if (cl_neo_crosshair_scope_inaccuracy.GetBool())
+			{
+				const int size = pWeapon ? HalfInaccuracyConeInScreenPixels(pWeapon, m_iHalfScreenWidth) : 0;
+				if (size)
+				{
+					surface()->DrawSetTexture(m_hCrosshairLight);
+					surface()->DrawSetColor(COLOR_FADED_WHITE);
+					surface()->DrawTexturedRect(
+						x - size - m_iCrosshairLightWidth,
+						y - size - m_iCrosshairLightHeight,
+						x - size + m_iCrosshairLightWidth,
+						y - size + m_iCrosshairLightHeight
+					);
+					surface()->DrawTexturedRect(
+						x + size - m_iCrosshairLightWidth,
+						y + size - m_iCrosshairLightHeight,
+						x + size + m_iCrosshairLightWidth,
+						y + size + m_iCrosshairLightHeight
+					);
+				}
+			}
+		}
 	}
-	else if (NEORules()->GetGameType() != NEO_GAME_TYPE_DM && IsPlayerIndex(iffTrace.GetEntityIndex()) && iffTrace.m_pEnt->GetTeamNumber() == pPlayer->GetTeamNumber())
+	else if (!bHideCrosshair)
 	{
-		vgui::surface()->DrawSetTexture(m_iTexIFFId);
-		int iTexWide, iTexTall;
-		vgui::surface()->DrawGetTextureSize(m_iTexIFFId, iTexWide, iTexTall);
-		iTexWide >>= 2;
-		iTexTall >>= 2;
-		vgui::surface()->DrawSetColor(COLOR_RED);
-		vgui::surface()->DrawTexturedRect(iX - iTexWide, iY - iTexTall, iX + iTexWide, iY + iTexTall);
-	}
-	else if (m_iTexXHId[iXHairStyle] > 0)
-	{
-		vgui::surface()->DrawSetTexture(m_iTexXHId[iXHairStyle]);
-		int iTexWide, iTexTall;
-		vgui::surface()->DrawGetTextureSize(m_iTexXHId[iXHairStyle], iTexWide, iTexTall);
-		iTexWide >>= 1;
-		iTexTall >>= 1;
-		vgui::surface()->DrawSetColor(pCrosshairInfo->color);
-		vgui::surface()->DrawTexturedRect(iX - iTexWide, iY - iTexTall, iX + iTexWide, iY + iTexTall);
-	}
-	else
-	{
-		PaintCrosshair(*pCrosshairInfo, iX, iY);
+		if (showFriendlyFireCrosshair)
+		{
+			vgui::surface()->DrawSetTexture(m_iTexIFFId);
+			int iTexWide, iTexTall;
+			vgui::surface()->DrawGetTextureSize(m_iTexIFFId, iTexWide, iTexTall);
+			iTexWide >>= 2;
+			iTexTall >>= 2;
+			vgui::surface()->DrawSetColor(COLOR_RED);
+			vgui::surface()->DrawTexturedRect(iX - iTexWide, iY - iTexTall, iX + iTexWide, iY + iTexTall);
+		}
+		else if (iTexXHId > 0)
+		{
+			vgui::surface()->DrawSetTexture(iTexXHId);
+			int iTexWide, iTexTall;
+			vgui::surface()->DrawGetTextureSize(iTexXHId, iTexWide, iTexTall);
+			iTexWide >>= 1;
+			iTexTall >>= 1;
+			vgui::surface()->DrawSetColor(crh->color);
+			vgui::surface()->DrawTexturedRect(iX - iTexWide, iY - iTexTall, iX + iTexWide, iY + iTexTall);
+		}
+		else
+		{
+			PaintCrosshair(crh, HalfInaccuracyConeInScreenPixels(pWeapon, m_iHalfScreenWidth), iX, iY);
+		}
 	}
 
-	if (bIsScoped)
+	if (bIsScopedWep && pPlayer->m_bInAim)
 	{
 		int screenWidth, screenHeight;
 		GetHudSize(screenWidth, screenHeight);

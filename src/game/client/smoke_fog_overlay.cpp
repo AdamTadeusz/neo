@@ -74,6 +74,15 @@ void DrawSmokeFogOverlay()
 	
 	CMatRenderContextPtr pRenderContext( materials );
 
+#ifdef NEO
+	VMatrix matrixProjection;
+	pRenderContext->GetMatrix(MATERIAL_PROJECTION, &matrixProjection);
+	VMatrix matrixView;
+	pRenderContext->GetMatrix(MATERIAL_VIEW, &matrixView);
+	VMatrix matrixModel;
+	pRenderContext->GetMatrix(MATERIAL_MODEL, &matrixModel);
+#endif // NEO
+
 	pRenderContext->MatrixMode( MATERIAL_PROJECTION );
 	pRenderContext->LoadIdentity();
 	pRenderContext->Ortho( 0, 0, 1, 1, -99999, 99999 );
@@ -119,8 +128,20 @@ void DrawSmokeFogOverlay()
 
 	meshBuilder.End();
 	pMesh->Draw();
+	
+#ifdef NEO
+	pRenderContext->LoadMatrix(matrixModel);
+	pRenderContext->MatrixMode( MATERIAL_PROJECTION );
+	pRenderContext->LoadMatrix(matrixProjection);
+	pRenderContext->MatrixMode( MATERIAL_VIEW );
+	pRenderContext->LoadMatrix(matrixView);
+#endif // NEO
 }
 
+#ifdef GLOWS_ENABLE
+extern ConVar glow_outline_effect_enable;
+#endif // GLOWS_ENABLE
+extern ConVar mp_forcecamera;
 void UpdateThermalOverride()
 {
 	auto localPlayer = C_NEO_Player::GetLocalNEOPlayer();
@@ -130,6 +151,7 @@ void UpdateThermalOverride()
 		if (localPlayer->GetClass() == NEO_CLASS_SUPPORT && localPlayer->IsInVision())
 		{
 			g_SmokeFogOverlayThermalOverride = true;
+			g_SmokeFogOverlayAlpha = 0;
 			return;
 		}
 	}
@@ -141,9 +163,18 @@ void UpdateThermalOverride()
 			if (targetPlayer->GetClass() == NEO_CLASS_SUPPORT && targetPlayer->IsInVision())
 			{
 				g_SmokeFogOverlayThermalOverride = true;
+				g_SmokeFogOverlayAlpha = 0;
 				return;
 			}
 		}
 	}
+#ifdef GLOWS_ENABLE
+	else if (localPlayer->IsObserver() && (localPlayer->GetTeamNumber() == TEAM_SPECTATOR || mp_forcecamera.GetInt() == OBS_ALLOW_ALL))
+	{
+		g_SmokeFogOverlayThermalOverride = false;
+		g_SmokeFogOverlayAlpha = 0;
+		return;
+	}
+#endif // GLOWS_ENABLE
 	g_SmokeFogOverlayThermalOverride = false;
 }

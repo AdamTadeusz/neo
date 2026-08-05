@@ -53,7 +53,7 @@ CWeaponTachi::CWeaponTachi()
 
 	m_bFiresUnderwater = false;
 	m_bAltFiresUnderwater = true;
-	m_bIsPrimaryFireMode = true;
+	m_bIsPrimaryFireMode = (bool)Tachi::Firemode::Single;
 
 	m_weaponSeeds = {
 		"tachipx",
@@ -72,19 +72,14 @@ void CWeaponTachi::SwitchFireMode( void )
 
 	m_bIsPrimaryFireMode = !m_bIsPrimaryFireMode;
 
-#ifdef CLIENT_DLL
-	// NEO TODO (Rain): fire mode indicator
-	Msg("Fire mode: %s\n", m_bIsPrimaryFireMode ? "primary" : "alt");
-#endif
-
 	WeaponSound( SPECIAL1 );
 	SendWeaponAnim( ACT_VM_DRAW_SPECIAL );
 }
 
-void CWeaponTachi::ForceSetFireMode( bool bPrimaryMode, bool bPlaySound,
+void CWeaponTachi::ForceSetFireMode( Tachi::Firemode primaryMode, bool bPlaySound,
 	float flSoonestSwitch )
 {
-	m_bIsPrimaryFireMode = bPrimaryMode;
+	m_bIsPrimaryFireMode = (bool)primaryMode;
 	m_flSoonestFiremodeSwitch = flSoonestSwitch;
 
 	if (bPlaySound)
@@ -120,4 +115,9 @@ void CWeaponTachi::ItemPostFrame( void )
 			return;
 		}
 	}
+}
+
+bool CWeaponTachi::CanBePickedUpByClass(int classId)
+{
+	return classId != NEO_CLASS_JUGGERNAUT;
 }

@@ -574,10 +574,22 @@ void PlayerLocomotion::Approach( const Vector &pos, float goalWeight )
 		}
 	}
 
+#ifdef NEO
+	CNEOBot* me = (CNEOBot*)GetBot()->GetEntity();
+	if ( me->m_nButtons & IN_WALK )
+	{
+		// If walk key was activated this tick, stop pressing run button.
+	}
+	else if ( IsRunning() )
+	{
+		playerButtons->PressRunButton();
+	}
+#else
 	if ( !IsRunning() )
 	{
 		playerButtons->PressWalkButton();
 	}
+#endif
 }
 
 
@@ -672,6 +684,20 @@ void PlayerLocomotion::Jump( void )
 		playerButtons->PressJumpButton();
 	}
 }
+
+#ifdef NEO
+
+//----------------------------------------------------------------------------------------------------
+void PlayerLocomotion::Thermoptic( void )
+{
+	INextBotPlayerInput *playerButtons = dynamic_cast< INextBotPlayerInput * >( GetBot() );
+	if ( playerButtons )
+	{
+		playerButtons->PressThermopticButton();
+	}
+}
+
+#endif // NEO
 
 
 //----------------------------------------------------------------------------------------------------

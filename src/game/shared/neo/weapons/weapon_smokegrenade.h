@@ -14,7 +14,7 @@
 #include "neo_player.h"
 #endif
 
-#include "weapon_neobasecombatweapon.h"
+#include "weapon_neobaseprojectile.h"
 
 #define GRENADE_PAUSED_NO			0
 #define GRENADE_PAUSED_PRIMARY		1
@@ -26,9 +26,9 @@
 #define CWeaponSmokeGrenade C_WeaponSmokeGrenade
 #endif
 
-class CWeaponSmokeGrenade : public CNEOBaseCombatWeapon
+class CWeaponSmokeGrenade : public CNEOBaseProjectile
 {
-	DECLARE_CLASS(CWeaponSmokeGrenade, CNEOBaseCombatWeapon);
+	DECLARE_CLASS(CWeaponSmokeGrenade, CNEOBaseProjectile);
 public:
 	DECLARE_NETWORKCLASS();
 	DECLARE_PREDICTABLE();
@@ -39,6 +39,7 @@ public:
 
 	CWeaponSmokeGrenade();
 
+	NEO_WEP_BITS_UNDERLYING_TYPE WeaponIndex() const override { return NEO_WIDX_SMOKE_GRENADE; }
 	virtual NEO_WEP_BITS_UNDERLYING_TYPE GetNeoWepBits(void) const { return NEO_WEP_SMOKE_GRENADE | NEO_WEP_THROWABLE; }
 
 	virtual float GetSpeedScale(void) const OVERRIDE { return 0.85f; }
@@ -56,6 +57,7 @@ public:
 	bool	Reload(void);
 	void	Drop(const Vector& vecVelocity) OVERRIDE;
 	bool	CanDrop() OVERRIDE;
+	virtual bool CanAim() final { return false; }
 	virtual bool CanPerformSecondaryAttack() const override final { return false; }
 
 #ifndef CLIENT_DLL
@@ -65,10 +67,8 @@ public:
 	void	ThrowGrenade(CNEO_Player* pPlayer, bool isAlive = true, CBaseEntity *pAttacker = NULL);
 	bool	IsPrimed() const { return (m_AttackPaused != 0); }
 
+	bool CanBePickedUpByClass(int classId) OVERRIDE;
 private:
-	// Check a throw from vecSrc.  If not valid, move the position back along the line to vecEye
-	void	CheckThrowPosition(CBasePlayer* pPlayer, const Vector& vecEye, Vector& vecSrc);
-
 	CNetworkVar(bool, m_bRedraw);	//Draw the weapon again after throwing a grenade
 
 	CNetworkVar(int, m_AttackPaused);

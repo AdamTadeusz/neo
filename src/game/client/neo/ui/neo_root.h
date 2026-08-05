@@ -3,7 +3,21 @@
 #include <vgui_controls/EditablePanel.h>
 #include "GameUI/IGameUI.h"
 #include <steam/isteamhttp.h>
+
+// GCC shipped on SteamRT3 giving false positive
+#ifdef ACTUALLY_COMPILER_GCC
+#pragma GCC diagnostic push
+#if ((__GNUC__ >= 10) && (__GNUC__ <= 13))
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
+#endif
+#endif
+
 #include <steam/steam_api.h>
+
+#ifdef ACTUALLY_COMPILER_GCC
+#pragma GCC diagnostic pop
+#endif
 
 #include "neo_ui.h"
 #include "neo_root_serverbrowser.h"
@@ -11,15 +25,13 @@
 
 class CAvatarImage;
 
-// Checks if it's in a playable game (and not a background main menu)
-bool IsInGame();
-
 struct NeoNewGame
 {
 	wchar_t wszMap[64] = L"ntre_oilstain_ctg";
-	wchar_t wszHostname[64] = L"NEOTOKYO;REBUILD Listen Server";
+	wchar_t wszHostname[64] = NEO_GAME_NAME L" Listen Server";
 	int iMaxPlayers = 24;
 	int iBotQuota = 10;
+	int iBotDifficulty = 2;
 	wchar_t wszPassword[64] = L"neo";
 	bool bFriendlyFire = true;
 	bool bUseSteamNetworking = false;
@@ -42,10 +54,15 @@ class CNeoRootInput : public vgui::Panel
 public:
 	CNeoRootInput(CNeoRoot *rootPanel);
 	void PerformLayout() final;
+	void OnKeyCodePressed(vgui::KeyCode code) final;
+	void OnTick() final;
+	void OnKeyCodeReleased(vgui::KeyCode code) final;
 	void OnKeyCodeTyped(vgui::KeyCode code) final;
 	void OnKeyTyped(wchar_t unichar) final;
 	void OnThink();
 	CNeoRoot *m_pNeoRoot = nullptr;
+	vgui::KeyCode m_pressedKey = BUTTON_CODE_NONE;
+	float m_flStartPressed = 0.0f;
 };
 
 enum RootState
@@ -54,12 +71,12 @@ enum RootState
 	STATE_SETTINGS,
 	STATE_NEWGAME,
 	STATE_SERVERBROWSER,
+	STATE_CREDITS,
 
 	// Those that are not the main states goes under here
 	STATE__SUBSTATES,
 	STATE_MAPLIST = STATE__SUBSTATES,
 	STATE_SERVERDETAILS,
-	STATE_PLAYERLIST,
 	STATE_SPRAYPICKER,
 	STATE_SPRAYDELETER,
 
@@ -71,25 +88,9 @@ enum RootState
 	STATE_SERVERPASSWORD,
 	STATE_SETTINGSRESETDEFAULT,
 	STATE_SPRAYDELETERCONFIRM,
+	STATE_ADDCUSTOMBLACKLIST,
 
 	STATE__TOTAL,
-};
-
-struct WidgetInfo
-{
-	const char *label;
-	bool isFake;
-	const char *command; // TODO: Replace
-	bool isMainMenuCommand;
-	RootState nextState;
-	int flags;
-};
-
-enum WidgetInfoFlags
-{
-	FLAG_NONE = 0,
-	FLAG_SHOWINGAME = 1 << 0,
-	FLAG_SHOWINMAIN = 1 << 1,
 };
 
 enum MainMenuButtons
@@ -98,17 +99,12 @@ enum MainMenuButtons
 	MMBTN_FINDSERVER,
 	MMBTN_CREATESERVER,
 	MMBTN_DISCONNECT,
-	MMBTN_PLAYERLIST,
-	MMBTN_SEPARATOR1,
 	MMBTN_TUTORIAL,
 	MMBTN_FIRINGRANGE,
-	MMBTN_SEPARATOR2,
 	MMBTN_OPTIONS,
 	MMBTN_QUIT,
 
-	BTNS_TOTAL,
-
-	SMBTN_MP3,
+	MMBTN__TOTAL,
 };
 
 struct SprayInfo
@@ -134,12 +130,10 @@ public:
 	void UpdateControls();
 
 	IGameUI *m_gameui = nullptr;
-	int m_iHoverBtn = -1;
 	RootState m_state = STATE_ROOT;
 	CAvatarImage *m_avImage = nullptr;
 
-	wchar_t m_wszDispBtnTexts[BTNS_TOTAL][64] = {};
-	int m_iWszDispBtnTextsSizes[BTNS_TOTAL] = {};
+	wchar_t m_wszCachedTexts[MMBTN__TOTAL][64] = {};
 
 	CNeoRootInput *m_panelCaptureInput = nullptr;
 	void OnRelayedKeyCodeTyped(vgui::KeyCode code);
@@ -154,6 +148,7 @@ public:
 	void OnTick() final;
 	void FireGameEvent(IGameEvent *event) final;
 
+	void OnEnterServer(const gameserveritem_t gameServer, const char *pszServerPassword);
 	void OnMainLoop(const NeoUI::Mode eMode);
 
 	struct MainLoopParam
@@ -167,9 +162,9 @@ public:
 	void MainLoopSettings(const MainLoopParam param);
 	void MainLoopNewGame(const MainLoopParam param);
 	void MainLoopServerBrowser(const MainLoopParam param);
+	void MainLoopCredits(const MainLoopParam param);
 	void MainLoopMapList(const MainLoopParam param);
 	void MainLoopServerDetails(const MainLoopParam param);
-	void MainLoopPlayerList(const MainLoopParam param);
 	void MainLoopSprayPicker(const MainLoopParam param);
 	void MainLoopPopup(const MainLoopParam param);
 
@@ -186,14 +181,15 @@ public:
 	int m_iServerBrowserTab = 0;
 	CNeoServerList m_serverBrowser[GS__TOTAL];
 	CNeoServerPlayers m_serverPlayers;
-	ServerBrowserFilters m_sbFilters;
-	bool m_bSBFiltModified = false;
+	ServerBrowserFilters m_sbFilters = {};
+	NeoUI::TableHeaderModFlags m_headerModFlagsServerBrowser = 0;
 	bool m_bShowFilterPanel = false;
-	bool m_bSPlayersSortModified = false;
+	NeoUI::TableHeaderModFlags m_headerModFlagsPlayers = 0;
 	GameServerSortContext m_sortCtx = {};
 
 	wchar_t m_wszBindingText[128];
 	int m_iBindingIdx = -1;
+	bool m_bNextBindingSecondary = false;
 
 	int m_iTitleWidth;
 	int m_iTitleHeight;
@@ -201,6 +197,8 @@ public:
 	wchar_t m_wszMap[128];
 
 	wchar_t m_wszServerPassword[128] = {};
+	wchar_t m_wszServerNewBlacklist[128] = {};
+	int m_iServerNewBlacklistType = 0;
 
 	CCallResult<CNeoRoot, HTTPRequestCompleted_t> m_ccallbackHttp;
 	void HTTPCallbackRequest(HTTPRequestCompleted_t *request, bool bIOFailure);
@@ -220,6 +218,8 @@ public:
 	enum FileIODialogMode
 	{
 		FILEIODLGMODE_SPRAY = 0,
+		FILEIODLGMODE_BLACKLIST_IMPORT,
+		FILEIODLGMODE_BLACKLIST_EXPORT,
 
 		FILEIODLGMODE__TOTAL,
 	};
@@ -230,12 +230,50 @@ public:
 	bool m_bOnLoadingScreen = false;
 	float m_flTimeLoadingScreenTransition = 0.0f;
 	int m_iSavedYOffsets[NeoUI::MAX_SECTIONS] = {};
+	int m_iSavedXOffsets[NeoUI::MAX_SECTIONS] = {};
+	int m_iSavedActive = 0;
+	int m_iSavedSection = 0;
 	bool m_bSprayGalleryRefresh = false;
 	float m_flWideAs43 = 0.0f;
 	SprayInfo m_sprayToDelete = {};
 
-private:
-	void OnFileSelectedMode_Spray(const char *szFullpath);
+	servernetadr_t m_favCacheNetAdr = {};
+	bool m_bFavCacheIsFav = false;
+	bool m_bAutoRefreshFav = false;
+
+	bool m_bColsWideServerBrowserInit = false;
+	bool m_bColsWideServerBlacklistInit = false;
+	bool m_bColsWideDetailedPlayerListInit = false;
+
+	int m_iColsWideServerBrowser[GSIW__TOTAL] = {};
+	int m_iColsWideServerBlacklist[SBLIST_COL__TOTAL] = {};
+	int m_iColsWideDetailedPlayerList[GSPS__TOTAL] = {};
+
+	int m_iUpDownInitialServer = -1;
+	int m_iUpDownDirection = 0;
+
+	NeoUI::TabsState m_tabsStateSettings = {};
+	NeoUI::TabsState m_tabsStateServerBrowser = {};
+	NeoUI::TabsState m_tabsStateIFF = {};
+
+	bool m_bMP3Popup = false;
+	ConVarRef cvr_cl_neo_radio_shuffle{"cl_neo_radio_shuffle"};
+
+	float m_flAutoJoinLastAttempt = 0.0f;
+	CNeoServerPing m_serverPingAutoJoin = {};
+	CNeoServerPing m_serverPingEnter = {};
+
+	enum ERootButtonAction
+	{
+		ROOTBUTTONACTION_NIL = 0,
+		ROOTBUTTONACTION_TOGGLECONSOLE,
+		ROOTBUTTONACTION_MP3,
+
+		ROOTBUTTONACTION__TOTAL,
+	};
+
+	float m_flHtBtnCodeUpdate = 0.0f;
+	CUtlHashtable<int, ERootButtonAction> m_htButtonCodeToAction;
 };
 
 extern CNeoRoot *g_pNeoRoot;

@@ -25,6 +25,8 @@ private:
 	CountdownTimer m_repathTimer;
 
 	CNavArea *m_coverArea;
+	CountdownTimer m_grenadeCheckTimer;
+	CountdownTimer m_grenadeThrowCooldownTimer;
 	CountdownTimer m_waitInCoverTimer;
 
 	CNavArea *FindCoverArea( CNEOBot *me );

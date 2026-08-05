@@ -33,12 +33,14 @@ public:
 
 	CWeaponPZ();
 
-	virtual NEO_WEP_BITS_UNDERLYING_TYPE GetNeoWepBits(void) const override { return NEO_WEP_PZ; }
+	NEO_WEP_BITS_UNDERLYING_TYPE WeaponIndex() const override { return NEO_WIDX_PZ; }
+	virtual NEO_WEP_BITS_UNDERLYING_TYPE GetNeoWepBits(void) const override { return NEO_WEP_PZ | NEO_WEP_FIREARM; }
 	virtual int GetNeoWepXPCost(const int neoClass) const override { return 20; }
 
 	virtual float GetSpeedScale(void) const OVERRIDE { return 0.675f; }
 
 	bool CanBePickedUpByClass(int classId) OVERRIDE;
+	virtual bool UsesTracers() override final { return true; }
 protected:
 	virtual float GetFastestDryRefireTime() const OVERRIDE { return 0.2f; }
 

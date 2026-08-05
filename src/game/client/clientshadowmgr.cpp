@@ -1939,7 +1939,11 @@ ClientShadowHandle_t CClientShadowMgr::CreateFlashlight( const FlashlightState_t
 	// We don't really need a model entity handle for a projective light source, so use an invalid one.
 	static ClientEntityHandle_t invalidHandle = INVALID_CLIENTENTITY_HANDLE;
 
+#ifdef NEO // NEO NOTE (nullsystem): -Wdeprecated-enum-enum-conversion
+	int shadowFlags = static_cast<int>(SHADOW_FLAGS_FLASHLIGHT) | static_cast<int>(SHADOW_FLAGS_LIGHT_WORLD);
+#else
 	int shadowFlags = SHADOW_FLAGS_FLASHLIGHT | SHADOW_FLAGS_LIGHT_WORLD;
+#endif
 	if( lightState.m_bEnableShadows && r_flashlightdepthtexture.GetBool() )
 	{
 		shadowFlags |= SHADOW_FLAGS_USE_DEPTH_TEXTURE;
@@ -1956,7 +1960,11 @@ ClientShadowHandle_t CClientShadowMgr::CreateShadow( ClientEntityHandle_t entity
 {
 	// We don't really need a model entity handle for a projective light source, so use an invalid one.
 	flags &= ~SHADOW_FLAGS_PROJECTED_TEXTURE_TYPE_MASK;
+#ifdef NEO // NEO NOTE (nullsystem): -Wdeprecated-enum-enum-conversion
+	flags |= static_cast<int>(SHADOW_FLAGS_SHADOW) | static_cast<int>(SHADOW_FLAGS_TEXTURE_DIRTY);
+#else
 	flags |= SHADOW_FLAGS_SHADOW | SHADOW_FLAGS_TEXTURE_DIRTY;
+#endif
 	ClientShadowHandle_t shadowHandle = CreateProjectedTexture( entity, flags );
 
 	IClientRenderable *pRenderable = ClientEntityList().GetClientRenderableFromHandle( entity );
@@ -2440,7 +2448,11 @@ void CClientShadowMgr::BuildOrthoShadow( IClientRenderable* pRenderable,
 	worldOrigin.z = (int)(worldOrigin.z / dx) * dx;
 
 	// NOTE: We gotta use the general matrix because xvec and yvec aren't perp
+#ifdef NEO
+	VMatrix matWorldToTexture;
+#else
 	VMatrix matWorldToShadow, matWorldToTexture;
+#endif
 	BuildGeneralWorldToShadowMatrix( m_Shadows[handle].m_WorldToShadow, worldOrigin, vecShadowDir, xvec, yvec );
 	BuildWorldToTextureMatrix( m_Shadows[handle].m_WorldToShadow, size, matWorldToTexture );
 	Vector2DCopy( size, m_Shadows[handle].m_WorldSize );

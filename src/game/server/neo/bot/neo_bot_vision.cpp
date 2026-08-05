@@ -5,9 +5,10 @@
 #include "neo_bot_vision.h"
 #include "neo_player.h"
 #include "neo_gamerules.h"
+#include "neo/weapons/weapon_ghost.h"
 
-ConVar neo_bot_choose_target_interval( "neo_bot_choose_target_interval", "0.3f", FCVAR_CHEAT, "How often, in seconds, a NEOBot can reselect his target" );
-ConVar neo_bot_sniper_choose_target_interval( "neo_bot_sniper_choose_target_interval", "3.0f", FCVAR_CHEAT, "How often, in seconds, a zoomed-in Sniper can reselect his target" );
+ConVar neo_bot_choose_target_interval( "neo_bot_choose_target_interval", "0.3", FCVAR_CHEAT, "How often, in seconds, a NEOBot can reselect his target" );
+ConVar neo_bot_sniper_choose_target_interval( "neo_bot_sniper_choose_target_interval", "3.0", FCVAR_CHEAT, "How often, in seconds, a zoomed-in Sniper can reselect his target" );
 
 extern ConVar neo_bot_ignore_real_players;
 
@@ -89,6 +90,11 @@ void CNEOBotVision::UpdatePotentiallyVisibleNPCVector( void )
  */
 bool CNEOBotVision::IsIgnored( CBaseEntity* subject ) const
 {
+	if (!NEORules()) // This can get called on de-init
+	{
+		return true;
+	}
+
 	CNEOBot* me = ( CNEOBot* )GetBot()->GetEntity();
 
 	if ( me->IsAttentionFocused() )
@@ -104,6 +110,17 @@ bool CNEOBotVision::IsIgnored( CBaseEntity* subject ) const
 	{
 		// don't ignore friends
 		return false;
+	}
+
+	const int iGhosterPlayer = NEORules()->GetGhosterPlayer();
+	if (iGhosterPlayer > 0)
+	{
+		auto *pNEOPlayer = dynamic_cast<CNEO_Player *>(subject);
+		if (pNEOPlayer && pNEOPlayer->IsCarryingGhost())
+		{
+			// don't ignore ghoster
+			return false;
+		}
 	}
 
 	if ( subject->IsEffectActive( EF_NODRAW ) )
@@ -148,3 +165,27 @@ float CNEOBotVision::GetMaxVisionRange( void ) const
 	// long range, particularly for snipers
 	return 6000.0f;
 }
+
+bool CNEOBotVision::IsInFieldOfView( CBaseEntity *subject ) const
+{
+	return IVision::IsInFieldOfView(subject);
+}
+
+bool CNEOBotVision::IsAbleToSee(CBaseEntity *subject, FieldOfViewCheckType checkFOV, Vector *visibleSpot) const
+{
+	CNEOBot *me = (CNEOBot *)GetBot()->GetEntity();
+	if (me && me->IsCarryingGhost())
+	{
+		auto *pGhost = dynamic_cast<CWeaponGhost *>(me->GetActiveWeapon());
+		if (pGhost && pGhost->IsGhost() && pGhost->IsBootupCompleted())
+		{
+			if (me->GetAbsOrigin().DistToSqr(subject->GetAbsOrigin()) < Square(CWeaponGhost::GetGhostRangeInHammerUnits()))
+			{
+				return true;
+			}
+		}
+	}
+
+	return IVision::IsAbleToSee(subject, checkFOV, visibleSpot);
+}
+
