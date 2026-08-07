@@ -102,8 +102,8 @@ void WorldLightCastShadowCallback(IConVar* pVar, const char* pszOldValue, float 
 static ConVar r_worldlight_castshadows("r_worldlight_castshadows", "1", FCVAR_CHEAT, "Allow world lights to cast shadows", true, 0, true, 1, WorldLightCastShadowCallback);
 static ConVar r_worldlight_lerptime("r_worldlight_lerptime", "0.5", FCVAR_CHEAT);
 static ConVar r_worldlight_debug("r_worldlight_debug", "0", FCVAR_CHEAT);
-static ConVar r_worldlight_shortenfactor("r_worldlight_shortenfactor", "2", FCVAR_CHEAT, "Makes shadows cast from local lights shorter");
-static ConVar r_worldlight_mincastintensity("r_worldlight_mincastintensity", "0.3", FCVAR_CHEAT, "Minimum brightness of a light to be classed as shadow casting", true, 0, false, 0);
+static ConVar r_worldlight_shortenfactor("r_worldlight_shortenfactor", "4", FCVAR_CHEAT, "Makes shadows cast from local lights shorter");
+static ConVar r_worldlight_mincastintensity("r_worldlight_mincastintensity", "0", FCVAR_CHEAT, "Minimum brightness of a light to be classed as shadow casting", true, 0, false, 0);
 #endif
 
 ConVar r_flashlightdepthtexture( "r_flashlightdepthtexture", "1", FCVAR_ALLOWED_IN_COMPETITIVE );
@@ -840,11 +840,6 @@ private:
 #endif
 		Vector					m_LastOrigin;
 		QAngle					m_LastAngles;
-#ifdef NEO
-		Vector					m_CurrentLightPos;	// When shadowing from local lights, stores the position of the currently shadowing light
-		Vector					m_TargetLightPos;	// When shadowing from local lights, stores the position of the new shadowing light
-		float					m_LightPosLerp;		// Lerp progress when going from current to target light
-#endif
 		TextureHandle_t			m_ShadowTexture;
 		CTextureReference		m_ShadowDepthTexture;
 		int						m_nRenderFrame;
@@ -1600,6 +1595,9 @@ void CClientShadowMgr::LevelShutdownPostEntity()
 #endif
 	{
 		ClientShadowHandle_t next = m_Shadows.Next(h);
+#ifdef NEO
+		if (h != CLIENTSHADOW_INVALID_HANDLE)
+#endif // NEO
 		DestroyShadow( h );
 		h = next;
 	}
@@ -1889,9 +1887,6 @@ ClientShadowHandle_t CClientShadowMgr::CreateProjectedTexture( ClientEntityHandl
 	shadow.m_nRenderFrame = -1;
 #ifdef NEO
 	shadow.m_ShadowDir = GetShadowDirection();
-	shadow.m_CurrentLightPos.Init(FLT_MAX, FLT_MAX, FLT_MAX);
-	shadow.m_TargetLightPos.Init(FLT_MAX, FLT_MAX, FLT_MAX);
-	shadow.m_LightPosLerp = FLT_MAX;
 #endif
 	shadow.m_LastOrigin.Init( FLT_MAX, FLT_MAX, FLT_MAX );
 	shadow.m_LastAngles.Init( FLT_MAX, FLT_MAX, FLT_MAX );
@@ -3116,7 +3111,12 @@ void CClientShadowMgr::AddToDirtyShadowList( ClientShadowHandle_t handle, bool b
 	if ( handle == CLIENTSHADOW_INVALID_HANDLE )
 		return;
 
-	Assert( m_DirtyShadows.Find( handle ) == m_DirtyShadows.InvalidIndex() );
+	const int index = m_DirtyShadows.Find(handle);
+	if (index != m_DirtyShadows.InvalidIndex())
+	{
+		return;
+	}
+	Assert( index == m_DirtyShadows.InvalidIndex() );
 	m_DirtyShadows.Insert( handle );
 
 	// This pretty much guarantees we'll recompute the shadow
@@ -3286,11 +3286,7 @@ void CClientShadowMgr::UpdateShadow( ClientShadowHandle_t handle, bool force )
 	const Vector& origin = pRenderable->GetRenderOrigin();
 	const QAngle& angles = pRenderable->GetRenderAngles();
 
-#ifdef NEO
-	if (force || (origin != shadow.m_LastOrigin) || (angles != shadow.m_LastAngles) || shadow.m_LightPosLerp < 1.0f)
-#else
 	if (force || (origin != shadow.m_LastOrigin) || (angles != shadow.m_LastAngles))
-#endif
 	{
 		// Store off the new pos/orientation
 		VectorCopy( origin, shadow.m_LastOrigin );
@@ -4383,6 +4379,7 @@ const Vector& CClientShadowMgr::GetShadowDirection(ClientShadowHandle_t shadowHa
 	return vecResult;
 }
 
+ConVar cl_neo_max_shadows_per_renderable("cl_neo_max_shadows_per_renderable", "5", FCVAR_ARCHIVE, "Max number of shadows per renderable", true, 0, true, 99);
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -4402,214 +4399,57 @@ void CClientShadowMgr::UpdateShadowDirectionFromLocalLightSource(ClientShadowHan
 		return;
 	}
 
-#ifdef NEO
-	CUtlVector<ClientShadow_t*> otherShadows(0, 2);
-	if (const auto neoPlayer = ToNEOPlayer(pRenderable->GetIClientUnknown()->GetBaseEntity()))
+	Vector bbMin, bbMax;
+	pRenderable->GetRenderBoundsWorldspace(bbMin, bbMax);
+	Vector origin(0.5f * (bbMin + bbMax));
+	
+	Vector lightPos;
+	Vector lightBrightness;
+
+	// Calculate minimum brightness squared
+	float flMinBrightnessSqr = r_worldlight_mincastintensity.GetFloat();
+	flMinBrightnessSqr *= flMinBrightnessSqr;
+
+	auto pEnt = pRenderable->GetIClientUnknown()->GetBaseEntity();
+	int nthShadow{};
+	if (pEnt)
 	{
-		for (int shadowCount = 0;; ++shadowCount)
+		for (int i = 0;; ++i)
 		{
-			const auto& s = pRenderable->GetShadowHandle(shadowCount);
+			const auto s = pEnt->GetShadowHandle(i);
 			if (s == CLIENTSHADOW_OUT_OF_RANGE)
 				break;
 			if (s == CLIENTSHADOW_INVALID_HANDLE)
 				continue;
-			if (s == shadow.m_ShadowHandle)
+			if (s != shadowHandle)
 				continue;
-			otherShadows.AddToTail(&m_Shadows[s]);
-
-			//auto p = DotProduct(shadow.m_ShadowDir, m_Shadows[s].m_ShadowDir);
-			//DevMsg("%d -> p: %f\n", shadowCount, p);
+			nthShadow = i;
+			break;
 		}
 	}
-#endif
-
-	Vector bbMin, bbMax;
-	pRenderable->GetRenderBoundsWorldspace(bbMin, bbMax);
-	Vector origin(0.5f * (bbMin + bbMax));
-	origin.z = bbMin.z; // Putting origin at the bottom of the bounding box makes the shadows a little shorter
-
-	Vector lightPos;
-	Vector lightBrightness;
-
-	if (shadow.m_LightPosLerp >= 1.0f) // Skip finding new light source if we're in the middle of a lerp
+	
+	vec_t relativeBrightness;
+	if (!g_pWorldLights->GetNthBrightestLightSource(nthShadow, pRenderable, pRenderable->GetRenderOrigin(), lightPos, lightBrightness, relativeBrightness)
+		|| lightBrightness.LengthSqr() < flMinBrightnessSqr)
 	{
-		// Calculate minimum brightness squared
-		float flMinBrightnessSqr = r_worldlight_mincastintensity.GetFloat();
-		flMinBrightnessSqr *= flMinBrightnessSqr;
-
-#ifdef NEO
-		auto pEnt = pRenderable->GetIClientUnknown()->GetBaseEntity();
-		int nthShadow{};
-		if (pEnt)
-		{
-			for (int i = 0;; ++i)
-			{
-				const auto s = pEnt->GetShadowHandle(i);
-				if (s == CLIENTSHADOW_OUT_OF_RANGE)
-					break;
-				if (s == CLIENTSHADOW_INVALID_HANDLE)
-					continue;
-				if (s != shadowHandle)
-					continue;
-				nthShadow = i;
-				break;
-			}
-		}
-
-		vec_t relativeBrightness;
-		if (!g_pWorldLights->GetNthBrightestLightSource(nthShadow, pRenderable, pRenderable->GetRenderOrigin(), lightPos, lightBrightness, relativeBrightness)
-			|| lightBrightness.LengthSqr() < flMinBrightnessSqr)
-#else
-		if (g_pWorldLights->GetBrightestLightSource(pRenderable->GetRenderOrigin(), lightPos, lightBrightness) == false || lightBrightness.LengthSqr() < flMinBrightnessSqr)
-#endif
+		if (nthShadow == 0)
 		{
 			// Didn't find a light source at all, use default shadow direction
 			// TODO: Could switch to using blobby shadow in this case
 			lightPos.Init(FLT_MAX, FLT_MAX, FLT_MAX);
 			if (pEnt)
 			{
-				pEnt->m_ShadowAlphaFractions[nthShadow] = 1;
-			}
-		}
-		else if (pEnt)
-		{
-			pEnt->m_ShadowAlphaFractions[nthShadow] = relativeBrightness;
-		}
-	}
-
-	if (shadow.m_LightPosLerp == FLT_MAX)	// First light pos ever, just init
-	{
-		shadow.m_CurrentLightPos = lightPos;
-		shadow.m_TargetLightPos = lightPos;
-		shadow.m_LightPosLerp = 1.0f;
-	}
-	else if (shadow.m_LightPosLerp < 1.0f)
-	{
-		// We're in the middle of a lerp from current to target light. Finish it.
-		shadow.m_LightPosLerp += gpGlobals->frametime * 1.0f / r_worldlight_lerptime.GetFloat();
-		shadow.m_LightPosLerp = clamp(shadow.m_LightPosLerp, 0.0f, 1.0f);
-
-		Vector currLightPos(shadow.m_CurrentLightPos);
-		Vector targetLightPos(shadow.m_TargetLightPos);
-		if (currLightPos.x == FLT_MAX)
-		{
-			currLightPos = origin - 200.0f * GetShadowDirection();
-		}
-		if (targetLightPos.x == FLT_MAX)
-		{
-			targetLightPos = origin - 200.0f * GetShadowDirection();
-		}
-
-		// Lerp light pos
-		Vector v1 = origin - shadow.m_CurrentLightPos;
-		v1.NormalizeInPlace();
-
-		Vector v2 = origin - shadow.m_TargetLightPos;
-		v2.NormalizeInPlace();
-
-		// SAULUNDONE: Caused over top sweeping far too often
-#if 0
-		if (v1.Dot(v2) < 0.0f)
-		{
-			// If change in shadow angle is more than 90 degrees, lerp over the renderable's top to avoid long sweeping shadows
-			Vector fakeOverheadLightPos(origin.x, origin.y, origin.z + 200.0f);
-			if (shadow.m_LightPosLerp < 0.5f)
-			{
-				lightPos = Lerp(2.0f * shadow.m_LightPosLerp, currLightPos, fakeOverheadLightPos);
-			}
-			else
-			{
-				lightPos = Lerp(2.0f * shadow.m_LightPosLerp - 1.0f, fakeOverheadLightPos, targetLightPos);
+				pEnt->m_ShadowAlphaFractions[nthShadow] = 1.f;
 			}
 		}
 		else
-#endif
-		bool swapShadows = false;
 		{
-			for (int i = 0; !swapShadows && i < otherShadows.Count(); ++i)
-			{
-				ClientShadow_t* otherShadow = otherShadows[i];
-				constexpr int ulps = 10;
-				swapShadows = AlmostEqual(shadow.m_TargetLightPos, otherShadow->m_CurrentLightPos, ulps) &&
-					AlmostEqual(otherShadow->m_TargetLightPos, shadow.m_CurrentLightPos, ulps);
-
-				if (swapShadows)
-				{
-					std::swap(shadow.m_CurrentLightPos, otherShadow->m_CurrentLightPos);
-					shadow.m_LightPosLerp = 1;
-					otherShadow->m_LightPosLerp = 1;
-					DevMsg("!! Swap! %d\n", gpGlobals->tickcount);
-				}
-				else
-				{
-					constexpr auto isInfOrNan = [](const Vector& v)->bool {
-						for (int i = 0; i < 3; ++i) {
-							if (std::isinf(v[i]) || std::isnan(v[i]))
-								return true;
-						}
-						return false;
-					};
-					constexpr auto isShadowInfOrNan = [](const ClientShadow_t& s)->bool {
-						return isInfOrNan(s.m_CurrentLightPos) || isInfOrNan(s.m_TargetLightPos);
-					};
-
-					constexpr auto isRidiculouslyLarge = [](const ClientShadow_t& s)->bool {
-						constexpr auto limit = 10000;
-						return s.m_CurrentLightPos.IsLengthGreaterThan(limit) ||
-							s.m_TargetLightPos.IsLengthGreaterThan(limit);
-					};
-
-					if (!isShadowInfOrNan(shadow) && !isShadowInfOrNan(*otherShadow))
-					{
-						if (!isRidiculouslyLarge(shadow) && !isRidiculouslyLarge(*otherShadow))
-						{
-							DevMsg("%f %f %f vs %f %f %f && %f %f %f vs %f %f %f\n",
-								shadow.m_TargetLightPos.x, shadow.m_TargetLightPos.y, shadow.m_TargetLightPos.z,
-								otherShadow->m_CurrentLightPos.x, otherShadow->m_CurrentLightPos.y, otherShadow->m_CurrentLightPos.z,
-
-								otherShadow->m_TargetLightPos.x, otherShadow->m_TargetLightPos.y, otherShadow->m_TargetLightPos.z,
-								shadow.m_CurrentLightPos.x, shadow.m_CurrentLightPos.y, shadow.m_CurrentLightPos.z);
-						}
-						else
-						{
-							DevMsg("Too large\n");
-						}
-					}
-					else
-					{
-						DevMsg("Inf or NaN\n");
-					}
-				}
-			}
-
-			if (swapShadows)
-			{
-				lightPos = targetLightPos;
-			}
-			else
-			{
-				lightPos = Lerp(shadow.m_LightPosLerp, currLightPos, targetLightPos);
-			}
-		}
-
-		if (!swapShadows && shadow.m_LightPosLerp >= 1.0f)
-		{
-			shadow.m_CurrentLightPos = shadow.m_TargetLightPos;
+			pEnt->m_ShadowAlphaFractions[nthShadow] = 0.f;
 		}
 	}
-	else if (shadow.m_LightPosLerp >= 1.0f)
+	else if (pEnt)
 	{
-		// Check if we have a new closest light position and start a new lerp
-		float flDistSq = (lightPos - shadow.m_CurrentLightPos).LengthSqr();
-
-		if (flDistSq > 1.0f)
-		{
-			// Light position has changed, which means we got a new light source. Initiate a lerp
-			shadow.m_TargetLightPos = lightPos;
-			shadow.m_LightPosLerp = 0.0f;
-		}
-
-		lightPos = shadow.m_CurrentLightPos;
+		pEnt->m_ShadowAlphaFractions[nthShadow] = 1.f;
 	}
 
 	if (lightPos.x == FLT_MAX)
@@ -4625,9 +4465,9 @@ void CClientShadowMgr::UpdateShadowDirectionFromLocalLightSource(ClientShadowHan
 
 	shadow.m_ShadowDir = vecResult;
 
-	if (r_worldlight_debug.GetBool())
+	if (r_worldlight_debug.GetBool() && pEnt)
 	{
-		NDebugOverlay::Line(lightPos, origin, 255, 255, 0, false, 0.0f);
+		NDebugOverlay::Line(lightPos, origin, 255, pEnt->m_ShadowAlphaFractions[nthShadow] > 0.f ? 255 : 0, 0, false, 0);
 	}
 }
 

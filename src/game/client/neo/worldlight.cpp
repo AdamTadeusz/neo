@@ -310,7 +310,28 @@ bool CWorldLights::GetBrightestLightSource(const Vector& vecPosition, Vector& ve
 			continue;
 		}
 #endif
-
+		
+#ifdef NEO
+		// Can we see the light?
+		trace_t tr;
+		static const int NUM_OFFSETS = 5;
+		static Vector OFFSETS[NUM_OFFSETS] = { Vector(0, 0, 30), Vector(15, 15, 30), Vector(15, -15, 30), Vector(-15, -15, 30), Vector(-15, 15, 30) };
+		bool canSeeLight = false;
+		for (int i = 0; i < NUM_OFFSETS; i++)
+		{
+			Vector vecAbsStart = vecPosition + OFFSETS[i];
+			UTIL_TraceLine(vecAbsStart, light->origin, MASK_SOLID_BRUSHONLY, nullptr, COLLISION_GROUP_NONE, &tr);
+			if (!tr.DidHit())
+			{
+				canSeeLight = true;
+				break;
+			}
+		}
+		if (!canSeeLight)
+		{
+			continue;
+		}
+#else
 		// Can we see the light?
 		trace_t tr;
 		Vector vecAbsStart = vecPosition + Vector(0, 0, 30);
@@ -321,6 +342,7 @@ bool CWorldLights::GetBrightestLightSource(const Vector& vecPosition, Vector& ve
 			//engine->Con_NPrintf( i, "%d: trace failed", i );
 			continue;
 		}
+#endif // NEO
 
 #ifdef NEO
 		brightest.AddToTail(std::make_pair(light->origin, vecIntensity));
@@ -368,7 +390,7 @@ bool CWorldLights::GetBrightestLightSource(const Vector& vecPosition, Vector& ve
 		vecLightBrightness.IsLengthLessThan(1) ||
 		vecLightBrightness.LengthSqr() == 1);
 #endif
-	return !vecLightBrightness.IsZero();
+	return true;
 }
 
 //-----------------------------------------------------------------------------

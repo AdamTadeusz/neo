@@ -3601,8 +3601,8 @@ void C_BaseEntity::ComputeFxBlend( void )
 			Assert(false);
 			break;
 		}
-		const int alpha = int(255 * m_ShadowAlphaFractions[i]);
-		g_pClientShadowMgr->SetFalloffBias(shadow, (alpha / nShadows - m_nRenderFXBlend));
+		const int alpha = int(255.f * m_ShadowAlphaFractions[i]);
+		g_pClientShadowMgr->SetFalloffBias(shadow, alpha == 0 ? 255 : (clamp(255 - (m_nRenderFXBlend * (m_ShadowAlphaFractions[i])), 0, 255)));
 	}
 #else
 	if ( m_ShadowHandle != CLIENTSHADOW_INVALID_HANDLE )

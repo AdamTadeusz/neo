@@ -435,11 +435,16 @@ ConCommand classmenu("classmenu", &neoClassMenu_Cb, "Open class selection menu."
 ConCommand teammenu("teammenu", &neoTeamMenu_Cb, "Open team selection menu.", FCVAR_USERINFO | FCVAR_DONTRECORD);
 ConCommand vguicancel("vguicancel", &vguiCancel_Cb, "Cancel current vgui screen.", FCVAR_USERINFO | FCVAR_DONTRECORD);
 
+ConVar cl_neo_max_shadows_per_player("cl_neo_max_shadows_per_player", "5", FCVAR_ARCHIVE, "Max number of shadows per player", true, 0, true, 99);
+
 C_NEO_Player::C_NEO_Player()
 {
-	ShadowHandles().AddToTail(CLIENTSHADOW_INVALID_HANDLE);
-	ShadowAlphaFractions().AddToTail(1);
-	Assert(ShadowHandles().Count() == 2);
+	for (int i = 1; i < cl_neo_max_shadows_per_player.GetInt(); i++)
+	{
+		ShadowHandles().AddToTail(CLIENTSHADOW_INVALID_HANDLE);
+		ShadowAlphaFractions().AddToTail(1);
+	}
+	Assert(ShadowHandles().Count() == cl_neo_max_shadows_per_player.GetInt());
 	Assert(ShadowAlphaFractions().Count() == ShadowHandles().Count());
 
 	SetPredictionEligible(true);
