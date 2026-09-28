@@ -292,6 +292,7 @@ inline const wchar_t *GetNeoClassNameW(const int neoClassIdx)
 
 int GetRank(const int xp);
 const char *GetRankName(const int xp, const bool shortened = false);
+const wchar_t *GetRankNameW(const int xp, const bool shortened = false);
 
 CBaseCombatWeapon* GetNeoWepWithBits(const CNEO_Player* player, const NEO_WEP_BITS_UNDERLYING_TYPE& neoWepBits);
 
@@ -315,19 +316,23 @@ void UpdatePingCommands(CNEO_Player* player, const Vector& pingPos);
 
 struct AttackersTotals
 {
-	int dealtDmgs;
-	int dealtHits;
-	int takenDmgs;
-	int takenHits;
-
-	void operator+=(const AttackersTotals &other)
-	{
-		dealtDmgs += other.dealtDmgs;
-		dealtHits += other.dealtHits;
-		takenDmgs += other.takenDmgs;
-		takenHits += other.takenHits;
-	}
+	int iUserID;
+	int iDealtDmgs;
+	int iDealtHits;
+	int iTakenDmgs;
+	int iTakenHits;
 };
+
+enum ENEOCompactMsgFlag_ : unsigned char
+{
+	NEO_COMPACT_MSG_FLAG_NIL = 0,
+	NEO_COMPACT_MSG_FLAG_DMGS = (1 << 0),
+	NEO_COMPACT_MSG_FLAG_HITS = (1 << 1),
+	NEO_COMPACT_MSG_FLAG_EXTRA = (1 << 2),
+};
+
+typedef unsigned char ENEOCompactMsgFlag;
+
 
 [[deprecated]] void KillerLineStr(char* killByLine, const int killByLineMax,
 	CNEO_Player* neoAttacker, const CNEO_Player* neoVictim, const char* killedWith = "");
@@ -413,5 +418,7 @@ static constexpr const SZWSZTexts SZWSZ_NEO_TEAM_STRS[TEAM__TOTAL] = {
 };
 
 #define NEO_GAME_NAME "NEOTOKYO;REBUILD"
+
+static constexpr const int WEP_NAME_MAXSTRLEN = 32;
 
 #endif // NEO_PLAYER_SHARED_H
